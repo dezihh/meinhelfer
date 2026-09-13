@@ -478,11 +478,47 @@ async function executeAction(
   return parseAgentAnswer(message.content ?? '', trace);
 }
 
+const CHAT_CHAT_SESSIONS = new Set<string>();
+
+const CHAT_ON_RE = /(chat[-\s]?modus|chatmodus|unterhaltung[-\s]?modus|gespraechs?[-\s]?modus|im gespraech bleiben)/i;
+const CHAT_OFF_RE = /(one[-\s]?shot|einzelmodus|alltag[-\s]?modus|beende.*chat|chat[-\s]?beenden|wechsle.*one[-\s]?shot)/i;
+
+export function isChatSession(sessionId: string): boolean {
+  return CHAT_CHAT_SESSIONS.has(sessionId);
+}
+
 export async function processQuery(query: VoiceQuery): Promise<EngineResult> {
   const start = Date.now();
   const trace: TraceEvent[] = [
     { ts: start, step: 'query', detail: { sessionId: query.sessionId, text: query.text } },
   ];
+
+  // Chat-/OneShot-Modus-Wechsel: deterministisch, Session-Zustand
+  const qLower = query.text.toLowerCase();
+  if (CHAT_OFF_RE.test(qLower)) {
+    CHAT_CHAT_SESSIONS.delete(query.sessionId);
+    trace.push({ ts: Date.now(), step: 'chat.off', detail: { sessionId: query.sessionId } });
+    return {
+      response: { speech: 'Okay, ich beantworte die nächsten Fragen wieder einzeln.', followUp: false },
+      route: 'chat',
+      durationMs: Date.now() - start,
+      trace,
+    };
+  }
+  if (CHAT_ON_RE.test(qLower)) {
+    CHAT_CHAT_SESSIONS.add(query.sessionId);
+    trace.push({ ts: Date.now(), step: 'chat.on', detail: { sessionId: query.sessionId } });
+    return {
+      response: {
+        speech: 'Gut, ich bleibe im Gespräch. Was möchtest du noch wissen?',
+        followUp: true,
+        followupPrompt: 'Was möchtest du noch wissen?',
+      },
+      route: 'chat',
+      durationMs: Date.now() - start,
+      trace,
+    };
+  }
   const actions = listActions(true);
   const fuzzyGlobal = getSetting('fuzzy_global') !== '0';
   const match: RouteMatch | null = routeAction(query.text, actions, fuzzyGlobal);
@@ -521,7 +557,9 @@ export async function processQuery(query: VoiceQuery): Promise<EngineResult> {
   response = withSsmlBreaks(response);
   response = withDisplay(response);
 
-  if (!response.followUp) {
+  if (CHAT_CHAT_SESSIONS.has(query.sessionId)) {
+    response = { ...response, followUp: true, followupPrompt: 'Was möchtest du noch wissen?' };
+  } else if (!response.followUp) {
     const mode = getSetting('session_followup') ?? '0';
     const wantLlm = mode === 'llm' || mode === 'beides';
     const wantKw = mode === 'keyword' || mode === 'beides';
