@@ -62,11 +62,22 @@ jobs:
             aws lambda update-function-code --function-name meinhelfer-alexa --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip
           else
             echo "Funktion neu anlegen..."
-            aws lambda create-function --function-name meinhelfer-alexa \
-              --runtime python3.14 --handler lambda_function.lambda_handler \
-              --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip \
-              --timeout "${TIMEOUT}" --memory-size 512 \
-              --role "${ROLE_ARN}"
+            # IAM-Propagation: Rolle ist gerade erst angelegt -> 6 Versuche mit 10s Pause
+            for attempt in $(seq 1 6); do
+              if aws lambda create-function --function-name meinhelfer-alexa \
+                --runtime python3.14 --handler lambda_function.lambda_handler \
+                --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip \
+                --timeout "${TIMEOUT}" --memory-size 512 \
+                --role "${ROLE_ARN}"
+              then
+                echo "create-function OK (Versuch ${attempt})"
+                break
+              else
+                echo "create-function Versuch ${attempt} fehlgeschlagen (IAM-Propagation?)..."
+                sleep 10
+              fi
+            done
+            aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null
           fi
 
           # 3) Timeout + Env setzen (env-config.json analog, Token nie im Repo)
