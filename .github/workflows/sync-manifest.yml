@@ -12,6 +12,9 @@ on:
       endpoint_arn:
         description: "ARN der eigenen AWS-Lambda als Skill-Endpoint (leer = unveraendert lassen)"
         default: ""
+      dry_run:
+        description: "1 = nur aktuellen Zustand anzeigen, kein PUT"
+        default: "0"
 
 jobs:
   sync:
@@ -35,6 +38,7 @@ jobs:
           ADD_APL: ${{ inputs.add_apl }}
           ENDPOINT_ARN: ${{ inputs.endpoint_arn }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           source ~/.ask/auth_info
           REFRESH=$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.ask/cli_config")))["profiles"]["default"]["token"]["refresh_token"])')
@@ -44,13 +48,15 @@ jobs:
           BASE="${ask_smapi_api}/v1/skills/${SKILL_ID}/stages/development/manifest"
           HTTP=$(curl -s -D /tmp/h.txt -o /tmp/m.json -w "%{http_code}" -H "Authorization: Bearer ${ACCESS}" "${BASE}")
           echo "GET -> HTTP ${HTTP}"
-          python3 - "$ADD_APL" "$ENDPOINT_ARN" "$AWS_REGION" <<'PYEOF'
+          python3 - "$ADD_APL" "$ENDPOINT_ARN" "$AWS_REGION" "$DRY_RUN" <<'PYEOF'
           import json, sys
           m = json.load(open("/tmp/m.json"))
           manifest = m.get("manifest", {})
           need_put = False
+          dry_run = sys.argv[4] == "1"
           cur_ep = manifest.get("apis", {}).get("custom", {}).get("endpoint", {})
           print("AKTUELLER Live-Endpoint (vor evtl. Aenderung):", json.dumps(cur_ep))
+          print("DRY_RUN:", dry_run)
           interfaces = manifest.get("apis", {}).get("custom", {}).get("interfaces", [])
           names = [i.get("type") for i in interfaces]
           print("Interfaces:", names)
@@ -74,6 +80,8 @@ jobs:
                       "sslCertificateType": "Wildcard",
                   }
               need_put = True
+          if dry_run:
+              need_put = False
           if need_put:
               json.dump(m, open("/tmp/m_new.json", "w"), ensure_ascii=False)
           else:
@@ -85,10 +93,14 @@ jobs:
             HTTP=$(curl -s -o /tmp/put.json -w "%{http_code}" -X PUT -H "Authorization: Bearer ${ACCESS}" -H "Content-Type: application/json" -H "If-Match: ${ETAG}" --data-binary @/tmp/m_new.json "${BASE}")
             echo "PUT -> HTTP ${HTTP}"; head -c 400 /tmp/put.json; echo ""
             echo "=== Build-Status pollen (resource=manifest):"
-            for i in $(seq 1 18); do
-              sleep 5
-              S=$(curl -s -H "Authorization: Bearer ${ACCESS}" "${ask_smapi_api}/v1/skills/${SKILL_ID}/status?resource=manifest" | python3 -c 'import json,sys; d=json.load(sys.stdin); ms=d.get("manifest",{}); print(next(iter(ms.values())).get("lastUpdateRequest",{}).get("status","?") if ms else "?")' 2>/dev/null || echo UNKNOWN)
-              echo "  poll $i: ${S}"
-              if [ "${S}" = "SUCCEEDED" ] || [ "${S}" = "FAILURE" ]; then break; fi
+            for i in $(seq 1 24); do
+              sleep 10
+              curl -s -H "Authorization: Bearer ${ACCESS}" "${ask_smapi_api}/v1/skills/${SKILL_ID}/status?resource=manifest" -o /tmp/status.json || true
+              echo "  poll $i raw: $(python3 -c 'import json;d=json.load(open("/tmp/status.json"));import sys;print(json.dumps(d)[:600])' 2>/dev/null || cat /tmp/status.json | head -c 200)"
+              S=$(python3 -c 'import json;d=json.load(open("/tmp/status.json"));r=d.get("manifest") or {};v=next(iter(r.values()),{});print((v.get("lastUpdateRequest") or {}).get("status") or "UNKNOWN")' 2>/dev/null || echo UNKNOWN)
+              if [ "${S}" = "SUCCEEDED" ] || [ "${S}" = "FAILURE" ]; then
+                echo "  -> Final: ${S}"
+                break
+              fi
             done
           fi
