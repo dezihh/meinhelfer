@@ -82,7 +82,16 @@ jobs:
 
           # 3) Timeout + Env setzen (als volles Operations-JSON, sicher für Sonderzeichen im Token)
           python3 -c 'import json,sys; t,u,g=sys.argv[1:]; open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":int(t),"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"watchdog_delay":"5","gateway_timeout":"60","skill_name":"MeinHelfer","assistant_name":"Dein Helfer"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}"
-          aws lambda update-function-configuration --cli-input-json file:///tmp/cfg.json
+          for attempt in $(seq 1 6); do
+            if aws lambda update-function-configuration --cli-input-json file:///tmp/cfg.json
+            then
+              echo "update-function-configuration OK (Versuch ${attempt})"
+              break
+            else
+              echo "update-function-configuration Versuch ${attempt} fehlgeschlagen (Update in progress?)..."
+              sleep 10
+            fi
+          done
 
           # 4) ARN ausgeben
           ARN=$(aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionResourceArn' --output text)
