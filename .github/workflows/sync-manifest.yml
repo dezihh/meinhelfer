@@ -49,6 +49,8 @@ jobs:
           m = json.load(open("/tmp/m.json"))
           manifest = m.get("manifest", {})
           need_put = False
+          cur_ep = manifest.get("apis", {}).get("custom", {}).get("endpoint", {})
+          print("AKTUELLER Live-Endpoint (vor evtl. Aenderung):", json.dumps(cur_ep))
           interfaces = manifest.get("apis", {}).get("custom", {}).get("interfaces", [])
           names = [i.get("type") for i in interfaces]
           print("Interfaces:", names)
