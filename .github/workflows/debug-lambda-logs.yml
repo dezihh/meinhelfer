@@ -1,0 +1,43 @@
+name: Debug Lambda Logs (CloudWatch)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-west-1' }}
+
+      - name: Letzte Lambda-Log-Events (Fehler + Query-Log) holen
+        run: |
+          ARN="arn:aws:lambda:${AWS_DEFAULT_REGION:-eu-west-1}:$(aws sts get-caller-identity --query Account --output text):function:meinhelfer-alexa"
+          echo "Log-ARN: ${ARN}"
+          aws logs get-log-events --log-source-arn "${ARN}" --limit 120 \
+            --output json 2>/tmp/logs.err > /tmp/events.json
+          if [ -s /tmp/events.json ]; then
+            echo "=== Events-Zahl: $(python3 -c 'import json;print(len(json.load(open("/tmp/events.json"))))' 2>/dev/null || echo unbekannt)"
+            python3 - <<'PYEOF'
+            import json
+            try:
+                evs = json.load(open("/tmp/events.json"))
+            except Exception as e:
+                print("Parse-Fehler:", e)
+                evs = []
+            msgs = [ (ev.get("timestamp",""), ev.get("message","")) for ev in evs ]
+            for ts, msg in msgs:
+                if any(k in msg for k in ("ERROR", "Error", "Traceback", "Fehler", "fehlgeschlagen", "Query empfangen", "Gateway-Antwort", "Watchdog")):
+                    print(ts, "|", msg.strip()[:600])
+            PYEOF
+          else
+            echo "keine Events (Logs noch nicht aktiv?) - Fehler:"
+            cat /tmp/logs.err
+          fi
