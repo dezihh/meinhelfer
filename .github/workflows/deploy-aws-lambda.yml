@@ -94,7 +94,7 @@ jobs:
           done
 
           # 4) ARN ausgeben
-          ARN=$(aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionResourceArn' --output text)
+          ARN=$(aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionArn' --output text)
           echo "LAMBDA_ARN=${ARN}" >> "$GITHUB_ENV"
           echo "Lambda-ARN: ${ARN}"
           echo
