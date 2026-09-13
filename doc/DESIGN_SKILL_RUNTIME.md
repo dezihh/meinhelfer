@@ -19,20 +19,16 @@
 
 - Das Alexa-**Antwortfenster** von ~8 s gilt für die Antwort an den Nutzer.
 - **Progressive Responses** verlängern das Nutzer-Fenster (~20–30 s).
-- **ABER:** Die Alexa-hosted-Lambda hat ein **hartes, nicht konfigurierbares
-  AWS-Function-Timeout von exakt 8 s** – nachweislich `REPORT Duration:
-  8000.00 ms … Status: timeout` (CloudWatch) und `499` (client closed
-  request) im Nginx-Access-Log. Der Warteton-Watchdog in der Lambda
-  verlängert nur Alexanders Client-Fenster, nicht die Lambda-Ausführung.
-  Agent-Ketten > 8 s können deshalb NICHT über eine Alexa-hosted-Lambda laufen.
-
-- **Ausweg (User-Entscheid, 13.09.2026):** Die Lambda wird als **eigene
-  AWS-Funktion** deployt statt als Alexa-hosted (`deploy-aws-lambda.yml`),
-  mit konfigurierbarem Timeout (Default 30 s) und Env-Konfiguration
-  (gateway_url/-token aus GitHub-Secrets, nie im Repo). Manifest-Endpoint
-  wird danach auf die eigene Lambda-ARN umgestellt (Amazon prüft den
-  Endpoint-Fingerprint). Architektur (Gateway, MCP, LLM, Router) bleibt
-  unangetastet – nur der Hosting-Layer der Thin-Lambda ändert sich.
+- **UMGESETZT (13.09.2026):** Der Skill läuft jetzt über eine **eigene
+  AWS-Lambda** (`meinhelfer-alexa`, Account 837775096857, Python 3.14,
+  Timeout 30 s) statt der Alexa-hosted-Lambda — das harte 8-s-Limit ist
+  dadurch entfallen. Manifet-Endpoint `uri` zeigt auf die Lambda-ARN
+  (kein `sslCertificateType` bei ARN, nur HTTPS). Deployment: Workflow
+  `deploy-aws-lambda.yml` (baut Zip aus `alexa/lambda/`, IAM-Rolle
+  auto, Env via `--cli-input-json` aus GitHub-Secrets, ARN deterministisch).
+  `sync-manifest.yml` kann den Endpoint per SMAPI-PUT setzen (input
+  `endpoint_arn` oder Auto-Bau aus `AWS_REGION`). Architektur (Gateway,
+  MCP, LLM, Router) unverändert – nur der Hosting-Layer der Thin-Lambda.
 
 ## Architektur: Gateway-Endpoint (Option B)
 
