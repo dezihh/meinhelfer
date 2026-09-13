@@ -183,11 +183,12 @@ function traceUsage(trace: TraceEvent[], model: string, result: ChatCompletionRe
     ts: Date.now(),
     step: 'llm.usage',
     detail: {
-      model,
+      model: result.usage.model ?? model,
       prompt_tokens: result.usage.prompt_tokens,
       completion_tokens: result.usage.completion_tokens,
       total_tokens: result.usage.total_tokens,
       cached: result.usage.cached,
+      via_fallback: result.usage.via_fallback,
     },
   });
 }
