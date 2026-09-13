@@ -68,17 +68,30 @@ jobs:
           if not endpoint_arn and sys.argv[3]:
               endpoint_arn = "arn:aws:lambda:{}:837775096857:function:meinhelfer-alexa".format(sys.argv[3])
           if endpoint_arn:
-              ep = manifest.get("apis", {}).get("custom", {}).get("endpoint", {})
+              custom = manifest.get("apis", {}).get("custom", {})
+              ep = custom.get("endpoint", {})
               old = ep.get("uri", "(keine)")
               print("Endpoint: {} -> {}".format(old, endpoint_arn))
               if "arn:aws:lambda" in endpoint_arn:
-                  manifest["apis"]["custom"]["endpoint"] = {"uri": endpoint_arn}
+                  custom["endpoint"] = {"uri": endpoint_arn}
                   print("  (ARN-Lambda: kein sslCertificateType, nur fuer HTTPS gueltig)")
               else:
-                  manifest["apis"]["custom"]["endpoint"] = {
+                  custom["endpoint"] = {
                       "uri": endpoint_arn,
                       "sslCertificateType": "Wildcard",
                   }
+              # Regionen-spezifische Endpoints (EU/NA/FE) ebenfalls umstellen:
+              # Amazon liefert ueber regions.*.endpoint aus - wenn dort noch die
+              # Hosted-Release_0-ARN steht, geht der echte Call nie an unsere Lambda.
+              regions = custom.get("regions", {})
+              for reg, rval in regions.items():
+                  rep = rval.get("endpoint") or {}
+                  r_old = rep.get("uri", "(keine)")
+                  if r_old != endpoint_arn:
+                      rval["endpoint"] = {"uri": endpoint_arn}
+                      print("Region {}: {} -> {}".format(reg, r_old, endpoint_arn))
+              if regions:
+                  custom["regions"] = regions
               need_put = True
           if dry_run:
               need_put = False
