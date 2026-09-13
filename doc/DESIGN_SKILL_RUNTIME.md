@@ -26,6 +26,14 @@
   verlängert nur Alexanders Client-Fenster, nicht die Lambda-Ausführung.
   Agent-Ketten > 8 s können deshalb NICHT über eine Alexa-hosted-Lambda laufen.
 
+- **Ausweg (User-Entscheid, 13.09.2026):** Die Lambda wird als **eigene
+  AWS-Funktion** deployt statt als Alexa-hosted (`deploy-aws-lambda.yml`),
+  mit konfigurierbarem Timeout (Default 30 s) und Env-Konfiguration
+  (gateway_url/-token aus GitHub-Secrets, nie im Repo). Manifest-Endpoint
+  wird danach auf die eigene Lambda-ARN umgestellt (Amazon prüft den
+  Endpoint-Fingerprint). Architektur (Gateway, MCP, LLM, Router) bleibt
+  unangetastet – nur der Hosting-Layer der Thin-Lambda ändert sich.
+
 ## Architektur: Gateway-Endpoint (Option B)
 
 - `/alexa` hält die HTTP-Verbindung offen, bis der Core fertig ist
