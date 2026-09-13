@@ -93,8 +93,9 @@ jobs:
             fi
           done
 
-          # 4) ARN ausgeben
-          ARN=$(aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionArn' --output text)
+          # 4) ARN ausgeben (Lambda-Funktions-ARN ist deterministisch aufgebaut)
+          REGION="${AWS_DEFAULT_REGION:-eu-west-1}"
+          ARN="arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:meinhelfer-alexa"
           echo "LAMBDA_ARN=${ARN}" >> "$GITHUB_ENV"
           echo "Lambda-ARN: ${ARN}"
           echo
