@@ -1,0 +1,75 @@
+name: Deploy AWS-Lambda (eigene Funktion statt Alexa-hosted)
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout:
+        description: "Lambda-Timeout in Sekunden (> 8 noetig, um hosted-Limit zu sprengen)"
+        default: "30"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-west-1' }}
+
+      - name: Paket bauen + Funktion deployen (einfacher Weg, kein Layer-Stack)
+        env:
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          set -e
+          # 1) Deployment-Zip: lambda_function.py + requirements.txt
+          cd alexa/lambda
+          mkdir -p pkg
+          cp lambda_function.py requirements.txt pkg/
+          cd pkg
+          # ask-sdk + requests im Zip (so kein Layer nötig)
+          python3 -m pip install --quiet --target=./ -r ../requirements.txt
+          zip -qr ../meinhelfer-alexa.zip . && cd ..
+          cd ../..
+
+          # 2) Funktion anlegen oder aktualisieren
+          ARN=""
+          if aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null 2>&1; then
+            echo "bestehende Funktion aktualisieren..."
+            aws lambda update-function-code --function-name meinhelfer-alexa --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip
+          else
+            echo "Funktion neu anlegen..."
+            # Vorkonfigurierte Rolle verwenden, falls gesetzt; sonst Grundrolle im Workflow-Secret
+            ROLE=""
+            [ -n "${{ secrets.AWS_LAMBDA_ROLE }}" ] && ROLE="--role ${{ secrets.AWS_LAMBDA_ROLE }}"
+            aws lambda create-function --function-name meinhelfer-alexa \
+              --runtime python3.12 --handler lambda_function.lambda_handler \
+              --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip \
+              --timeout "${TIMEOUT}" --memory-size 512 ${ROLE}
+          fi
+
+          # 3) Timeout + Env setzen (env-config.json analog, Token nie im Repo)
+          aws lambda update-function-configuration --function-name meinhelfer-alexa \
+            --timeout "${TIMEOUT}" \
+            --environment 'Variables={"gateway_url":"'"${GATEWAY_URL}"'","gateway_token":"'"${GATEWAY_TOKEN}"'","watchdog_delay":"5","gateway_timeout":"60","skill_name":"MeinHelfer","assistant_name":"Dein Helfer"}'
+
+          # 4) ARN ausgeben
+          ARN=$(aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionResourceArn' --output text)
+          echo "LAMBDA_ARN=${ARN}" >> "$GITHUB_ENV"
+          echo "Lambda-ARN: ${ARN}"
+          echo
+
+      - name: Manifest-Hinweis
+        run: |
+          echo "=============================================="
+          echo "NÄCHSTER SCHRITT (manuell, einmalig):"
+          echo "  Skill-Manifest Endpoint auf eigene ARN umstellen:"
+          echo "  LAMBDA_ARN=${LAMBDA_ARN}"
+          echo "  (sync-manifest-Workflow oder Alexa-Console; Amazon prueft Endpoint-Fingerprint)"
+          echo "=============================================="
