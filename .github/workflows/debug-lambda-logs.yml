@@ -19,25 +19,21 @@ jobs:
 
       - name: Letzte Lambda-Log-Events (Fehler + Query-Log) holen
         run: |
+          set +e
           ARN="arn:aws:lambda:${AWS_DEFAULT_REGION:-eu-west-1}:$(aws sts get-caller-identity --query Account --output text):function:meinhelfer-alexa"
           echo "Log-ARN: ${ARN}"
+          echo "=== aws logs CLI verfuegbar? ==="
+          aws logs help 2>&1 | head -20 ; echo "(exit $?)"
+          echo "=== get-log-events ==="
           aws logs get-log-events --log-source-arn "${ARN}" --limit 120 \
             --output json 2>/tmp/logs.err > /tmp/events.json
-          if [ -s /tmp/events.json ]; then
-            echo "=== Events-Zahl: $(python3 -c 'import json;print(len(json.load(open("/tmp/events.json"))))' 2>/dev/null || echo unbekannt)"
-            python3 - <<'PYEOF'
-            import json
-            try:
-                evs = json.load(open("/tmp/events.json"))
-            except Exception as e:
-                print("Parse-Fehler:", e)
-                evs = []
-            msgs = [ (ev.get("timestamp",""), ev.get("message","")) for ev in evs ]
-            for ts, msg in msgs:
-                if any(k in msg for k in ("ERROR", "Error", "Traceback", "Fehler", "fehlgeschlagen", "Query empfangen", "Gateway-Antwort", "Watchdog")):
-                    print(ts, "|", msg.strip()[:600])
-            PYEOF
-          else
-            echo "keine Events (Logs noch nicht aktiv?) - Fehler:"
-            cat /tmp/logs.err
-          fi
+          RC=$?
+          echo "aws logs exit: ${RC}"
+          echo "--- stderr: ---"
+          cat /tmp/logs.err
+          echo "--- events.json (erste 300 Zeichen): ---"
+          head -c 300 /tmp/events.json
+          echo ""
+          echo "=== fallback: cloudwatch-Loggruppe direkt ==="
+          aws cloudwatch get-log-events --log-group-name "/aws/lambda/meinhelfer-alexa" --limit 120 2>&1 | head -c 2000
+          echo ""
