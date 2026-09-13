@@ -26,8 +26,26 @@ jobs:
           GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
           GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
           TIMEOUT: ${{ inputs.timeout }}
+          LAMBDA_ROLE: ${{ secrets.AWS_LAMBDA_ROLE }}
         run: |
           set -e
+          # 0) Account-ID + Execution-Rolle sicherstellen (falls nicht via Secret gesetzt)
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "AWS Account: ${ACCOUNT_ID}"
+          ROLE_ARN="${LAMBDA_ROLE}"
+          if [ -z "${ROLE_ARN}" ]; then
+            ROLE_NAME="${AWS_LAMBDA_ROLE_NAME:-meinhelfer-lambda-execution}"
+            ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+            if ! aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
+              echo "Rolle ${ROLE_NAME} existiert nicht -> anlegen (Lambda-Basic-Execution-Trust)"
+              aws iam create-role --role-name "${ROLE_NAME}" \
+                --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":["lambda.amazonaws.com","iam.amazonaws.com"]},"Action":["sts:AssumeRole"]}]}'
+            else
+              echo "Rolle ${ROLE_NAME} existiert bereits"
+            fi
+          fi
+          echo "Verwende Rolle: ${ROLE_ARN}"
+
           # 1) Deployment-Zip: lambda_function.py + requirements.txt
           cd alexa/lambda
           mkdir -p pkg
@@ -39,19 +57,16 @@ jobs:
           cd ../..
 
           # 2) Funktion anlegen oder aktualisieren
-          ARN=""
           if aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null 2>&1; then
             echo "bestehende Funktion aktualisieren..."
             aws lambda update-function-code --function-name meinhelfer-alexa --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip
           else
             echo "Funktion neu anlegen..."
-            # Vorkonfigurierte Rolle verwenden, falls gesetzt; sonst Grundrolle im Workflow-Secret
-            ROLE=""
-            [ -n "${{ secrets.AWS_LAMBDA_ROLE }}" ] && ROLE="--role ${{ secrets.AWS_LAMBDA_ROLE }}"
             aws lambda create-function --function-name meinhelfer-alexa \
-              --runtime python3.12 --handler lambda_function.lambda_handler \
+              --runtime python3.14 --handler lambda_function.lambda_handler \
               --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip \
-              --timeout "${TIMEOUT}" --memory-size 512 ${ROLE}
+              --timeout "${TIMEOUT}" --memory-size 512 \
+              --role "${ROLE_ARN}"
           fi
 
           # 3) Timeout + Env setzen (env-config.json analog, Token nie im Repo)
