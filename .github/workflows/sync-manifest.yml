@@ -9,6 +9,9 @@ on:
       add_apl:
         description: "1 = APL-Interface ergaenzen (falls fehlt)"
         default: "1"
+      endpoint_arn:
+        description: "ARN der eigenen AWS-Lambda als Skill-Endpoint (leer = unveraendert lassen)"
+        default: ""
 
 jobs:
   sync:
@@ -30,6 +33,7 @@ jobs:
         env:
           SKILL_ID: ${{ inputs.skill_id || secrets.ALEXA_SKILL_ID }}
           ADD_APL: ${{ inputs.add_apl }}
+          ENDPOINT_ARN: ${{ inputs.endpoint_arn }}
         run: |
           source ~/.ask/auth_info
           REFRESH=$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.ask/cli_config")))["profiles"]["default"]["token"]["refresh_token"])')
@@ -39,16 +43,29 @@ jobs:
           BASE="${ask_smapi_api}/v1/skills/${SKILL_ID}/stages/development/manifest"
           HTTP=$(curl -s -D /tmp/h.txt -o /tmp/m.json -w "%{http_code}" -H "Authorization: Bearer ${ACCESS}" "${BASE}")
           echo "GET -> HTTP ${HTTP}"
-          python3 - "$ADD_APL" <<'PYEOF'
+          python3 - "$ADD_APL" "$ENDPOINT_ARN" <<'PYEOF'
           import json, sys
           m = json.load(open("/tmp/m.json"))
-          interfaces = m.get("manifest", {}).get("apis", {}).get("custom", {}).get("interfaces", [])
+          manifest = m.get("manifest", {})
+          need_put = False
+          interfaces = manifest.get("apis", {}).get("custom", {}).get("interfaces", [])
           names = [i.get("type") for i in interfaces]
           print("Interfaces:", names)
           if sys.argv[1] == "1" and "ALEXA_PRESENTATION_APL" not in names:
               interfaces.append({"type": "ALEXA_PRESENTATION_APL"})
-              json.dump(m, open("/tmp/m_new.json", "w"), ensure_ascii=False)
+              need_put = True
               print("APL ergaenzt")
+          if sys.argv[2]:
+              ep = manifest.get("apis", {}).get("custom", {}).get("endpoint", {})
+              old = ep.get("uri", "(keine)")
+              print("Endpoint: {} -> {}".format(old, sys.argv[2]))
+              manifest["apis"]["custom"]["endpoint"] = {
+                  "uri": sys.argv[2],
+                  "sslCertificateType": "Wildcard",
+              }
+              need_put = True
+          if need_put:
+              json.dump(m, open("/tmp/m_new.json", "w"), ensure_ascii=False)
           else:
               open("/tmp/m_new.json", "w").write("")
               print("kein PUT noetig")
