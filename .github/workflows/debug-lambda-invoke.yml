@@ -1,0 +1,68 @@
+name: Debug Lambda Invoke (GptQueryIntent)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  invoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-west-1' }}
+
+      - name: Lambda direkt aufrufen (Hausstatus-Query)
+        env:
+          SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
+        run: |
+          python3 - <<'PYEOF' > /tmp/req.json
+          import json, os
+          sid = os.environ["SKILL_ID"]
+          req = {
+            "version": "1.0",
+            "session": {
+              "new": True,
+              "sessionId": "amzn1.echo-api.session.debug-invoke-local",
+              "application": {"applicationId": sid},
+              "user": {"userId": "amzn1.account.debuginvoke"}
+            },
+            "context": {
+              "System": {
+                "application": {"applicationId": sid},
+                "user": {"userId": "amzn1.account.debuginvoke"},
+                "device": {"supportedInterfaces": {}},
+                "apiEndpoint": "https://api.eu.amazonalexa.com",
+                "apiAccessToken": "test-token"
+              }
+            },
+            "request": {
+              "type": "IntentRequest",
+              "requestId": "amzn1.echo-api.request.debug-invoke-0001",
+              "locale": "de-DE",
+              "timestamp": "2026-09-13T19:00:00Z",
+              "intent": {
+                "name": "GptQueryIntent",
+                "slots": {"query": {"name": "query", "value": "wie ist der hausstatus"}}
+              }
+            }
+          }
+          json.dump(req, open("/tmp/req.json", "w"))
+          PYEOF
+          echo "=== aws lambda invoke ==="
+          set +e
+          aws lambda invoke --function-name meinhelfer-alexa \
+            --cli-binary-format raw-in-base64-out \
+            --payload "file:///tmp/req.json" \
+            /tmp/response.json --log-type Tail 2>/tmp/inv.err
+          RC=$?
+          echo "exit: ${RC}"
+          echo "--- stderr ---"
+          cat /tmp/inv.err
+          echo "--- response.json ---"
+          head -c 1500 /tmp/response.json 2>/dev/null
