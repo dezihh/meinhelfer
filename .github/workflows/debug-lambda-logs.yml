@@ -17,23 +17,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION || 'eu-west-1' }}
 
-      - name: Letzte Lambda-Log-Events (Fehler + Query-Log) holen
+      - name: Gateway direkt testen (extern → Gateway erreichbar + Token gueltig?)
+        env:
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+        run: |
+          set +e
+          BASE="${GATEWAY_URL%/}"
+          echo "=== POST ${BASE}/api/query (extern) ==="
+          curl -s -o /tmp/gw.json -w "HTTP %{http_code} in %{time_total}s\n" -X POST \
+            -H "Authorization: Bearer ${GATEWAY_TOKEN}" -H "Content-Type: application/json" \
+            -d '{"sessionId":"ci-ext-$(date +%s)","text":"wie ist der hausstatus"}' \
+            --max-time 60 "${BASE}/api/query"
+          head -c 400 /tmp/gw.json
+          echo ""
+          echo "=== GET ${BASE} (Basis erreichbar?) ==="
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" --max-time 15 "${BASE}/"
+
+      - name: CloudWatch-Logs unserer Lambda (Streams auflisten + lesen)
         run: |
           set +e
           ARN="arn:aws:lambda:${AWS_DEFAULT_REGION:-eu-west-1}:$(aws sts get-caller-identity --query Account --output text):function:meinhelfer-alexa"
-          echo "Log-ARN: ${ARN}"
-          echo "=== aws logs CLI verfuegbar? ==="
-          aws logs help 2>&1 | head -20 ; echo "(exit $?)"
-          echo "=== get-log-events ==="
-          aws logs get-log-events --log-source-arn "${ARN}" --limit 120 \
-            --output json 2>/tmp/logs.err > /tmp/events.json
-          RC=$?
-          echo "aws logs exit: ${RC}"
-          echo "--- stderr: ---"
-          cat /tmp/logs.err
-          echo "--- events.json (erste 300 Zeichen): ---"
-          head -c 300 /tmp/events.json
+          echo "ARN: ${ARN}"
+          echo "=== help ==="
+          aws logs help 2>&1 | head -40
           echo ""
-          echo "=== fallback: cloudwatch-Loggruppe direkt ==="
-          aws cloudwatch get-log-events --log-group-name "/aws/lambda/meinhelfer-alexa" --limit 120 2>&1 | head -c 2000
+          echo "=== Versuch 1: list-log-streams ==="
+          aws logs list-log-streams --log-source-arn "${ARN}" 2>&1 | head -c 1200
           echo ""
+          echo "=== Versuch 2: list-log-event-sources? ==="
+          aws logs help 2>&1 | grep -io "[a-z-]*log[a-z-]*" | sort -u
