@@ -167,6 +167,22 @@ Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
 - Mehrteilige Antworten (Nachrichten, Listen, mehrere Themen): Trenne logische Teile mit Zeilenumbruechen (\\n\\n) zwischen den Teilen - die werden als Sprechpausen umgesetzt.`
 );
 
+// Tool-Inventory: Pflege-Regel statt Einzelregeln im Haupt-Prompt.
+// Das LLM prueft hier VOR jedem Tool-Aufruf, welches Tool wofuer zustaendig ist.
+db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run(
+  'agent_inventory',
+  `Nimm dieses Nachschlagewerk als Pflicht-Referenz, bevor du ein Tool aufrufst:
+
+- Hausautomatisierung (Licht, Schalter, Rolladen, Klima, Sensoren): find_ha_entities -> control_device / get_ha_state (nur das HA-Tool, KEINE Websuche).
+- Hausstatus (Akkustand, Verbrauch, Solar): get_house_status (deterministisch, kein LLM).
+- Benzinpreis: get_fuel_prices.
+- Boersen-/Finanznachrichten (onvista, boerse.de, finanzen.net): search_web gezielt auf die Quelle (z.B. "onvista news").
+- Allgemeine Nachrichten/Recherche: search_web (time_range "week"), aus Snippets mit Quellen antworten.
+- Konkrete Seite/URL lesen: web_url_read (nur auf ausdruecklichen Wunsch).
+
+Kombinationen (z.B. "News und dann Hausstatus"): jeder Teil nutzt das jeweils zustaendige Tool - der Reihenfolge nach, nicht abbrechen.`
+);
+
 db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run(
   'fastpath_system',
   `Du bist {assistant_name}, ein deutscher Sprachassistent. Die Websuche ist bereits erfolgt.

@@ -14,6 +14,19 @@ export function normalize(text: string): string {
     .trim();
 }
 
+// Erkennt Anfragen mit mehreren Themen/Verknuepfungen, die deterministische
+// Einzel-Actions nicht bedienen koennen (z.B. "Benzinpreis und Akkustand").
+function isCombinedQuery(text: string): boolean {
+  const q = normalize(text);
+  if (q.includes(' und ') || q.includes(' sowie ') || q.includes(' ausserdem ') || q.includes(' außerdem ')) {
+    return true;
+  }
+  const fragments = q.split(' ').filter((w) => w === 'und' || w === 'sowie' || w === '&').length;
+  if (fragments > 1) return true;
+  const commaParts = q.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+  return commaParts.length >= 2;
+}
+
 function bigrams(text: string): Set<string> {
   const padded = ` ${text} `;
   const out = new Set<string>();
@@ -36,6 +49,9 @@ export function routeAction(
   fuzzyGlobal: boolean
 ): RouteMatch | null {
   const query = normalize(text);
+  // Kombinierte Anfrage (mehrere Themen)? Deterministische Actions koennen nur EIN
+  // Template bedienen -> Kombinationen an den Agent (der nutzt das Tool-Inventory).
+  const combined = isCombinedQuery(text);
   let best: RouteMatch | null = null;
   for (const action of actions) {
     for (const phrase of action.triggers) {
@@ -47,6 +63,7 @@ export function routeAction(
       else if (fuzzyGlobal) score = similarity(query, target);
       const threshold = action.fuzzy_threshold ?? 0.85;
       if (score >= threshold && (!best || score > best.score)) {
+        if (combined && action.mode === 'deterministic') continue;
         best = { action, score, phrase };
       }
     }

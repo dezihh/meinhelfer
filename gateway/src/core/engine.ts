@@ -193,6 +193,14 @@ function promptWithName(key: string): string | undefined {
   return raw?.replace('{assistant_name}', assistantName());
 }
 
+// System-Prompt fuer den Agenten: agent_system + optionales Tool-Inventory (agent_inventory)
+function agentSystemPrompt(): string {
+  const sys = promptWithName('agent_system') ?? 'Du bist ein hilfreicher deutscher Sprachassistent.';
+  const inv = promptWithName('agent_inventory');
+  if (!inv) return sys;
+  return `${sys}\n\n## Tool-Inventory (Nachschlagewerk)\n${inv}`;
+}
+
 function traceUsage(trace: TraceEvent[], model: string, result: ChatCompletionResult): void {
   if (!result.usage) return;
   trace.push({
@@ -242,7 +250,7 @@ async function runToolLoop(
   ];
   const overallDeadline = Date.now() + config.toolDeadlineMs * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
-  const toolBudgets: Record<string, number> = { web_url_read: 1, search_web: 1 };
+  const toolBudgets: Record<string, number> = { web_url_read: 1, search_web: 1, get_house_status: 1, get_fuel_prices: 1 };
   const toolCalls: Record<string, number> = {};
   const runTools = async (message: ChatMessage): Promise<void> => {
     messages.push({
@@ -251,43 +259,47 @@ async function runToolLoop(
       ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
       ...(message.reasoning_content ? { reasoning_content: message.reasoning_content } : {}),
     });
-    for (const call of message.tool_calls ?? []) {
-      let result: string;
-      try {
-        const route = routes.get(call.function.name);
-        if (!route) throw new Error(`unbekanntes Tool: ${call.function.name}`);
-        const used = toolCalls[call.function.name] ?? 0;
-        const budget = toolBudgets[call.function.name];
-        if (budget !== undefined && used >= budget) {
-          result = `Limit erreicht (${call.function.name}: max. ${budget} pro Frage). Antworte JETZT mit den vorhandenen Informationen.`;
+    const results = await Promise.all(
+      (message.tool_calls ?? []).map(async (call) => {
+        let result: string;
+        try {
+          const route = routes.get(call.function.name);
+          if (!route) throw new Error(`unbekanntes Tool: ${call.function.name}`);
+          const used = toolCalls[call.function.name] ?? 0;
+          const budget = toolBudgets[call.function.name];
+          if (budget !== undefined && used >= budget) {
+            result = `Limit erreicht (${call.function.name}: max. ${budget} pro Frage). Antworte JETZT mit den vorhandenen Informationen.`;
+            trace.push({
+              ts: Date.now(),
+              step: 'tool.budget_hit',
+              detail: { tool: call.function.name, used },
+            });
+            return { id: call.id, content: result };
+          }
+          toolCalls[call.function.name] = used + 1;
+          const args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
+          if (typeof args.num_results === 'number' && args.num_results > 3) {
+            args.num_results = 3;
+          }
+          const out =
+            route.kind === 'facade'
+              ? await route.tool.run(args, mcp)
+              : await route.client.callTool(route.toolName, args);
+          result = JSON.stringify(out).slice(0, 2000);
+          trace.push({ ts: Date.now(), step: 'tool.call', detail: { tool: call.function.name, args } });
+        } catch (e) {
+          result = `ERROR: ${String(e)}`;
           trace.push({
             ts: Date.now(),
-            step: 'tool.budget_hit',
-            detail: { tool: call.function.name, used },
+            step: 'tool.error',
+            detail: { tool: call.function.name, error: String(e) },
           });
-          messages.push({ role: 'tool', content: result, tool_call_id: call.id });
-          continue;
         }
-        toolCalls[call.function.name] = used + 1;
-        const args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
-        if (typeof args.num_results === 'number' && args.num_results > 3) {
-          args.num_results = 3;
-        }
-        const out =
-          route.kind === 'facade'
-            ? await route.tool.run(args, mcp)
-            : await route.client.callTool(route.toolName, args);
-        result = JSON.stringify(out).slice(0, 2000);
-        trace.push({ ts: Date.now(), step: 'tool.call', detail: { tool: call.function.name, args } });
-      } catch (e) {
-        result = `ERROR: ${String(e)}`;
-        trace.push({
-          ts: Date.now(),
-          step: 'tool.error',
-          detail: { tool: call.function.name, error: String(e) },
-        });
-      }
-      messages.push({ role: 'tool', content: result, tool_call_id: call.id });
+        return { id: call.id, content: result };
+      })
+    );
+    for (const r of results) {
+      messages.push({ role: 'tool', content: r.content, tool_call_id: r.id });
     }
   };
   for (let i = 0; i < config.maxToolIterations; i++) {
@@ -334,7 +346,7 @@ async function runToolLoop(
 }
 
 async function runAgent(query: VoiceQuery, mcp: McpContext, trace: TraceEvent[]): Promise<AssistantResponse> {
-  const system = promptWithName('agent_system') ?? 'Du bist ein hilfreicher deutscher Sprachassistent.';
+  const system = agentSystemPrompt();
   const response = await runToolLoop(system, query.text, null, mcp, trace, query.sessionId);
   rememberTurn(query.sessionId, query.text, response.speech);
   return response;
@@ -347,12 +359,12 @@ async function executeAction(
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
   if (action.mode === 'llm' || (action.mode === 'hybrid' && !action.template)) {
-    const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? promptWithName('agent_system') ?? '';
+    const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
   const rendered = await renderActionTemplate(action.template ?? '', mcp, trace);
   if (action.mode === 'deterministic') return rendered;
-  const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? promptWithName('agent_system') ?? '';
+  const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
     {
