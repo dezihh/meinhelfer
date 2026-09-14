@@ -34,11 +34,19 @@
           <button id="settings-save" class="btn primary">Einstellungen speichern</button>
         </div>
         <div class="card">
-          <h2>Agent-Prompt</h2>
+          <div class="field-head">
+            <h2>Agent-Prompt</h2>
+            <button id="prompt-help-btn" type="button" class="help" aria-label="Hilfe zu Agent-Prompt">?</button>
+          </div>
+          <div id="prompt-help" class="field-help hidden">
+            agent_system: Grundverhalten, Identität und Antwortformat des Agenten — wird bei jeder Agent-Antwort verwendet.
+            agent_inventory: Nachschlagewerk, welches Tool wofür zuständig ist — wird automatisch an den Systemprompt angehängt.
+            Der Platzhalter {assistant_name} wird durch den Assistenten-Namen ersetzt. Änderungen greifen sofort, ohne Neustart.
+          </div>
           <label>Prompt-Schlüssel</label>
           <select id="prompt-key"></select>
           <label>Inhalt</label>
-          <textarea id="prompt-content" rows="8"></textarea>
+          <textarea id="prompt-content" rows="6"></textarea>
           <button id="prompt-save" class="btn primary">Prompt speichern</button>
         </div>
       </section>
@@ -72,28 +80,60 @@
         <div class="card hidden" id="action-editor">
           <h2 id="action-editor-title">Vorgang bearbeiten</h2>
           <input type="hidden" id="action-id">
-          <label>Name</label>
-          <input id="action-name" type="text">
-          <label>Modus</label>
-          <select id="action-mode">
-            <option value="deterministic">deterministisch (Template)</option>
-            <option value="llm">nur LLM</option>
-            <option value="hybrid">beides (Template + LLM)</option>
-          </select>
-          <label>Trigger-Phrasen (eine pro Zeile)</label>
-          <textarea id="action-triggers" rows="4"></textarea>
-          <label>Fuzzy-Schwellwert (0–1, leer = global 0.85)</label>
-          <input id="action-threshold" type="text">
-          <label>Eigenes System-Prompt (leer = Agent-Prompt)</label>
-          <textarea id="action-system" rows="4"></textarea>
-          <label>Template (deterministisch / hybrid)</label>
-          <textarea id="action-template" rows="10" placeholder="{{ ha.state('sensor.x') }}"></textarea>
-          <label>Erlaubte Tools (leer = alle erlaubt)</label>
-          <details id="action-tools-picker">
-            <summary>Tools auswählen</summary>
-            <div id="action-tools-list"></div>
-          </details>
-          <input type="hidden" id="action-tools">
+          <div class="field">
+            <div class="field-head"><label>Name</label><button type="button" class="help" title="Freier Name, dient der Übersicht in der Admin-Oberfläche. Der Nutzer spricht ihn nie." aria-label="Hilfe zu Name">?</button></div>
+            <div class="field-help hidden">Frei wählbarer interner Name. Er taucht weder in Sprachantworten noch in Trigger-Erkennung auf.</div>
+            <input id="action-name" type="text">
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Modus</label><button type="button" class="help" title="deterministic = nur Template (schnell, kein LLM). llm = Agent mit optionalem eigenen Prompt. hybrid = Template liefert Daten, das LLM formuliert die Antwort." aria-label="Hilfe zu Modus">?</button></div>
+            <div class="field-help hidden">
+              deterministic: Die Antwort kommt 1:1 aus dem Template — kein LLM-Aufruf, schnell und kostengünstig. Ideal für feste Auskünfte.
+              llm: Der Agent beantwortet die Anfrage frei, optional mit eigenem System-Prompt und eingeschränkten Tools.
+              hybrid: Das Template sammelt zuerst die Daten, das LLM formuliert daraus eine sprechbare Antwort.
+            </div>
+            <select id="action-mode">
+              <option value="deterministic">deterministisch (Template)</option>
+              <option value="llm">nur LLM</option>
+              <option value="hybrid">beides (Template + LLM)</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Trigger-Phrasen (eine pro Zeile)</label><button type="button" class="help" title="Muster-Sätze, die diesen Vorgang auslösen. Eine Phrase je Zeile; erkannt wird auch sinngemäß (Fuzzy)." aria-label="Hilfe zu Trigger-Phrasen">?</button></div>
+            <div class="field-help hidden">Je Zeile eine typische Nutzerfrage, z. B. „Wie ist der Hausstatus?". Der Router erkennt auch Abweichungen (siehe Fuzzy-Schwellwert). Ohne Treffer geht die Anfrage an den allgemeinen Agenten.</div>
+            <textarea id="action-triggers" rows="4"></textarea>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Fuzzy-Schwellwert (0–1)</label><button type="button" class="help" title="Wie ähnlich muss die Frage einer Trigger-Phrase sein? Höher = strenger. Leer = globaler Wert." aria-label="Hilfe zu Fuzzy-Schwellwert">?</button></div>
+            <div class="field-help hidden">0–1, höher = strenger (z. B. 0.95 = fast wörtlich). Leer lassen = globaler Schwellwert aus den Grundeinstellungen. Typisch: 0.8–0.9.</div>
+            <input id="action-threshold" type="text">
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Eigenes System-Prompt (leer = Agent-Prompt)</label><button type="button" class="help" title="Ersetzt den globalen agent_system-Prompt in den LLM-Modi. {assistant_name} wird ersetzt." aria-label="Hilfe zu Eigenes System-Prompt">?</button></div>
+            <div class="field-help hidden">Gilt nur für llm/hybrid. Leer lassen, um den globalen Agent-Prompt zu verwenden. Der Platzhalter {assistant_name} wird durch den Assistenten-Namen ersetzt. Das Tool-Inventory (agent_inventory) wird weiterhin angehängt.</div>
+            <textarea id="action-system" rows="4"></textarea>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Template (deterministisch / hybrid)</label><button type="button" class="help" title="Antwort-Vorlage mit Daten-Abrufen: ha.state('entity_id'), ha.entities('domain'), ha.call('toolname'), shell('befehl'). Toolnamen per ➕-Button im Tool-Picker einfügen." aria-label="Hilfe zu Template">?</button></div>
+            <div class="field-help hidden">
+              Jinja/Nunjucks-Syntax, echte Werte werden vor dem Rendern vorab geladen:
+              {{ ha.state('sensor.temperatur') }} → Zustand einer Entität (HA-Snapshot).
+              {{ ha.entities('light') }} → Liste einer Domain (über das MCP-Such-Tool).
+              {{ ha.call('toolname') }} → ruft ein MCP-Tool ohne Argumente auf; Toolnamen per ➕-Button im Tool-Picker einfügen.
+              {{ shell('befehl') }} → Shell-Befehl im Gateway-Container (Timeout 5 s, Output auf 4000 Zeichen begrenzt). Nur sinnvoll für lokale Skripte/Daten.
+              Auch Nunjucks-Filter und Logik sind verfügbar, z. B. {{ ha.state('x') | round }} oder {% if %}…
+            </div>
+            <textarea id="action-template" rows="10" placeholder="{{ ha.state('sensor.x') }}"></textarea>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Erlaubte Tools (leer = alle erlaubt)</label><button type="button" class="help" title="Begrenzt die LLM-Modi (llm/hybrid) auf die angehakten Tools. Das Template (deterministic) ist davon nicht betroffen." aria-label="Hilfe zu Erlaubte Tools">?</button></div>
+            <div class="field-help hidden">Wirkt nur in den LLM-Modi: das Modell sieht dann ausschließlich die angehakten Facade-/MCP-Tools. Leer = alle erlaubt. Das Template im deterministic-Modus ruft Tools unabhängig davon über ha.call auf.</div>
+            <details id="action-tools-picker">
+              <summary>Tools auswählen</summary>
+              <div id="action-tools-list"></div>
+            </details>
+            <input type="hidden" id="action-tools">
+          </div>
           <label class="check"><input id="action-enabled" type="checkbox" checked> Aktiv</label>
           <div class="toolbar">
             <button id="action-save" class="btn primary">Speichern</button>

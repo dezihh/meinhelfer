@@ -1,27 +1,59 @@
 import nunjucks from 'nunjucks';
+import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
 import { getStatesSnapshot } from '../ha/states.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
 const env = new nunjucks.Environment(null, { autoescape: false });
 
+// Shell-Helper: admin-only editierbar (Templates), laeuft im Gateway-Container.
+// Absicherungen: Timeout + Output-Cap, damit ein haengender Befehl die
+// Alexa-Antwort nicht blockiert bzw. den Prompt sprengt.
+const SHELL_TIMEOUT_MS = 5000;
+const SHELL_OUTPUT_CAP = 4000;
+
 interface LiteralCalls {
   states: string[];
   entityCalls: string[];
   calls: string[];
+  shells: string[];
 }
 
 function extractLiterals(template: string): LiteralCalls {
   const states: string[] = [];
   const entityCalls: string[] = [];
   const calls: string[] = [];
+  const shells: string[] = [];
   for (const m of template.matchAll(/ha\.state\(\s*["']([^"']+)["']\s*\)/g)) states.push(m[1] as string);
   for (const m of template.matchAll(/ha\.entities\(\s*["']([^"']*)["']\s*\)/g)) {
     const domain = m[1] as string;
     if (domain) entityCalls.push(domain);
   }
   for (const m of template.matchAll(/ha\.call\(\s*["']([^"']+)["']\s*\)/g)) calls.push(m[1] as string);
-  return { states, entityCalls, calls };
+  for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
+  return { states, entityCalls, calls, shells };
+}
+
+function runShell(cmd: string, trace: TraceEvent[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    exec(
+      cmd,
+      { timeout: SHELL_TIMEOUT_MS, maxBuffer: 1024 * 1024, windowsHide: true },
+      (err, stdout, stderr) => {
+        if (err) {
+          trace.push({
+            ts: Date.now(),
+            step: 'template.shell.error',
+            detail: { cmd, error: String(err.message).slice(0, 300), stderr: String(stderr).slice(0, 300) },
+          });
+          return resolve(null);
+        }
+        const out = `${stdout}`.trim().slice(0, SHELL_OUTPUT_CAP);
+        trace.push({ ts: Date.now(), step: 'template.shell', detail: { cmd, chars: out.length } });
+        resolve(out);
+      }
+    );
+  });
 }
 
 function findTool(
@@ -87,10 +119,11 @@ async function preheat(
   mcp: McpContext,
   trace: TraceEvent[]
 ): Promise<Record<string, unknown>> {
-  const { states, entityCalls, calls } = extractLiterals(template);
+  const { states, entityCalls, calls, shells } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const entityMap = new Map<string, unknown[]>();
   const callMap = new Map<string, string | null>();
+  const shellMap = new Map<string, string | null>();
   const listTool = findTool(mcp, [/search|lookup|entit/i]);
 
   for (const toolName of calls) {
@@ -134,12 +167,18 @@ async function preheat(
     }
   }
 
+  for (const cmd of shells) {
+    if (shellMap.has(cmd)) continue;
+    shellMap.set(cmd, await runShell(cmd, trace));
+  }
+
   return {
     ha: {
       state: (entityId: string): string | null => stateMap.get(entityId) ?? null,
       entities: (domain: string): unknown[] => entityMap.get(domain) ?? [],
       call: (toolName: string): string | null => callMap.get(toolName) ?? null,
     },
+    shell: (cmd: string): string | null => shellMap.get(cmd) ?? null,
   };
 }
 

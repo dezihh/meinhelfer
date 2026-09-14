@@ -17,8 +17,10 @@ export interface McpContext {
 // Freschheitsschwelle, ab der beim naechsten Zugriff im Hintergrund neu
 // geladen wird. Serve-stale: liefert sofort die letzten bekannten Daten und
 // stoesst parallel einen Refresh an -> die naechste Anfrage bekommt frische
-// Tools, keine Anfrage wartet auf die MCP-Initialisierung.
-const FRESH_MS = 30_000;
+// Tools, keine Anfrage wartet auf die MCP-Initialisierung. Bewusst hoch:
+// stdio-Clients werden beim Refresh komplett neu gespawnt, zu kleine Werte
+// erzeugen dauerhaft Prozess-Churn.
+const FRESH_MS = 300_000;
 const REFRESH_IN_FLIGHT = new Map<number, Promise<void>>();
 const cache = new Map<number, { client: McpTransport; tools: ToolDef[]; ts: number }>();
 
@@ -91,26 +93,29 @@ async function refreshLater(id: number, row: { transport: 'http' | 'stdio'; url:
 
 export async function getMcpContext(): Promise<McpContext> {
   const rows = listMcpServers(true);
-  const servers: McpServerContext[] = [];
-  for (const row of rows) {
-    const entry = cache.get(row.id);
-    if (!entry) {
+  // Alle Server parallel: gecachte sofort liefern, Kaltstarts parallel laden
+  // (serve-stale-Refresh sowieso). Fehler isoliert pro Server abfangen.
+  const results = await Promise.all(
+    rows.map(async (row): Promise<McpServerContext | null> => {
+      const entry = cache.get(row.id);
+      if (entry) {
+        if (Date.now() - entry.ts > FRESH_MS) {
+          // serve-stale: sofort liefern, Refresh im Hintergrund -> naechste Anfrage frisch
+          void refreshLater(row.id, row);
+        }
+        return { id: row.id, name: row.name, client: entry.client, tools: entry.tools };
+      }
       // Kaltstart: erstmalig laden (blockierend, da Daten zwingend noetig),
-      // aber parallel ueber alle Server statt sequenziell.
+      // aber ueber alle Rows parallel statt sequenziell.
       try {
         const fresh = await loadServer(row);
         cache.set(row.id, fresh);
-        servers.push({ id: row.id, name: row.name, client: fresh.client, tools: fresh.tools });
+        return { id: row.id, name: row.name, client: fresh.client, tools: fresh.tools };
       } catch (e) {
         console.error(`MCP-Init ${row.id} fehlgeschlagen:`, e);
+        return null;
       }
-      continue;
-    }
-    servers.push({ id: row.id, name: row.name, client: entry.client, tools: entry.tools });
-    if (Date.now() - entry.ts > FRESH_MS) {
-      // serve-stale: sofort liefern, Refresh im Hintergrund -> naechste Anfrage frisch
-      void refreshLater(row.id, row);
-    }
-  }
-  return { servers };
+    })
+  );
+  return { servers: results.filter((s): s is McpServerContext => s !== null) };
 }

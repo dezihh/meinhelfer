@@ -66,23 +66,32 @@ type ToolRouteMap = { specs: ToolSpec[]; routes: Map<string, ToolRoute> };
 
 const LLM_BLOCKED_TOOLS = new Set(['googe_ai', 'gargedoor_open_script', '_433_gray4_off', '_433_gray4_on', 'XXXXXXXXXXXXXXhausstatus']);
 
+function sanitizeToolName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 function buildMcpTools(
   mcp: McpContext,
   allowlist: string[] | null,
   routes: Map<string, ToolRoute>,
   specs: ToolSpec[]
 ): void {
+  const used = new Set(routes.keys());
   for (const server of mcp.servers) {
     for (const def of server.tools) {
-      const key = routes.has(def.name) ? `${server.name}.${def.name}` : def.name;
       if (LLM_BLOCKED_TOOLS.has(def.name)) continue;
-      if (routes.has(key)) continue;
-      if (allowlist && !allowlist.includes(def.name) && !allowlist.includes(key)) continue;
-      routes.set(key, { kind: 'mcp', client: server.client, toolName: def.name });
+      let name = sanitizeToolName(def.name);
+      if (routes.has(def.name) || used.has(name)) {
+        name = `${sanitizeToolName(server.name)}__${sanitizeToolName(def.name)}`;
+      }
+      if (used.has(name)) continue;
+      if (allowlist && !allowlist.includes(def.name) && !allowlist.includes(name)) continue;
+      used.add(name);
+      routes.set(name, { kind: 'mcp', client: server.client, toolName: def.name });
       specs.push({
         type: 'function',
         function: {
-          name: key,
+          name,
           description: (def.description ?? '').slice(0, 160),
           parameters: def.inputSchema ?? { type: 'object' },
         },
@@ -95,22 +104,17 @@ function buildTools(
   mcp: McpContext,
   allowlist: string[] | null
 ): ToolRouteMap {
-  const mode = getSetting('facade_mode') ?? 'facade';
   const routes = new Map<string, ToolRoute>();
   const specs: ToolSpec[] = [];
-  if (mode === 'facade' || mode === 'both') {
-    for (const tool of facadeTools) {
-      if (allowlist && !allowlist.includes(tool.name)) continue;
-      routes.set(tool.name, { kind: 'facade', tool });
-      specs.push({
-        type: 'function',
-        function: { name: tool.name, description: tool.description.slice(0, 300), parameters: tool.parameters },
-      });
-    }
+  for (const tool of facadeTools) {
+    if (allowlist && !allowlist.includes(tool.name)) continue;
+    routes.set(tool.name, { kind: 'facade', tool });
+    specs.push({
+      type: 'function',
+      function: { name: tool.name, description: tool.description.slice(0, 300), parameters: tool.parameters },
+    });
   }
-  if (mode === 'raw' || mode === 'both') {
-    buildMcpTools(mcp, allowlist, routes, specs);
-  }
+  buildMcpTools(mcp, allowlist, routes, specs);
   return { specs, routes };
 }
 

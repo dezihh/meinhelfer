@@ -183,18 +183,13 @@ db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run(
 Kombinationen (z.B. "News und dann Hausstatus"): jeder Teil nutzt das jeweils zustaendige Tool - der Reihenfolge nach, nicht abbrechen.`
 );
 
-db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run(
-  'fastpath_system',
-  `Du bist {assistant_name}, ein deutscher Sprachassistent. Die Websuche ist bereits erfolgt.
-
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt: {"needs_clarification": false, "speech": "<Antwort>", "keep_open": <true|false>}.
-speech: kurz, praegnant, sprechbar, max. 4 Saetze, Zahlen wie "2,2 Euro". Mehrteilige Antworten: logische Teile mit \\n\\n trennen (wird als Sprechpausen umgesetzt). needs_clarification nur bei echter Mehrdeutigkeit der Frage (dann kurze Rueckfrage). keep_open=true bei Zusammenfassungen/Listen/Berichten.
-Fasse die Suchergebnisse zusammen: 2-3 konkrete Titel/Fakten mit Quelle, niemals nur Verweise. Keine passenden Ergebnisse: ehrlich sagen.`
-);
-
 // Tote Settings entfernen: warteton (steuert die Lambda via env vars),
-// fastpath_model (News-Fastpath entfernt), fuel_sensor (Benzinpreis ueber Inventory).
-db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor')").run();
+// fastpath_model (News-Fastpath entfernt), fuel_sensor (Benzinpreis ueber Inventory),
+// facade_mode (Tool-Angebot immer Facade + aktivierte MCP-Server; Feinsteuerung
+// ueber die erlaubten Tools je Vorgang).
+db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor', 'facade_mode')").run();
+// Toter Prompt-Key: fastpath_system gehoerte zum entfernten News-Fastpath.
+db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('assistant_name', 'Smart Pilot');
 // News als deterministischer Fastpath entfernt (Konzept: Nachrichten/Fragen -> Agent).
 // Bestehende Action-Datei ebenfalls aufraeumen.
@@ -216,7 +211,6 @@ db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fuz
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_followup', 'beides');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debug_logging', '0');
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('facade_mode', 'facade');
 
 for (const action of [
   {

@@ -45,36 +45,44 @@ function showTab(name) {
 }
 
 const SETTINGS_FIELDS = [
-  { key: 'assistant_name', label: 'Assistenten-Name', desc: 'Wie sich der Agent vorstellt (Standard: Smart Pilot)', type: 'text' },
-  { key: 'display_title', label: 'Display-Titel (APL)', desc: 'Titel oben auf dem Alexa-Display', type: 'text' },
+  {
+    key: 'assistant_name',
+    label: 'Assistenten-Name',
+    type: 'text',
+    help: 'So stellt sich der Agent im Gespräch vor (Standard: Smart Pilot). Gilt für Sprache und Text; die Überschrift auf dem Echo-Display wird separat unter „Display-Titel" gesetzt.',
+  },
+  {
+    key: 'display_title',
+    label: 'Display-Titel (APL)',
+    type: 'text',
+    help: 'Überschrift des APL-Displays auf Echo-Show-Geräten. Wirkt ab der nächsten Anfrage, kein Neustart nötig.',
+  },
   {
     key: 'fuzzy_global',
     label: 'Fuzzy-Trigger global',
-    desc: 'Ungefähres Treffen der Trigger-Phrasen; Feinsteuerung pro Vorgang über dessen Schwellwert',
     type: 'select',
     options: [['1', 'An'], ['0', 'Aus']],
+    help: 'Trigger-Phrasen der Vorgänge müssen nicht wortwörtlich getroffen werden – kleine Abweichungen („wie ist der Hausstatus" statt „hausstatus abfragen") reichen. „Aus" = nur exakte Übereinstimmung. Feiner steuerbar über den Schwellwert im jeweiligen Vorgang.',
   },
   {
     key: 'session_followup',
     label: 'Nachfrage (Mikro offen halten)',
-    desc: 'Wann Alexa „Was kann ich noch für Sie tun?" nachschiebt',
     type: 'select',
     options: [['llm', 'Wenn das LLM es vorschlägt'], ['keyword', 'Bei Session-Keyword'], ['beides', 'Beides'], ['0', 'Nie']],
+    help: 'Nach der Antwort bleibt das Mikro offen und es folgt „Was kann ich noch für Sie tun?". „LLM-vorgeschlagen": das Modell meldet eine Rückfrage als sinnvoll (z. B. nach Berichten). „Bei Session-Keyword": sobald die Frage eines der Keywords unten enthält. „Nie": Session schließt immer. In einer laufenden Chat-Session bleibt das Mikro ohnehin offen.',
   },
-  { key: 'session_keywords', label: 'Session-Keywords', desc: 'Nur für „Bei Session-Keyword" / „Beides" (Komma-getrennt)', type: 'text' },
   {
-    key: 'facade_mode',
-    label: 'Tool-Modus für den Agenten',
-    desc: 'Welche Tools das LLM aufrufen darf',
-    type: 'select',
-    options: [['facade', 'Facade-Tools (empfohlen)'], ['raw', 'Rohes HA-MCP'], ['both', 'Beides']],
+    key: 'session_keywords',
+    label: 'Session-Keywords',
+    type: 'text',
+    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Wirkt nur, wenn die Nachfrage auf „Bei Session-Keyword" oder „Beides" steht.',
   },
   {
     key: 'debug_logging',
     label: 'Debug-Logging',
-    desc: 'Ausführliche Logs im Gateway-Container',
     type: 'select',
     options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
+    help: 'Schreibt ausführliche Schritte (Tool-Aufrufe, Router-Entscheidungen) ins Gateway-Log (docker logs). Für den Alltag aus lassen – spart Lautstärke und macht Logs lesbar.',
   },
 ];
 
@@ -87,18 +95,39 @@ function renderSettings() {
     form.append(buildSettingField(field));
   }
   for (const key of Object.keys(bootstrap.settings)) {
-    if (!known.has(key)) form.append(buildSettingField({ key, label: key, desc: '', type: 'text' }));
+    if (!known.has(key)) form.append(buildSettingField({ key, label: key, type: 'text', help: '' }));
   }
+  form.onclick = (e) => {
+    const btn = e.target instanceof Element ? e.target.closest('button.help') : null;
+    if (!btn) return;
+    const fieldEl = btn.closest('.field');
+    const helpText = fieldEl?.querySelector('.field-help');
+    if (helpText) helpText.classList.toggle('hidden');
+  };
 }
 
 function buildSettingField(field) {
   const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const head = document.createElement('div');
+  head.className = 'field-head';
   const label = document.createElement('label');
   label.textContent = field.label;
+  head.append(label);
+  const controlValue = bootstrap.settings[field.key] ?? '';
+  if (field.help) {
+    const help = document.createElement('button');
+    help.type = 'button';
+    help.className = 'help';
+    help.textContent = '?';
+    help.setAttribute('aria-label', `Hilfe zu ${field.label}`);
+    help.title = field.help;
+    head.append(help);
+  }
   let control;
   if (field.type === 'select') {
     control = document.createElement('select');
-    const current = String(bootstrap.settings[field.key] ?? '');
+    const current = String(controlValue);
     for (const [value, text] of field.options) {
       const opt = document.createElement('option');
       opt.value = value;
@@ -109,21 +138,28 @@ function buildSettingField(field) {
   } else {
     control = document.createElement('input');
     control.type = 'text';
-    control.value = bootstrap.settings[field.key] ?? '';
+    control.value = controlValue;
   }
   control.dataset.key = field.key;
-  wrap.append(label, control);
-  if (field.desc) {
-    const desc = document.createElement('small');
-    desc.className = 'field-desc';
-    desc.textContent = field.desc;
-    wrap.append(desc);
+  wrap.append(head, control);
+  if (field.help) {
+    const helpText = document.createElement('div');
+    helpText.className = 'field-help hidden';
+    helpText.textContent = field.help;
+    wrap.append(helpText);
   }
   return wrap;
 }
 
+function growPromptTextarea() {
+  const ta = $('prompt-content');
+  ta.style.height = 'auto';
+  ta.style.height = `${Math.min(ta.scrollHeight + 4, 480)}px`;
+}
+
 function renderPromptKeys() {
   const select = $('prompt-key');
+  const ta = $('prompt-content');
   select.innerHTML = '';
   for (const p of bootstrap.prompts) {
     const opt = document.createElement('option');
@@ -133,9 +169,15 @@ function renderPromptKeys() {
   }
   select.onchange = () => {
     const p = bootstrap.prompts.find((x) => x.key === select.value);
-    $('prompt-content').value = p ? p.content : '';
+    ta.value = p ? p.content : '';
+    growPromptTextarea();
   };
   select.onchange();
+  ta.addEventListener('input', growPromptTextarea);
+  const helpBtn = $('prompt-help-btn');
+  if (helpBtn) {
+    helpBtn.onclick = () => $('prompt-help').classList.toggle('hidden');
+  }
 }
 
 function renderActions() {
@@ -159,18 +201,25 @@ function syncActionToolsInput() {
   $('action-tools').value = Array.from(checks).map((c) => c.value).join('\n');
 }
 
+function insertTemplateCall(name) {
+  const ta = $('action-template');
+  const base = ta.value.replace(/\s*$/, '');
+  ta.value = base ? `${base}\n{{ ha.call('${name}') }}` : `{{ ha.call('${name}') }}`;
+}
+
 async function loadToolPicker(selected) {
   const list = $('action-tools-list');
   const sel = new Set(selected ?? []);
   function group(label, names) {
     if (!names.length) return;
-    const h = document.createElement('div');
-    h.className = 'tool-group';
-    const head = document.createElement('div');
-    head.className = 'tool-group-title';
-    head.textContent = label;
-    h.append(head);
+    const det = document.createElement('details');
+    det.className = 'tool-group';
+    const sum = document.createElement('summary');
+    sum.textContent = `${label} (${names.length})`;
+    det.append(sum);
     for (const name of names) {
+      const row = document.createElement('div');
+      row.className = 'tool-row';
       const lab = document.createElement('label');
       lab.className = 'check';
       const cb = document.createElement('input');
@@ -179,9 +228,16 @@ async function loadToolPicker(selected) {
       cb.checked = sel.has(name);
       cb.addEventListener('change', syncActionToolsInput);
       lab.append(cb, ' ', name);
-      h.append(lab);
+      const ins = document.createElement('button');
+      ins.type = 'button';
+      ins.className = 'btn small tool-insert';
+      ins.textContent = '➕';
+      ins.title = `{{ ha.call('${name}') }} ins Template einfügen`;
+      ins.onclick = () => insertTemplateCall(name);
+      row.append(lab, ins);
+      det.append(row);
     }
-    list.append(h);
+    list.append(det);
   }
   try {
     const info = await api('/tools');
@@ -419,9 +475,16 @@ function init() {
   };
   $('test-send').onclick = sendTest;
   $('test-text').onkeydown = (e) => { if (e.key === 'Enter') sendTest(); };
-  $('action-new').onclick = () => openActionEditor(null);
-  $('action-save').onclick = saveAction;
-  $('action-delete').onclick = deleteActionUi;
+$('action-new').onclick = () => openActionEditor(null);
+$('action-save').onclick = saveAction;
+$('action-delete').onclick = deleteActionUi;
+$('action-editor').onclick = (e) => {
+  const btn = e.target instanceof Element ? e.target.closest('button.help') : null;
+  if (!btn) return;
+  const fieldEl = btn.closest('.field');
+  const helpText = fieldEl?.querySelector('.field-help');
+  if (helpText) helpText.classList.toggle('hidden');
+};
 $('mcp-new').onclick = () => openServerEditor(null);
 $('mcp-save').onclick = saveServer;
 $('mcp-health').onclick = healthServer;
