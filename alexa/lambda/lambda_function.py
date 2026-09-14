@@ -5,7 +5,6 @@ import random
 import re
 import threading
 import time
-
 import requests
 import ask_sdk_core.utils as ask_utils
 from ask_sdk_core.skill_builder import CustomSkillBuilder
@@ -14,6 +13,9 @@ from ask_sdk_core.dispatch_components import AbstractRequestHandler, AbstractExc
 from ask_sdk_model.services.directive import SendDirectiveRequest, Header, SpeakDirective
 from ask_sdk_model.ui import SimpleCard
 from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
+
+# rohes Request-Event fuer APL-Erkennung (ask-sdk verliert Interface-Keys)
+_RAW_ENVELOPE = threading.local()
 from xml.sax.saxutils import escape
 
 logger = logging.getLogger(__name__)
@@ -105,12 +107,26 @@ APL_DOCUMENT = {
 
 
 def supports_apl(handler_input):
-    """APL immer rendern: ask-sdk 1.19 verwirft unbekannte Interface-Keys
-    (ALEXA_PRESENTATION_APL) beim Deserialisieren, daher meldet das Modell
-    false, obwohl das Geraet APL kann. Alexa ignoriert die APL-Direktive auf
-    reinen Audio-Geraeten, auf Echo Show/App wird sie angezeigt. Fehlalarm
-    (Echo Show ohne APL) gibt es praktisch nicht, da alle Shows APL koennen."""
-    return True
+    """Erkennt APL-Support zuverlaessig:
+    ask-sdk 1.19 deserialisiert supportedInterfaces NICHT korrekt (Das Model
+    mappt auf Punkt-Form 'Alexa.Presentation.APL', Alexa sendet aber
+    'ALEXA_PRESENTATION_APL' und der Deserializer verwirft den unbekannten Key).
+    Daher wird das ROHE Request-Event geprueft, das der lambda_handler-Wrapper
+    vor der Deserialisierung zwischengepuffert hat."""
+    try:
+        device = handler_input.request_envelope.context.system.device
+        interfaces = device.supported_interfaces if device else None
+        if interfaces and interfaces.alexa_presentation_apl:
+            return True
+    except AttributeError:
+        pass
+    event = getattr(_RAW_ENVELOPE, "value", None) or {}
+    try:
+        system = (event.get("context") or {}).get("System") or {}
+        sup = ((system.get("device") or {}).get("supportedInterfaces") or {})
+        return "ALEXA_PRESENTATION_APL" in sup
+    except Exception:
+        return False
 
 
 def render_apl(handler_input, title, text):
@@ -340,4 +356,11 @@ sb.add_request_handler(FallbackIntentHandler())
 sb.add_request_handler(SessionEndedRequestHandler())
 sb.add_request_handler(CanFulfillIntentRequestHandler())
 sb.add_exception_handler(CatchAllExceptionHandler())
-lambda_handler = sb.lambda_handler()
+
+_ask_lambda_handler = sb.lambda_handler()
+
+
+def lambda_handler(event, context):
+    # rohes Event fuer supports_apl puffern, BEVOR ask-sdk es deserialisiert
+    _RAW_ENVELOPE.value = event
+    return _ask_lambda_handler(event, context)
