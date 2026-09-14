@@ -118,8 +118,16 @@ def supports_apl(handler_input):
     try:
         device = handler_input.request_envelope.context.system.device
         interfaces = device.supported_interfaces if device else None
-        return bool(interfaces and interfaces.alexa_presentation_apl)
-    except AttributeError:
+        apl = bool(interfaces and interfaces.alexa_presentation_apl)
+        logger.warning(
+            "APL-DIAG device=%r interfaces=%r apl=%s",
+            bool(device),
+            interfaces is not None,
+            apl,
+        )
+        return apl
+    except AttributeError as e:
+        logger.warning("APL-DIAG exception=%s", e)
         return False
 
 
