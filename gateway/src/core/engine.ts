@@ -250,7 +250,7 @@ async function runToolLoop(
   ];
   const overallDeadline = Date.now() + config.toolDeadlineMs * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
-  const toolBudgets: Record<string, number> = { web_url_read: 1, search_web: 1, get_house_status: 1, get_fuel_prices: 1 };
+  const toolBudgets: Record<string, number> = { web_url_read: 1, search_web: 1, get_house_status: 1 };
   const toolCalls: Record<string, number> = {};
   const runTools = async (message: ChatMessage): Promise<void> => {
     messages.push({

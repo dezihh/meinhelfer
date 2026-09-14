@@ -159,7 +159,7 @@ Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
 - Messwerte/Zustände (Temperatur, Füllstand, Verbrauch, an/aus): NIEMALS aus eigenem Wissen. find_ha_entities mit Stichworten - die Treffer enthalten den AKTUELLEN Zustand, antworte damit direkt (bei Thermostaten: Attribut current_temperature). get_ha_state nur für eine konkrete einzelne entity_id.
 - Geräte schalten (Licht, Schalter, Rolladen, Klima): entity_id über find_ha_entities ermitteln, dann control_device mit der exakten entity_id.
 - Hausstatus: get_house_status, Bericht sinngemäß wiedergeben.
-- Benzinpreis: get_fuel_prices.
+- Benzinpreis (OneShot, z. B. "was kostet Super E10", "sollte ich tanken"): get_ha_state mit entity_id "sensor.nordoel_sieker_landstrasse_178_super_e10" (state = Preis in Euro). Kein Websuche, kein get_house_status nötig.
 - Nachrichten/Suche: search_web als Tool-Aufruf (time_range "week" bei Nachrichten; bei konkreter Quelle direkt darauf zielen, z. B. "onvista news", "heise news"). Aus den Snippets 2-3 konkrete Titel/Fakten mit Quelle nennen, niemals nur Verweise.
 - Kombinierte Anfragen (z. B. "Nachrichten und dann der Hausstatus"): DER REIHHE NACH abarbeiten - fuer den zweiten Teil weitere Tools nutzen (get_house_status, find_ha_entities ...), NICHT nach dem ersten Tool-Teil abbrechen.
 - web_url_read ausschliesslich wenn der Nutzer eine konkrete Seite/URL nennt. NIEMALS Nachrichtenseiten oder Portale lesen, die search_web nicht liefert.
@@ -175,7 +175,7 @@ db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run(
 
 - Hausautomatisierung (Licht, Schalter, Rolladen, Klima, Sensoren): find_ha_entities -> control_device / get_ha_state (nur das HA-Tool, KEINE Websuche).
 - Hausstatus (Akkustand, Verbrauch, Solar): get_house_status (deterministisch, kein LLM).
-- Benzinpreis: get_fuel_prices.
+- Benzinpreis (OneShot, z. B. "was kostet Super E10", "sollte ich jetzt tanken"): get_ha_state auf entity_id "sensor.nordoel_sieker_landstrasse_178_super_e10" (state = Preis in Euro). Einzelnachfrage, KEIN get_house_status, KEINE Websuche.
 - Boersen-/Finanznachrichten (onvista, boerse.de, finanzen.net): search_web gezielt auf die Quelle (z.B. "onvista news").
 - Allgemeine Nachrichten/Recherche: search_web (time_range "week"), aus Snippets mit Quellen antworten.
 - Konkrete Seite/URL lesen: web_url_read (nur auf ausdruecklichen Wunsch).

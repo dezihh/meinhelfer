@@ -1,6 +1,5 @@
 import type { ToolSpec } from '../llm/client.js';
 import type { McpContext } from '../mcp/registry.js';
-import { getSetting } from '../db.js';
 import { callService, findEntities, getState, type HaEntity } from '../ha/states.js';
 
 export interface FacadeTool {
@@ -19,14 +18,6 @@ const ALLOWED_SERVICES: Record<string, string[]> = {
   script: ['turn_on'],
   automation: ['trigger', 'turn_on', 'turn_off'],
 };
-
-function gfmt(value: unknown, decimals = 2): string {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return String(value);
-  const fixed = n.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '');
-  const [int, frac] = fixed.split('.');
-  return [int.replace(/\B(?=(\d{3})+(?!\d))/g, '.'), frac].filter(Boolean).join(',');
-}
 
 function findMcpTool(
   mcp: McpContext,
@@ -198,18 +189,5 @@ export const facadeTools: FacadeTool[] = [
       return { bericht: text.slice(0, 1800) };
     },
   },
-  {
-    name: 'get_fuel_prices',
-    description: 'Liest den aktuellen Benzinpreis bei Nordoel (Super E10).',
-    parameters: { type: 'object', properties: {} },
-    run: async () => {
-      const entityId = getSetting('fuel_sensor') ?? 'sensor.nordoel_sieker_landstrasse_178_super_e10';
-      const entity = await getState(entityId);
-      if (['unknown', 'unavailable', ''].includes(entity.state)) {
-        return { error: 'Der aktuelle Benzinpreis ist leider nicht verfuegbar.' };
-      }
-      return { antwort: `Super E10 bei Nordoel kostet derzeit ${gfmt(entity.state, 3)} Euro.` };
-    },
-  },
-];
+  ];
 
