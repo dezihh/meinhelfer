@@ -226,7 +226,7 @@ export async function callService(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(data),
-    signal: AbortSignal.timeout(10),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`HA ${res.status}: ${domain}.${service}`);
   const out = await res.json();

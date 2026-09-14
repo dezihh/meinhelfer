@@ -463,7 +463,7 @@ async function executeAction(
   }
   if (action.mode === 'llm' || (action.mode === 'hybrid' && !action.template)) {
     const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? promptWithName('agent_system') ?? '';
-    return runToolLoop(system, query.text, action.toolList, mcp, trace);
+    return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
   const rendered = await renderActionTemplate(action.template ?? '', mcp, trace);
   if (action.mode === 'deterministic') return rendered;

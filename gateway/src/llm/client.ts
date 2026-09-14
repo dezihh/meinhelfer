@@ -60,28 +60,54 @@ export async function chatCompletion(
   );
   return await new Promise<ChatCompletionResult>((resolve, reject) => {
     let settled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const clearTimers = () => {
+      for (const t of timers) clearTimeout(t);
+      timers.length = 0;
+    };
     const done = (v: ChatCompletionResult) => {
       if (!settled) {
         settled = true;
+        clearTimers();
         resolve(v);
       }
     };
+    const fail = (msg: string) => {
+      if (!settled) {
+        settled = true;
+        clearTimers();
+        reject(new Error(msg));
+      }
+    };
+    // Primary hat bis fallbackAfterMs Zeit; danach (oder bei Fehler) uebernimmt
+    // der lokale Fallback. Overall = harte Gesamt-Deadline, damit nie gehaengt
+    // wird (weder bei Timerlossen noch bei beiden Modellen, die nicht antworten).
+    const fallbackAfter = config.llm.fallbackAfterMs;
+    timers.push(
+      setTimeout(
+        () => fail('LLM: Gesamt-Deadline überschritten'),
+        fallbackAfter + (timeoutMs ?? fallbackAfter) + 5000
+      )
+    );
     primaryOk.then((r) => {
-      if ('res' in r) done((r as { res: ChatCompletionResult }).res);
+      if ('res' in r) {
+        done(r.res);
+      } else if ('err' in r && !settled) {
+        // Primaerfehler: haengende fallbackOk-Reihe sofort abloesen
+        fallbackOk.then((fb) => {
+          if ('fb' in fb) done(fb.fb);
+          else fail('LLM: beide Modelle nicht rechtzeitig antworteten');
+        });
+      }
     });
-    const overallTimer = setTimeout(() => {
-      fallbackOk.then((r) => {
-        if ('fb' in r) {
-          done((r as { fb: ChatCompletionResult }).fb);
-        } else {
-          if (!settled) {
-            settled = true;
-            reject(new Error('LLM: beide Modelle nicht rechtzeitig antworteten'));
-          }
-        }
-      });
-    }, config.llm.fallbackAfterMs);
-    primaryOk.then(() => clearTimeout(overallTimer));
+    timers.push(
+      setTimeout(() => {
+        fallbackOk.then((r) => {
+          if ('fb' in r) done(r.fb);
+          else fail('LLM: beide Modelle nicht rechtzeitig antworteten');
+        });
+      }, fallbackAfter)
+    );
   });
 }
 

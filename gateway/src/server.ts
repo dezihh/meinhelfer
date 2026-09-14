@@ -24,6 +24,7 @@ import {
   setSetting,
   summarizeUsage,
   updateAction,
+  getAction,
   updateMcpServer,
   addLog,
   getSetting,
@@ -338,11 +339,18 @@ app.post('/admin/api/actions', requireAuth, (req, res) => {
 
 app.put('/admin/api/actions/:id', requireAuth, (req, res) => {
   const id = Number(req.params.id);
-  const updated = updateAction(id, normalizeActionInput(req.body as Record<string, unknown>));
-  if (!updated) {
+  const existing = getAction(id);
+  if (!existing) {
     res.status(404).json({ error: 'nicht gefunden' });
     return;
   }
+  // handler_config wird vom Web-Editor nicht editiert: wenn der Client keins
+  // mitschickt, den bisherigen Wert beibehalten (News-Action kaputt-Fehler).
+  const body = req.body as Record<string, unknown>;
+  if (body && body.handler_config === undefined && existing.handlerConfig) {
+    body.handler_config = existing.handlerConfig;
+  }
+  const updated = updateAction(id, normalizeActionInput(body));
   res.json({ action: updated });
 });
 
