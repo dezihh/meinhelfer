@@ -115,22 +115,12 @@ APL_DOCUMENT = {
 
 
 def supports_apl(handler_input):
-    """Ermittelt APL-Support robust: ask-sdk 1.19 mappt das Live-Feld
-    'ALEXA_PRESENTATION_APL' aus Alexa-Requests nicht auf das Model-Attribut,
-    daher zusaetzlich auf das Rohenvelope-JSON pruefen."""
-    try:
-        device = handler_input.request_envelope.context.system.device
-        interfaces = device.supported_interfaces if device else None
-        if interfaces and interfaces.alexa_presentation_apl:
-            return True
-        raw = handler_input.request_envelope.to_dict()
-        device_raw = (raw.get("context", {}).get("System", {}) or {}).get("device", {}) or {}
-        sup = device_raw.get("supportedInterfaces") or {}
-        apl = "ALEXA_PRESENTATION_APL" in sup
-        logger.warning("APL-DIAG interfaces=%r raw_sup_keys=%r apl=%s", interfaces is not None, list(sup.keys()), apl)
-        return apl
-    except AttributeError as e:
-        return False
+    """APL immer rendern: ask-sdk 1.19 verwirft unbekannte Interface-Keys
+    (ALEXA_PRESENTATION_APL) beim Deserialisieren, daher meldet das Modell
+    false, obwohl das Geraet APL kann. Alexa ignoriert die APL-Direktive auf
+    reinen Audio-Geraeten, auf Echo Show/App wird sie angezeigt. Fehlalarm
+    (Echo Show ohne APL) gibt es praktisch nicht, da alle Shows APL koennen."""
+    return True
 
 
 def render_apl(handler_input, title, text):
