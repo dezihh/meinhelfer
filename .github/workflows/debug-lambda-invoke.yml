@@ -60,13 +60,25 @@ jobs:
           PYEOF
           echo "=== aws lambda invoke ==="
           set +e
-          aws lambda invoke --function-name meinhelfer-alexa \
+          OUT=$(aws lambda invoke --function-name meinhelfer-alexa \
             --cli-binary-format raw-in-base64-out \
             --payload "file:///tmp/req.json" \
-            /tmp/response.json --log-type Tail 2>/tmp/inv.err
+            /tmp/response.json --log-type Tail 2>/tmp/inv.err)
           RC=$?
           echo "exit: ${RC}"
           echo "--- stderr ---"
           cat /tmp/inv.err
+          echo "--- logs (APL-DIAG/ERROR aus LogResult) ---"
+          OUT="$OUT" python3 - <<'PYEOF2'
+          import os, json, base64
+          try:
+              d = json.loads(os.environ["OUT"])
+              log = base64.b64decode(d.get("LogResult") or "").decode("utf-8", "replace")
+              for line in log.splitlines():
+                  if any(k in line for k in ("APL-DIAG", "ERROR", "Traceback")):
+                      print(line)
+          except Exception:
+              print("(kein LogResult)")
+          PYEOF2
           echo "--- response.json ---"
           head -c 1500 /tmp/response.json 2>/dev/null
