@@ -62,14 +62,13 @@ def strip_ssml(text):
 
 CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 
-# APL-Layout: kontrollierte Schriftgroesse (28dp) + Scroll fuer lange Texte
+# APL-Layout: kompatibel (version 1.4), simples Layout ohne ScrollView-Risiko.
 # Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
 # Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
 APL_DOCUMENT = {
     "type": "APL",
-    "version": "2023.1",
+    "version": "1.4",
     "theme": "dark",
-    "background": "black",
     "mainTemplate": {
         "parameters": ["payload"],
         "items": [
@@ -77,35 +76,26 @@ APL_DOCUMENT = {
                 "type": "Container",
                 "width": "100%",
                 "height": "100%",
-                "paddingLeft": "48dp",
-                "paddingRight": "48dp",
-                "paddingTop": "48dp",
-                "paddingBottom": "36dp",
-                "backgroundColor": "#151A20",
                 "items": [
                     {
                         "type": "Text",
                         "text": "${payload.title}",
-                        "fontSize": "26dp",
+                        "fontSize": 26,
                         "fontWeight": "bold",
                         "color": "#00CAFF",
-                        "shrink": 0,
-                        "paddingBottom": "28dp",
+                        "paddingTop": 40,
+                        "paddingLeft": 40,
+                        "paddingRight": 40,
+                        "paddingBottom": 16,
                     },
                     {
-                        "type": "ScrollView",
-                        "width": "100%",
-                        "height": "100%",
-                        "grow": 1,
-                        "items": [
-                            {
-                                "type": "Text",
-                                "text": "${payload.text}",
-                                "fontSize": "28dp",
-                                "lineHeight": 1.4,
-                                "color": "#EEEEEE",
-                            }
-                        ],
+                        "type": "Text",
+                        "text": "${payload.text}",
+                        "fontSize": 28,
+                        "color": "#EEEEEE",
+                        "paddingLeft": 40,
+                        "paddingRight": 40,
+                        "paddingBottom": 40,
                     },
                 ],
             }
