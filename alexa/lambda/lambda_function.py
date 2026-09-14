@@ -126,7 +126,9 @@ def supports_apl(handler_input):
         raw = handler_input.request_envelope.to_dict()
         device_raw = (raw.get("context", {}).get("System", {}) or {}).get("device", {}) or {}
         sup = device_raw.get("supportedInterfaces") or {}
-        return "ALEXA_PRESENTATION_APL" in sup
+        apl = "ALEXA_PRESENTATION_APL" in sup
+        logger.warning("APL-DIAG interfaces=%r raw_sup_keys=%r apl=%s", interfaces is not None, list(sup.keys()), apl)
+        return apl
     except AttributeError as e:
         return False
 
