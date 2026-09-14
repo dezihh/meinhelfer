@@ -37,13 +37,10 @@ jobs:
       - name: CloudWatch-Logs unserer Lambda (Streams auflisten + lesen)
         run: |
           set +e
-          ARN="arn:aws:lambda:${AWS_DEFAULT_REGION:-eu-west-1}:$(aws sts get-caller-identity --query Account --output text):function:meinhelfer-alexa"
-          echo "ARN: ${ARN}"
-          echo "=== help ==="
-          aws logs help 2>&1 | head -40
+          GROUP="/aws/lambda/meinhelfer-alexa"
+          echo "Log-Gruppe: ${GROUP}"
+          echo "=== describe-log-groups ==="
+          aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/meinhelfer" --query 'logGroups[].logGroupName' --output json 2>&1 | head -c 800
           echo ""
-          echo "=== Versuch 1: list-log-streams ==="
-          aws logs list-log-streams --log-source-arn "${ARN}" 2>&1 | head -c 1200
-          echo ""
-          echo "=== Versuch 2: list-log-event-sources? ==="
-          aws logs help 2>&1 | grep -io "[a-z-]*log[a-z-]*" | sort -u
+          echo "=== Letzte Events (filter, 40 Zeilen) ==="
+          aws logs filter-log-events --log-group-name "${GROUP}" --query 'events[].message' --output text 2>&1 | tail -40
