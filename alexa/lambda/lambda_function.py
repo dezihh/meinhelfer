@@ -119,11 +119,18 @@ def supports_apl(handler_input):
         device = handler_input.request_envelope.context.system.device
         interfaces = device.supported_interfaces if device else None
         apl = bool(interfaces and interfaces.alexa_presentation_apl)
+        raw = None
+        try:
+            raw = handler_input.request_envelope.to_dict()
+        except Exception:
+            raw = None
+        has_raw_apl = raw is not None and "ALEXA_PRESENTATION_APL" in json.dumps(raw)
         logger.warning(
-            "APL-DIAG device=%r interfaces=%r apl=%s",
+            "APL-DIAG device=%r interfaces=%r apl=%s raw_has_apl=%s",
             bool(device),
             interfaces is not None,
             apl,
+            has_raw_apl,
         )
         return apl
     except AttributeError as e:
