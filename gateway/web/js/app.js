@@ -44,20 +44,82 @@ function showTab(name) {
   if (name === 'logs') loadLogs();
 }
 
+const SETTINGS_FIELDS = [
+  { key: 'assistant_name', label: 'Assistenten-Name', desc: 'Wie sich der Agent vorstellt (Standard: Smart Pilot)', type: 'text' },
+  { key: 'display_title', label: 'Display-Titel (APL)', desc: 'Titel oben auf dem Alexa-Display', type: 'text' },
+  {
+    key: 'fuzzy_global',
+    label: 'Fuzzy-Trigger global',
+    desc: 'Ungefähres Treffen der Trigger-Phrasen; Feinsteuerung pro Vorgang über dessen Schwellwert',
+    type: 'select',
+    options: [['1', 'An'], ['0', 'Aus']],
+  },
+  {
+    key: 'session_followup',
+    label: 'Nachfrage (Mikro offen halten)',
+    desc: 'Wann Alexa „Was kann ich noch für Sie tun?" nachschiebt',
+    type: 'select',
+    options: [['llm', 'Wenn das LLM es vorschlägt'], ['keyword', 'Bei Session-Keyword'], ['beides', 'Beides'], ['0', 'Nie']],
+  },
+  { key: 'session_keywords', label: 'Session-Keywords', desc: 'Nur für „Bei Session-Keyword" / „Beides" (Komma-getrennt)', type: 'text' },
+  {
+    key: 'facade_mode',
+    label: 'Tool-Modus für den Agenten',
+    desc: 'Welche Tools das LLM aufrufen darf',
+    type: 'select',
+    options: [['facade', 'Facade-Tools (empfohlen)'], ['raw', 'Rohes HA-MCP'], ['both', 'Beides']],
+  },
+  {
+    key: 'debug_logging',
+    label: 'Debug-Logging',
+    desc: 'Ausführliche Logs im Gateway-Container',
+    type: 'select',
+    options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
+  },
+];
+
 function renderSettings() {
   const form = $('settings-form');
   form.innerHTML = '';
-  for (const [key, value] of Object.entries(bootstrap.settings)) {
-    const wrap = document.createElement('div');
-    const label = document.createElement('label');
-    label.textContent = key;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.dataset.key = key;
-    input.value = value;
-    wrap.append(label, input);
-    form.append(wrap);
+  const known = new Set(SETTINGS_FIELDS.map((f) => f.key));
+  for (const field of SETTINGS_FIELDS) {
+    if (!(field.key in bootstrap.settings)) continue;
+    form.append(buildSettingField(field));
   }
+  for (const key of Object.keys(bootstrap.settings)) {
+    if (!known.has(key)) form.append(buildSettingField({ key, label: key, desc: '', type: 'text' }));
+  }
+}
+
+function buildSettingField(field) {
+  const wrap = document.createElement('div');
+  const label = document.createElement('label');
+  label.textContent = field.label;
+  let control;
+  if (field.type === 'select') {
+    control = document.createElement('select');
+    const current = String(bootstrap.settings[field.key] ?? '');
+    for (const [value, text] of field.options) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = text;
+      if (value === current) opt.selected = true;
+      control.append(opt);
+    }
+  } else {
+    control = document.createElement('input');
+    control.type = 'text';
+    control.value = bootstrap.settings[field.key] ?? '';
+  }
+  control.dataset.key = field.key;
+  wrap.append(label, control);
+  if (field.desc) {
+    const desc = document.createElement('small');
+    desc.className = 'field-desc';
+    desc.textContent = field.desc;
+    wrap.append(desc);
+  }
+  return wrap;
 }
 
 function renderPromptKeys() {
@@ -344,7 +406,7 @@ function init() {
   };
   $('settings-save').onclick = async () => {
     const settings = {};
-    $('settings-form').querySelectorAll('input[data-key]').forEach((i) => (settings[i.dataset.key] = i.value));
+    $('settings-form').querySelectorAll('input[data-key], select[data-key]').forEach((i) => (settings[i.dataset.key] = i.value));
     await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
     await loadBootstrap();
   };

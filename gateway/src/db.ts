@@ -192,8 +192,9 @@ speech: kurz, praegnant, sprechbar, max. 4 Saetze, Zahlen wie "2,2 Euro". Mehrte
 Fasse die Suchergebnisse zusammen: 2-3 konkrete Titel/Fakten mit Quelle, niemals nur Verweise. Keine passenden Ergebnisse: ehrlich sagen.`
 );
 
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('warteton', 'phrase');
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fastpath_model', 'claude-haiku-4.5');
+// Tote Settings entfernen: warteton (steuert die Lambda via env vars),
+// fastpath_model (News-Fastpath entfernt), fuel_sensor (Benzinpreis ueber Inventory).
+db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor')").run();
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('assistant_name', 'Smart Pilot');
 // News als deterministischer Fastpath entfernt (Konzept: Nachrichten/Fragen -> Agent).
 // Bestehende Action-Datei ebenfalls aufraeumen.
@@ -216,7 +217,6 @@ db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('ses
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debug_logging', '0');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('facade_mode', 'facade');
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fuel_sensor', 'sensor.nordoel_sieker_landstrasse_178_super_e10');
 
 for (const action of [
   {

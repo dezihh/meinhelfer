@@ -127,6 +127,8 @@ td.actions { text-align: right; white-space: nowrap; }
 
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; }
 
+.field-desc { display: block; margin-top: 0.2rem; color: var(--text-muted); font-size: 0.75rem; line-height: 1.35; }
+
 .monitor-input { display: flex; gap: 0.5rem; }
 .monitor-input input { flex: 1; }
 .monitor-input .btn { margin-top: 0; }
