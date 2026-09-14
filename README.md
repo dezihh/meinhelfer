@@ -19,7 +19,13 @@ Möchtest du dranbleiben: **„Mein Helfer, Chat-Modus"** — jetzt bleibt die S
 Alexa (Echo-Geräte)
   │
   ▼
-AWS Lambda  ── Thin Adapter: Locale, SSML, APL, Session/Progressive Response
+Alexa-Plattform (Amazon Cloud, Skill-Routing)
+  │
+  ▼
+AWS Lambda „meinhelfer-alexa" (eigene AWS-Funktion, Account 837775096857)
+  └─ Thin Adapter: Locale, SSML, APL, Session/Progressive Response
+     (Timeout bis 30 s – statt hartem 8-s-Limit der abgelösten
+      Alexa-hosted-Lambda; Trigger: Alexa-Skills-Kit via add-permission)
   │ HTTPS (Bearer-Token, optional hinter Reverse-Proxy)
   ▼
 MeinHelfer Gateway (lokal, Docker, Node.js + TypeScript)
@@ -28,6 +34,12 @@ MeinHelfer Gateway (lokal, Docker, Node.js + TypeScript)
   ├─ LLM-Orchestrierung via litellm (Tool-Calls über MCP)
   └─ Admin-Web-UI (LAN-only)
 ```
+
+Mobil-Effekt „Alexa-hosted": Der Skill wurde ursprünglich als **Alexa-hosted**
+betrieben (Amazon baut/hostet die Lambda in seinem Account); die ausgelieferte
+`Release_0`-Lambda mit hartem 8-s-Function-Timeout und Amazon-eigenem
+`config.json` ist **abgelöst**. Backend-Code und Config liegen im Repo
+(`alexa/lambda/`), deployed per `deploy-aws-lambda.yml` in die eigene AWS-Funktion.
 
 Zentrale Architekturregeln (Adapter-Muster, Auth-/Berechtigungs-Ebenen, Datenmodell): [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
 
