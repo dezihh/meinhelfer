@@ -36,7 +36,11 @@ jobs:
               "System": {
                 "application": {"applicationId": sid},
                 "user": {"userId": "amzn1.account.debuginvoke"},
-                "device": {"supportedInterfaces": {}},
+                "device": {
+                  "supportedInterfaces": {
+                    "ALEXA_PRESENTATION_APL": {"version": "1.0"}
+                  }
+                },
                 "apiEndpoint": "https://api.eu.amazonalexa.com",
                 "apiAccessToken": "test-token"
               }
