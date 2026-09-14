@@ -63,41 +63,53 @@ def strip_ssml(text):
 CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 
 # APL-Layout: kontrollierte Schriftgroesse (28dp) + Scroll fuer lange Texte
+# Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
+# Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
 APL_DOCUMENT = {
     "type": "APL",
     "version": "2023.1",
     "theme": "dark",
+    "background": "black",
     "mainTemplate": {
         "parameters": ["payload"],
-        "items": [{
-            "type": "Container",
-            "width": "100%",
-            "height": "100%",
-            "padding": "48dp",
-            "items": [
-                {
-                    "type": "Text",
-                    "text": "${payload.title}",
-                    "fontSize": "26dp",
-                    "fontWeight": "bold",
-                    "color": "#00CAFF",
-                    "shrink": 0,
-                    "paddingBottom": "28dp",
-                },
-                {
-                    "type": "ScrollView",
-                    "width": "100%",
-                    "grow": 1,
-                    "items": [{
+        "items": [
+            {
+                "type": "Container",
+                "width": "100%",
+                "height": "100%",
+                "paddingLeft": "48dp",
+                "paddingRight": "48dp",
+                "paddingTop": "48dp",
+                "paddingBottom": "36dp",
+                "backgroundColor": "#151A20",
+                "items": [
+                    {
                         "type": "Text",
-                        "text": "${payload.text}",
-                        "fontSize": "28dp",
-                        "lineHeight": 1.4,
-                        "color": "#EEEEEE",
-                    }],
-                },
-            ],
-        }],
+                        "text": "${payload.title}",
+                        "fontSize": "26dp",
+                        "fontWeight": "bold",
+                        "color": "#00CAFF",
+                        "shrink": 0,
+                        "paddingBottom": "28dp",
+                    },
+                    {
+                        "type": "ScrollView",
+                        "width": "100%",
+                        "height": "100%",
+                        "grow": 1,
+                        "items": [
+                            {
+                                "type": "Text",
+                                "text": "${payload.text}",
+                                "fontSize": "28dp",
+                                "lineHeight": 1.4,
+                                "color": "#EEEEEE",
+                            }
+                        ],
+                    },
+                ],
+            }
+        ],
     },
 }
 
