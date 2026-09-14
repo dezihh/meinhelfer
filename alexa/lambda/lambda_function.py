@@ -115,26 +115,19 @@ APL_DOCUMENT = {
 
 
 def supports_apl(handler_input):
+    """Ermittelt APL-Support robust: ask-sdk 1.19 mappt das Live-Feld
+    'ALEXA_PRESENTATION_APL' aus Alexa-Requests nicht auf das Model-Attribut,
+    daher zusaetzlich auf das Rohenvelope-JSON pruefen."""
     try:
         device = handler_input.request_envelope.context.system.device
         interfaces = device.supported_interfaces if device else None
-        apl = bool(interfaces and interfaces.alexa_presentation_apl)
-        raw = None
-        try:
-            raw = handler_input.request_envelope.to_dict()
-        except Exception:
-            raw = None
-        has_raw_apl = raw is not None and "ALEXA_PRESENTATION_APL" in json.dumps(raw)
-        logger.warning(
-            "APL-DIAG device=%r interfaces=%r apl=%s raw_has_apl=%s",
-            bool(device),
-            interfaces is not None,
-            apl,
-            has_raw_apl,
-        )
-        return apl
+        if interfaces and interfaces.alexa_presentation_apl:
+            return True
+        raw = handler_input.request_envelope.to_dict()
+        device_raw = (raw.get("context", {}).get("System", {}) or {}).get("device", {}) or {}
+        sup = device_raw.get("supportedInterfaces") or {}
+        return "ALEXA_PRESENTATION_APL" in sup
     except AttributeError as e:
-        logger.warning("APL-DIAG exception=%s", e)
         return False
 
 
