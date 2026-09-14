@@ -64,6 +64,25 @@ jobs:
               interfaces.append({"type": "ALEXA_PRESENTATION_APL"})
               need_put = True
               print("APL ergaenzt")
+          # supportedViewports: alle Profile setzen (Echo Show 5 = hubLandscapeSmall
+          # fehlte im Default-Set -> Skalierung/Anzeigeprobleme auf Shows)
+          VIEWPORTS = [
+              {"mode": "HUB", "shape": "ROUND", "minWidth": 100, "maxWidth": 599, "minHeight": 100, "maxHeight": 599},
+              {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 100, "maxHeight": 599},
+              {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 600, "maxHeight": 959},
+              {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 1280, "maxWidth": 1920, "minHeight": 600, "maxHeight": 1279},
+              {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 1920, "maxWidth": 2560, "minHeight": 960, "maxHeight": 1279},
+              {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 1920, "maxHeight": 2560},
+              {"mode": "TV", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 960, "minHeight": 540, "maxHeight": 540},
+              {"mode": "MOBILE", "shape": "RECTANGLE", "minWidth": 600, "maxWidth": 959, "minHeight": 320, "maxHeight": 1920},
+              {"mode": "MOBILE", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 320, "maxHeight": 1920},
+              {"mode": "MOBILE", "shape": "RECTANGLE", "minWidth": 1280, "maxWidth": 1920, "minHeight": 320, "maxHeight": 1920},
+          ]
+          apl = next((i for i in interfaces if i.get("type") == "ALEXA_PRESENTATION_APL"), None)
+          if apl is not None and apl.get("supportedViewports") != VIEWPORTS:
+              apl["supportedViewports"] = VIEWPORTS
+              need_put = True
+              print("supportedViewports gesetzt/aktualisiert")
           endpoint_arn = sys.argv[2]
           if not endpoint_arn and sys.argv[3]:
               endpoint_arn = "arn:aws:lambda:{}:837775096857:function:meinhelfer-alexa".format(sys.argv[3])

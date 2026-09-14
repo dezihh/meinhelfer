@@ -8,7 +8,19 @@
         },
         "interfaces": [
           {
-            "type": "ALEXA_PRESENTATION_APL"
+            "type": "ALEXA_PRESENTATION_APL",
+            "supportedViewports": [
+              { "mode": "HUB", "shape": "ROUND", "minWidth": 100, "maxWidth": 599, "minHeight": 100, "maxHeight": 599 },
+              { "mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 100, "maxHeight": 599 },
+              { "mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 600, "maxHeight": 959 },
+              { "mode": "HUB", "shape": "RECTANGLE", "minWidth": 1280, "maxWidth": 1920, "minHeight": 600, "maxHeight": 1279 },
+              { "mode": "HUB", "shape": "RECTANGLE", "minWidth": 1920, "maxWidth": 2560, "minHeight": 960, "maxHeight": 1279 },
+              { "mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 1920, "maxHeight": 2560 },
+              { "mode": "TV", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 960, "minHeight": 540, "maxHeight": 540 },
+              { "mode": "MOBILE", "shape": "RECTANGLE", "minWidth": 600, "maxWidth": 959, "minHeight": 320, "maxHeight": 1920 },
+              { "mode": "MOBILE", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 320, "maxHeight": 1920 },
+              { "mode": "MOBILE", "shape": "RECTANGLE", "minWidth": 1280, "maxWidth": 1920, "minHeight": 320, "maxHeight": 1920 }
+            ]
           }
         ]
       }
