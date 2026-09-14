@@ -24,13 +24,14 @@ import {
   setSetting,
   summarizeUsage,
   updateAction,
-  getAction,
   updateMcpServer,
   addLog,
   getSetting,
   type ActionInput,
   type McpServerInput,
 } from './db.js';
+import { getMcpContext } from './mcp/registry.js';
+import { facadeTools } from './tools/facade.js';
 
 const app = express();
 app.use(
@@ -44,7 +45,7 @@ app.use(
 
 function normalizeActionInput(body: Record<string, unknown>): ActionInput {
   const mode = String(body.mode ?? '');
-  if (mode !== 'deterministic' && mode !== 'llm' && mode !== 'hybrid' && mode !== 'search_summary') {
+  if (mode !== 'deterministic' && mode !== 'llm' && mode !== 'hybrid') {
     throw new Error(`Ungültiger Modus: ${mode}`);
   }
   const triggers = Array.isArray(body.trigger_phrases) ? body.trigger_phrases.map(String) : [];
@@ -361,6 +362,17 @@ app.delete('/admin/api/actions/:id', requireAuth, (req, res) => {
 
 app.get('/admin/api/mcp-servers', requireAuth, (req, res) => {
   res.json({ servers: listMcpServers(false) });
+});
+
+// Alle fuer LLM-Actions verfuegbaren Tools (Facade + MCP) fuer den Web-Editor
+app.get('/admin/api/tools', requireAuth, async (req, res) => {
+  try {
+    const mcp = await getMcpContext();
+    const serverTools = mcp.servers.map((s) => ({ server: s.name, tools: s.tools.map((t) => t.name) }));
+    res.json({ facade: facadeTools.map((t) => t.name), mcp: serverTools });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
 });
 
 app.post('/admin/api/mcp-servers', requireAuth, (req, res) => {

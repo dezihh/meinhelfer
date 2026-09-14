@@ -1,21 +1,4 @@
-export type ActionMode = 'deterministic' | 'llm' | 'hybrid' | 'search_summary';
-
-export interface SearchSummaryConfig {
-  search_query: string;
-  keep_open?: boolean;
-  fetch?: { url: string; pick?: string; fields?: string[]; max?: number };
-  urls?: string[];
-  url_chars?: number;
-  topic_template?: string;
-  stopwords?: string[];
-  time_range?: 'day' | 'week' | 'month';
-  engines?: string;
-  max_results?: number;
-  snippet_chars?: number;
-  model?: string;
-  fallback_model?: string;
-  answer_prompt?: string;
-}
+export type ActionMode = 'deterministic' | 'llm' | 'hybrid';
 
 export interface VoiceQuery {
   sessionId: string;
@@ -55,7 +38,7 @@ export interface ActionRow {
 export interface ParsedAction extends ActionRow {
   triggers: string[];
   toolList: string[] | null;
-  handlerConfig: SearchSummaryConfig | null;
+  handlerConfig: Record<string, unknown> | null;
 }
 
 export interface McpServerRow {

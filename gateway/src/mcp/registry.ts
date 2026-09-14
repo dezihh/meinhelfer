@@ -14,7 +14,12 @@ export interface McpContext {
   servers: McpServerContext[];
 }
 
-const TTL_MS = 60_000;
+// Freschheitsschwelle, ab der beim naechsten Zugriff im Hintergrund neu
+// geladen wird. Serve-stale: liefert sofort die letzten bekannten Daten und
+// stoesst parallel einen Refresh an -> die naechste Anfrage bekommt frische
+// Tools, keine Anfrage wartet auf die MCP-Initialisierung.
+const FRESH_MS = 30_000;
+const REFRESH_IN_FLIGHT = new Map<number, Promise<void>>();
 const cache = new Map<number, { client: McpTransport; tools: ToolDef[]; ts: number }>();
 
 function stopClient(client: McpTransport | undefined): void {
@@ -58,20 +63,54 @@ function createClient(row: { transport: 'http' | 'stdio'; url: string; auth_toke
 
 export { createClient };
 
+async function loadServer(row: { id: number; transport: 'http' | 'stdio'; url: string; auth_token: string | null; command: string | null; args: string | null; env: string | null }): Promise<{ client: McpTransport; tools: ToolDef[]; ts: number }> {
+  const client = createClient(row);
+  await client.init();
+  const tools = await client.listTools();
+  return { client, tools, ts: Date.now() };
+}
+
+async function refreshLater(id: number, row: { transport: 'http' | 'stdio'; url: string; auth_token: string | null; command: string | null; args: string | null; env: string | null }): Promise<void> {
+  if (REFRESH_IN_FLIGHT.has(id)) return REFRESH_IN_FLIGHT.get(id);
+  const p = (async () => {
+    try {
+      const fresh = await loadServer(row);
+      const old = cache.get(id);
+      if (old) stopClient(old.client);
+      cache.set(id, fresh);
+    } catch (e) {
+      // Fehler beim Refresh: alten Cache unveraendert weiterverwenden
+      console.error(`MCP-Refresh ${id} fehlgeschlagen:`, e);
+    } finally {
+      REFRESH_IN_FLIGHT.delete(id);
+    }
+  })();
+  REFRESH_IN_FLIGHT.set(id, p);
+  return p;
+}
+
 export async function getMcpContext(): Promise<McpContext> {
   const rows = listMcpServers(true);
   const servers: McpServerContext[] = [];
   for (const row of rows) {
-    let entry = cache.get(row.id);
-    if (!entry || Date.now() - entry.ts > TTL_MS) {
-      stopClient(entry?.client);
-      const client = createClient(row);
-      await client.init();
-      const tools = await client.listTools();
-      entry = { client, tools, ts: Date.now() };
-      cache.set(row.id, entry);
+    const entry = cache.get(row.id);
+    if (!entry) {
+      // Kaltstart: erstmalig laden (blockierend, da Daten zwingend noetig),
+      // aber parallel ueber alle Server statt sequenziell.
+      try {
+        const fresh = await loadServer(row);
+        cache.set(row.id, fresh);
+        servers.push({ id: row.id, name: row.name, client: fresh.client, tools: fresh.tools });
+      } catch (e) {
+        console.error(`MCP-Init ${row.id} fehlgeschlagen:`, e);
+      }
+      continue;
     }
     servers.push({ id: row.id, name: row.name, client: entry.client, tools: entry.tools });
+    if (Date.now() - entry.ts > FRESH_MS) {
+      // serve-stale: sofort liefern, Refresh im Hintergrund -> naechste Anfrage frisch
+      void refreshLater(row.id, row);
+    }
   }
   return { servers };
 }

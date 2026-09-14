@@ -28,10 +28,26 @@ const HISTORY_MAX_SESSIONS = 100;
 function priorTurns(sessionId: string): ChatMessage[] {
   const inMem = sessionHistory.get(sessionId);
   if (inMem && inMem.length > 0) return inMem;
-  return recentAgentTurns(2).flatMap((t) => [
-    { role: 'user' as const, content: t.query },
-    { role: 'assistant' as const, content: t.response },
-  ]);
+  // DB-Recall als ALT markieren: Das LLM weiss, dass die Zeit fortgeschritten
+  // ist, und kann selbst entscheiden, ob der Inhalt noch relevant ist.
+  const turns = recentAgentTurns(2, 30 * 60_000);
+  if (turns.length === 0) return [];
+  const ageHits = turns.filter((t) => t.ageMs > 5 * 60_000);
+  const out: ChatMessage[] = [];
+  if (ageHits.length > 0) {
+    const detail = ageHits
+      .map((t) => `${Math.round(t.ageMs / 60000)} min: ${t.response.slice(0, 80)}`)
+      .join('; ');
+    out.push({
+      role: 'system',
+      content: `Hinweis: Es gibt fruehere Unterhaltungen aus anderen Sitzungen (${detail}). Erwaehne sie NICHT als Teil der aktuellen Frage und traue ihrem Inhalt NICHT als aktuellen Stand. Nutze sie nur, wenn sie fuer die aktuelle Frage klar relevant sind.`,
+    });
+  }
+  for (const t of turns) {
+    out.push({ role: 'user', content: t.query });
+    out.push({ role: 'assistant', content: t.response });
+  }
+  return out;
 }
 
 function rememberTurn(sessionId: string, query: string, speech: string): void {
@@ -324,143 +340,12 @@ async function runAgent(query: VoiceQuery, mcp: McpContext, trace: TraceEvent[])
   return response;
 }
 
-const DEFAULT_TOPIC_STOPWORDS = [
-  'frage', 'frag', 'sag', 'mir', 'bitte', 'gib', 'voice', 'assist', 'smart', 'pilot',
-  'mein', 'meine', 'meiner', 'meinen', 'helfer', 'assistent', 'assistentin',
-  'nach', 'über', 'ueber', 'von', 'vom', 'zum', 'zur', 'zu',
-  'den', 'die', 'das', 'der', 'eine', 'einen', 'einer', 'einem',
-  'aktuellen', 'aktueller', 'aktuelle', 'aktuell', 'mal', 'bitte',
-];
-
-function extractTopic(queryText: string, triggers: string[], stopwords: string[]): string {
-  let text = queryText.toLowerCase();
-  for (const t of [...triggers].sort((a, b) => b.length - a.length)) {
-    const i = text.indexOf(t.toLowerCase());
-    if (i >= 0) {
-      text = `${text.slice(0, i)} ${text.slice(i + t.length)}`.trim();
-      break;
-    }
-  }
-  const stop = new Set(stopwords.map((s) => s.toLowerCase()));
-  return text
-    .split(/\s+/)
-    .filter((w) => w && !stop.has(w))
-    .join(' ')
-    .trim();
-}
-
-async function executeSearchSummary(
-  action: ParsedAction,
-  query: VoiceQuery,
-  mcp: McpContext,
-  trace: TraceEvent[]
-): Promise<AssistantResponse> {
-  const cfg = action.handlerConfig;
-  if (!cfg) return { speech: 'Die Route ist nicht konfiguriert.' };
-  const searchTool = facadeTools.find((t) => t.name === 'search_web');
-  if (!searchTool) return { speech: 'Die Suche ist nicht verfügbar.' };
-
-  const topic = extractTopic(query.text, action.triggers, cfg.stopwords ?? DEFAULT_TOPIC_STOPWORDS);
-  const searchQuery =
-    topic && cfg.topic_template
-      ? cfg.topic_template.replace('{topic}', topic)
-      : topic || cfg.search_query;
-  trace.push({ ts: Date.now(), step: 'action.search', detail: { query: searchQuery, topic } });
-
-  let snippets: string;
-  if (cfg.fetch?.url) {
-    try {
-      const res = await fetch(cfg.fetch.url, { signal: AbortSignal.timeout(8000) });
-      const data = (await res.json()) as Record<string, unknown>;
-      const pick = cfg.fetch.pick ?? 'news';
-      const list = Array.isArray(data[pick]) ? (data[pick] as Record<string, unknown>[]) : [];
-      const fields = cfg.fetch.fields ?? ['title', 'firstSentence'];
-      const lines = list
-        .slice(0, cfg.fetch.max ?? 6)
-        .map((item) => fields.map((f) => String(item[f] ?? '').trim()).filter(Boolean).join(': '))
-        .filter(Boolean);
-      snippets = lines.length ? `Quelle: tagesschau.de (aktuelle Meldungen)\n${lines.join('\n')}` : '';
-      if (!snippets) trace.push({ ts: Date.now(), step: 'action.fetch_empty', detail: { count: list.length } });
-    } catch (e) {
-      trace.push({ ts: Date.now(), step: 'action.fetch_error', detail: String(e).slice(0, 100) });
-      snippets = '';
-    }
-  } else if (cfg.urls && cfg.urls.length > 0) {
-    const readTool = facadeTools.find((t) => t.name === 'web_url_read');
-    if (!readTool) return { speech: 'Die Suche ist nicht verfügbar.' };
-    const parts: string[] = [];
-    for (const url of cfg.urls.slice(0, 2)) {
-      try {
-        const out = (await readTool.run({ url }, mcp)) as Record<string, unknown>;
-        const text = String(out?.inhalt ?? '').trim();
-        if (text) parts.push(`Quelle: ${url}\n${text.slice(0, cfg.url_chars ?? 1200)}`);
-      } catch (e) {
-        trace.push({ ts: Date.now(), step: 'action.url_error', detail: `${url}: ${String(e).slice(0, 80)}` });
-      }
-    }
-    snippets = parts.join('\n\n').trim();
-    if (!snippets) {
-      const searchTool = facadeTools.find((t) => t.name === 'search_web');
-      const out = searchTool
-        ? ((await searchTool.run({ query: searchQuery }, mcp)) as Record<string, unknown>)
-        : {};
-      snippets = String(out?.snippets ?? '').trim();
-    }
-  } else {
-    const searchTool = facadeTools.find((t) => t.name === 'search_web');
-    if (!searchTool) return { speech: 'Die Suche ist nicht verfügbar.' };
-    const searchArgs: Record<string, unknown> = { query: searchQuery };
-    // News-Engines (google_news etc.) unterstuetzen kein time_range in searxng
-    if (cfg.time_range && !cfg.engines) searchArgs.time_range = cfg.time_range;
-    if (cfg.engines) searchArgs.engines = cfg.engines;
-    if (cfg.max_results) searchArgs.max_results = cfg.max_results;
-    if (cfg.snippet_chars) searchArgs.snippet_chars = cfg.snippet_chars;
-    try {
-      const out = (await searchTool.run(searchArgs, mcp)) as Record<string, unknown>;
-      snippets = String(out?.snippets ?? '').trim();
-    } catch (e) {
-      trace.push({ ts: Date.now(), step: 'action.search_error', detail: String(e).slice(0, 120) });
-      return { speech: 'Die Suche hat gerade leider nichts ergeben.' };
-    }
-  }
-  if (!snippets) return { speech: 'Dazu habe ich gerade keine aktuellen Informationen gefunden.' };
-
-  const system =
-    cfg.answer_prompt?.replace('{assistant_name}', assistantName()) ??
-    promptWithName('fastpath_system') ??
-    'Du bist ein hilfreicher deutscher Sprachassistent. Die Websuche ist bereits erfolgt.';
-  const messages: ChatMessage[] = [
-    { role: 'system', content: system },
-    {
-      role: 'user',
-      content: `Die Websuche wurde bereits durchgefuehrt. Suchergebnisse:\n${snippets}\n\nUrspruengliche Frage: ${query.text}\nErstelle daraus die FINALE Antwort im vorgegebenen JSON-Format. Tool-Aufrufe sind nicht mehr moeglich.`,
-    },
-  ];
-  trace.push({ ts: Date.now(), step: 'action.answer', detail: { model: cfg.model } });
-  let message: ChatMessage;
-  try {
-    const result = await chatCompletion(messages, undefined, config.toolDeadlineMs, cfg.model);
-    message = result.message;
-    traceUsage(trace, cfg.model ?? config.llm.model, result);
-  } catch (e) {
-    trace.push({ ts: Date.now(), step: 'action.model_fallback', detail: String(e).slice(0, 120) });
-    const result = await chatCompletion(messages, undefined, config.toolDeadlineMs, cfg.fallback_model);
-    message = result.message;
-    traceUsage(trace, cfg.fallback_model ?? config.llm.model, result);
-  }
-  const response = parseAgentAnswer(message.content ?? '', trace);
-  return { ...response, keepOpen: cfg.keep_open !== false };
-}
-
 async function executeAction(
   action: ParsedAction,
   query: VoiceQuery,
   mcp: McpContext,
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
-  if (action.mode === 'search_summary') {
-    return executeSearchSummary(action, query, mcp, trace);
-  }
   if (action.mode === 'llm' || (action.mode === 'hybrid' && !action.template)) {
     const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? promptWithName('agent_system') ?? '';
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);

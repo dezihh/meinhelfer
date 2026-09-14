@@ -92,6 +92,44 @@ function renderActions() {
   }
 }
 
+function syncActionToolsInput() {
+  const checks = document.querySelectorAll('#action-tools-list input[type=checkbox]:checked');
+  $('action-tools').value = Array.from(checks).map((c) => c.value).join('\n');
+}
+
+async function loadToolPicker(selected) {
+  const list = $('action-tools-list');
+  const sel = new Set(selected ?? []);
+  function group(label, names) {
+    if (!names.length) return;
+    const h = document.createElement('div');
+    h.className = 'tool-group';
+    const head = document.createElement('div');
+    head.className = 'tool-group-title';
+    head.textContent = label;
+    h.append(head);
+    for (const name of names) {
+      const lab = document.createElement('label');
+      lab.className = 'check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = name;
+      cb.checked = sel.has(name);
+      cb.addEventListener('change', syncActionToolsInput);
+      lab.append(cb, ' ', name);
+      h.append(lab);
+    }
+    list.append(h);
+  }
+  try {
+    const info = await api('/tools');
+    group('Facade (HA, Suche, Hausstatus)', info.facade ?? []);
+    for (const srv of info.mcp ?? []) group(`${srv.server} (MCP)`, srv.tools ?? []);
+  } catch {
+    // Tools nicht ladbar: Editor trotzdem nutzbar (dann manuell)
+  }
+}
+
 function openActionEditor(id) {
   const a = id ? bootstrap.actions.find((x) => x.id === id) : null;
   $('action-editor').classList.remove('hidden');
@@ -103,7 +141,8 @@ function openActionEditor(id) {
   $('action-threshold').value = a?.fuzzy_threshold ?? '';
   $('action-system').value = a?.system_prompt ?? '';
   $('action-template').value = a?.template ?? '';
-  $('action-tools').value = (a?.toolList ?? []).join('\n');
+  $('action-tools-list').innerHTML = '';
+  void loadToolPicker(a?.toolList ?? []).then(syncActionToolsInput);
   $('action-enabled').checked = a ? !!a.enabled : true;
 }
 
@@ -123,6 +162,7 @@ function actionPayload() {
 }
 
 async function saveAction() {
+  syncActionToolsInput();
   const payload = actionPayload();
   const id = $('action-id').value;
   if (id) await api(`/actions/${id}`, { method: 'PUT', body: JSON.stringify(payload) });

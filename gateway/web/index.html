@@ -88,8 +88,12 @@
           <textarea id="action-system" rows="4"></textarea>
           <label>Template (deterministisch / hybrid)</label>
           <textarea id="action-template" rows="10" placeholder="{{ ha.state('sensor.x') }}"></textarea>
-          <label>Erlaubte MCP-Tools (eins pro Zeile, leer = alle)</label>
-          <textarea id="action-tools" rows="4"></textarea>
+          <label>Erlaubte Tools (leer = alle erlaubt)</label>
+          <details id="action-tools-picker">
+            <summary>Tools auswählen</summary>
+            <div id="action-tools-list"></div>
+          </details>
+          <input type="hidden" id="action-tools">
           <label class="check"><input id="action-enabled" type="checkbox" checked> Aktiv</label>
           <div class="toolbar">
             <button id="action-save" class="btn primary">Speichern</button>

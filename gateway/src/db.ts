@@ -15,10 +15,11 @@ db.pragma('journal_mode = WAL');
   const cols = (db.prepare('PRAGMA table_info(actions)').all() as { name: string }[]).map((c) => c.name);
   if (cols.length > 0 && !cols.includes('handler_config')) {
     db.exec(`
+      DROP TABLE IF EXISTS actions_new;
       CREATE TABLE actions_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
-        mode TEXT NOT NULL DEFAULT 'llm' CHECK (mode IN ('deterministic','llm','hybrid','search_summary')),
+        mode TEXT NOT NULL DEFAULT 'llm' CHECK (mode IN ('deterministic','llm','hybrid')),
         trigger_phrases TEXT,
         fuzzy_threshold REAL,
         system_prompt TEXT,
@@ -30,7 +31,35 @@ db.pragma('journal_mode = WAL');
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
       INSERT INTO actions_new (id, name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, tools, enabled, created_at, updated_at)
-        SELECT id, name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, tools, enabled, created_at, updated_at FROM actions;
+        SELECT id, name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, tools, enabled, created_at, updated_at FROM actions WHERE mode != 'search_summary';
+      DROP TABLE actions;
+      ALTER TABLE actions_new RENAME TO actions;
+    `);
+  }
+}
+
+// Migration: mode-Check-Constraint erneuern, damit search_summary entfaellt (idempotent)
+{
+  const modeLine = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='actions'").get() as { sql?: string })?.sql ?? '';
+  if (modeLine.includes('search_summary')) {
+    db.exec(`
+      DROP TABLE IF EXISTS actions_new;
+      CREATE TABLE actions_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        mode TEXT NOT NULL DEFAULT 'llm' CHECK (mode IN ('deterministic','llm','hybrid')),
+        trigger_phrases TEXT,
+        fuzzy_threshold REAL,
+        system_prompt TEXT,
+        template TEXT,
+        tools TEXT,
+        handler_config TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO actions_new (id, name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, tools, handler_config, enabled, created_at, updated_at)
+        SELECT id, name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, tools, handler_config, enabled, created_at, updated_at FROM actions WHERE mode != 'search_summary';
       DROP TABLE actions;
       ALTER TABLE actions_new RENAME TO actions;
     `);
@@ -54,7 +83,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS actions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    mode TEXT NOT NULL DEFAULT 'llm' CHECK (mode IN ('deterministic','llm','hybrid','search_summary')),
+    mode TEXT NOT NULL DEFAULT 'llm' CHECK (mode IN ('deterministic','llm','hybrid')),
     trigger_phrases TEXT,
     fuzzy_threshold REAL,
     system_prompt TEXT,
@@ -131,7 +160,8 @@ Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
 - Geräte schalten (Licht, Schalter, Rolladen, Klima): entity_id über find_ha_entities ermitteln, dann control_device mit der exakten entity_id.
 - Hausstatus: get_house_status, Bericht sinngemäß wiedergeben.
 - Benzinpreis: get_fuel_prices.
-- Nachrichten/Suche: search_web als ERSTEN Tool-Aufruf (time_range "week" bei Nachrichten; bei Finanzquellen gezielt, z. B. "onvista news"), danach SOFORT die finale Antwort mit 2-3 konkreten Titeln/Fakten aus den Snippets - niemals nur Verweise, kein weiteres Tool.
+- Nachrichten/Suche: search_web als Tool-Aufruf (time_range "week" bei Nachrichten; bei konkreter Quelle direkt darauf zielen, z. B. "onvista news", "heise news"). Aus den Snippets 2-3 konkrete Titel/Fakten mit Quelle nennen, niemals nur Verweise.
+- Kombinierte Anfragen (z. B. "Nachrichten und dann der Hausstatus"): DER REIHHE NACH abarbeiten - fuer den zweiten Teil weitere Tools nutzen (get_house_status, find_ha_entities ...), NICHT nach dem ersten Tool-Teil abbrechen.
 - web_url_read ausschliesslich wenn der Nutzer eine konkrete Seite/URL nennt. NIEMALS Nachrichtenseiten oder Portale lesen, die search_web nicht liefert.
 - find_ha_entities-Treffer enthalten bereits den aktuellen Zustand: Bei einem plausiblen Treffer SOFORT damit antworten (max. 1 Aufruf pro Anfrage). Keine Variationen desselben Begriffs (z. B. 'aussen' nach 'draussen') - die Suche behandelt das bereits. Kein exakt passender Treffer: nimm den naechstbesten sinnvollen Wert und benenne ihn korrekt (z. B. ' Gefuehlt sind es X Grad'); nur wenn nichts sinnvolles existiert, sag ehrlich, dass nichts gefunden wurde.
 - Mehrteilige Antworten (Nachrichten, Listen, mehrere Themen): Trenne logische Teile mit Zeilenumbruechen (\\n\\n) zwischen den Teilen - die werden als Sprechpausen umgesetzt.`
@@ -149,33 +179,23 @@ Fasse die Suchergebnisse zusammen: 2-3 konkrete Titel/Fakten mit Quelle, niemals
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('warteton', 'phrase');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fastpath_model', 'claude-haiku-4.5');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('assistant_name', 'Smart Pilot');
-db.prepare(
-  'INSERT OR IGNORE INTO actions (name, mode, trigger_phrases, handler_config, enabled) VALUES (?, ?, ?, ?, 1)'
-).run(
-  'news_summary',
-  'search_summary',
-  JSON.stringify([
-    'nachrichten',
-    'neuigkeiten',
-    'nachrichtenzusammenfassung',
-    'news',
-    'schlagzeilen',
-    'was gibt es neues',
-    'zusammenfassung',
-  ]),
-  JSON.stringify({
-    search_query: 'aktuelle nachrichten zusammenfassung',
-    topic_template: '{topic} neuigkeiten',
-    time_range: 'week',
-    max_results: 6,
-    snippet_chars: 350,
-    fetch: { url: 'https://www.tagesschau.de/api2u/homepage/', pick: 'news', fields: ['title', 'firstSentence'], max: 6 },
-    model: 'claude-haiku-4.5',
-    fallback_model: 'deepseek-v4-pro',
-    answer_prompt:
-      'Du bist {assistant_name}, ein deutscher Sprachassistent. Fasse die Suchergebnisse als NACHRICHTENZUSAMMENFASSUNG zusammen.\n\nExtrahiere aus den SNIPPET-INHALTEN 2-3 konkrete Schlagzeilen oder Fakten (Politik, Wirtschaft, Sport, Technik) und nenne sie kurz mit Quelle (z.B. "Laut tagesschau ..."). Die Snippets stammen teils von Nachrichtenseiten-Startseiten - deren Inhalt IST die Nachricht. Nur wenn die Snippets wirklich nichts Konkretes enthalten, sag das ehrlich in einem Satz.\n\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt: {"needs_clarification": false, "speech": "<Antwort>", "keep_open": true}.\nspeech: max. 4 Saetze, sprechbar, Zahlen wie "2,2 Euro". Mehrteilige Antworten: Teile mit \\n\\n trennen (wird als Sprechpause gesprochen).',
-  } satisfies import('./types.js').SearchSummaryConfig)
-);db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fuzzy_global', '1');
+// News als deterministischer Fastpath entfernt (Konzept: Nachrichten/Fragen -> Agent).
+// Bestehende Action-Datei ebenfalls aufraeumen.
+db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
+// Migriere bestehende agent_system-Prompts: Nur den alten Blocker-Satz ersetzen
+// (Kombinations-Antworten aufheben), sonst User-Anpassungen unangetastet lassen.
+{
+  const oldRule = 'kein weiteres Tool.';
+  const row = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content?: string } | undefined;
+  if (row?.content && row.content.includes(oldRule)) {
+    const newRule =
+      'Kombinierte Anfragen (z. B. "Nachrichten und dann der Hausstatus"): DER REIHHE NACH abarbeiten.';
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_system'").run(
+      row.content.replace(oldRule, newRule)
+    );
+  }
+}
+db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fuzzy_global', '1');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_followup', 'beides');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debug_logging', '0');
@@ -332,13 +352,21 @@ export function getPrompt(key: string): string | undefined {
   return row?.content;
 }
 
-export function recentAgentTurns(limit = 2): { query: string; response: string }[] {
+export function recentAgentTurns(limit = 2, maxAgeMs = 30 * 60_000): { query: string; response: string; ageMs: number }[] {
   const rows = db
     .prepare(
-      "SELECT query, response FROM logs WHERE route = 'agent' AND response != '' ORDER BY id DESC LIMIT ?"
+      "SELECT ts, query, response FROM logs WHERE route = 'agent' AND response != '' ORDER BY id DESC LIMIT ?"
     )
-    .all(limit) as { query: string; response: string }[];
-  return rows.reverse();
+    .all(limit) as { ts?: string; query: string; response: string }[];
+  const now = Date.now();
+  const parsed = rows
+    .map((r) => {
+      const t = r.ts ? Date.parse(r.ts.replace(' ', 'T')) : NaN;
+      const ageMs = Number.isFinite(t) ? now - t : 0;
+      return { query: r.query, response: r.response, ageMs };
+    })
+    .filter((r) => r.ageMs <= maxAgeMs);
+  return parsed.reverse();
 }
 
 export function setPrompt(key: string, content: string): void {
