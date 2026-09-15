@@ -67,8 +67,10 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout: kompatibel (version 1.4), simples Layout ohne ScrollView-Risiko.
 # Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
 # Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
-# APL-Layout: bewaehrt per Diagnose am Echo Show 5 (Rendering + Binding verifiziert).
-# Struktur des Diagnose-Dokuments beibehalten (Container mit Padding, Texts mit width 100%).
+# APL-Layout: empirisch verifiziertes Diagnose-Muster (Echo Show 5).
+# Wichtig: Binding-Ausdruecke brauchen einen Prafix vor "${...}" - reine
+# "${payload.x}"-Strings blieben am Geraet schwarz. Titel ist hartkodiert,
+# beim Body dient ein Zero-Width-Space (\u200b) als unsichtbarer Prafix.
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
@@ -80,22 +82,22 @@ APL_DOCUMENT = {
                 "type": "Container",
                 "width": "100%",
                 "height": "100%",
-                "paddingTop": 24,
-                "paddingLeft": 36,
-                "paddingRight": 36,
+                "paddingTop": 20,
+                "paddingLeft": 30,
+                "paddingRight": 30,
                 "items": [
                     {
                         "type": "Text",
-                        "text": "${payload.title}",
+                        "text": CARD_TITLE,
                         "width": "100%",
                         "fontSize": 30,
                         "fontWeight": "bold",
                         "color": "#00CAFF",
-                        "paddingBottom": 14,
+                        "paddingBottom": 12,
                     },
                     {
                         "type": "Text",
-                        "text": "${payload.text}",
+                        "text": "\u200b${payload.text}",
                         "width": "100%",
                         "fontSize": 26,
                         "color": "#EEEEEE",
