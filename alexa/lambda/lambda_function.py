@@ -71,6 +71,7 @@ APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
     "theme": "dark",
+    "background": "#161C27",
     "mainTemplate": {
         "parameters": ["payload"],
         "items": [
@@ -280,6 +281,11 @@ class GptQueryIntentHandler(AbstractRequestHandler):
         # APL: kontrollierte Schriftgroesse + Scroll auf unterstuetzten Geraeten
         if supports_apl(handler_input):
             render_apl(handler_input, CARD_TITLE, display)
+        else:
+            logger.warning("Kein APL-Support erkannt - nur SimpleCard gesendet. Rohe Interfaces: %r",
+                           ((getattr(_RAW_ENVELOPE, "value", None) or {})
+                            .get("context", {}).get("System", {})
+                            .get("device", {}).get("supportedInterfaces")))
         if keep_open:
             # Dynamische Rueckfrage vom Gateway (situativ), sonst statischer Hinweis
             return response_builder.ask(followup_prompt or SPEAK_HELP).response
@@ -326,6 +332,18 @@ class SessionEndedRequestHandler(AbstractRequestHandler):
         return handler_input.response_builder.response
 
 
+class AplRuntimeErrorHandler(AbstractRequestHandler):
+    """Alexa meldet APL-Renderfehler als eigenes Event - fuer CloudWatch-Diagnose."""
+
+    def can_handle(self, handler_input):
+        return ask_utils.is_request_type("Alexa.Presentation.APL.RuntimeError")(handler_input)
+
+    def handle(self, handler_input):
+        raw = (getattr(_RAW_ENVELOPE, "value", None) or {}).get("request") or {}
+        logger.error("APL RuntimeError: %r", raw)
+        return handler_input.response_builder.response
+
+
 class CanFulfillIntentRequestHandler(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return ask_utils.is_request_type("CanFulfillIntentRequest")(handler_input)
@@ -354,6 +372,7 @@ sb.add_request_handler(HelpIntentHandler())
 sb.add_request_handler(CancelOrStopIntentHandler())
 sb.add_request_handler(FallbackIntentHandler())
 sb.add_request_handler(SessionEndedRequestHandler())
+sb.add_request_handler(AplRuntimeErrorHandler())
 sb.add_request_handler(CanFulfillIntentRequestHandler())
 sb.add_exception_handler(CatchAllExceptionHandler())
 
