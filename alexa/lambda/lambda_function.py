@@ -77,16 +77,14 @@ APL_DOCUMENT = {
     "background": "#161C27",
     "onMount": [
         {
-            # Autoscroll ohne AutoPage/Extension: Sequential + Scroll-Schleife
-            # (Standard-Commands in APL 1.4). ~20 dp/s, Start nach 4 s Lesezeit,
-            # 250 Wiederholungen decken auch lange Antworten ab (Scroll nach
-            # Ende ist ein No-op).
-            "type": "Sequential",
+            # Offizielles Muster fuer kontinuierliches Scrollen (APL-Doku,
+            # Scroll-Command): ein Scroll mit sehr grossem distance. distance
+            # ist in PAGES gemessen, positiver Wert scrollt vorwaerts.
+            # delay (Base-Property) = 4 s Lesezeit vor dem Start.
+            "type": "Scroll",
+            "componentId": "bodyScroll",
             "delay": 4000,
-            "repeatCount": 250,
-            "commands": [
-                {"type": "Scroll", "componentId": "bodyScroll", "distance": 4, "duration": 200}
-            ],
+            "distance": 10000,
         }
     ],
     "mainTemplate": {
