@@ -1,0 +1,30 @@
+name: Lambda-Logs abrufen
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Rueckblick in Minuten"
+        default: "15"
+      keyword:
+        description: "Filter (leer = alles)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: AWS-Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'eu-west-1' }}
+      - name: Letzte Logs holen
+        run: |
+          SINCE=$(date -u -d "${{ github.event.inputs.minutes }} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
+          GROUP=$(aws logs describe-log-groups --log-group-name-prefix /aws/lambda/meinhelfer --query 'logGroups[0].logGroupName' --output text)
+          echo "Gruppe: $GROUP seit $SINCE"
+          aws logs tail "$GROUP" --since "${SINCE}" --format short 2>&1 | grep -v "REPORT\|START\|END" | tail -120
