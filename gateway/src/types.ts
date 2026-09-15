@@ -32,14 +32,12 @@ export interface ActionRow {
   template: string | null;
   function_ref: string | null;
   tools: string | null;
-  handler_config: string | null;
   enabled: number;
 }
 
 export interface ParsedAction extends ActionRow {
   triggers: string[];
   toolList: string[] | null;
-  handlerConfig: Record<string, unknown> | null;
 }
 
 export interface McpServerRow {

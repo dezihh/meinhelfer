@@ -65,12 +65,6 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
     template: body.template == null ? null : String(body.template),
     function_ref: body.function_ref == null ? null : String(body.function_ref).trim() || null,
     tools: tools && tools.length > 0 ? JSON.stringify(tools) : null,
-    handler_config:
-      body.handler_config == null
-        ? null
-        : typeof body.handler_config === 'string'
-          ? String(body.handler_config) || null
-          : JSON.stringify(body.handler_config),
     enabled: body.enabled === false ? 0 : 1,
   };
 }
@@ -414,13 +408,7 @@ app.put('/admin/api/actions/:id', requireAuth, (req, res) => {
     res.status(404).json({ error: 'nicht gefunden' });
     return;
   }
-  // handler_config wird vom Web-Editor nicht editiert: wenn der Client keins
-  // mitschickt, den bisherigen Wert beibehalten (News-Action kaputt-Fehler).
-  const body = req.body as Record<string, unknown>;
-  if (body && body.handler_config === undefined && existing.handlerConfig) {
-    body.handler_config = existing.handlerConfig;
-  }
-  const updated = updateAction(id, normalizeActionInput(body));
+  const updated = updateAction(id, normalizeActionInput(req.body as Record<string, unknown>));
   res.json({ action: updated });
 });
 

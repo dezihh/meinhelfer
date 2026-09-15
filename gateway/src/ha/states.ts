@@ -135,18 +135,6 @@ export async function getStatesSnapshot(force = false): Promise<HaEntity[]> {
   return entities;
 }
 
-export function invalidateStatesSnapshot(): void {
-  snapshot = null;
-}
-
-function tokensOf(text: string): string[] {
-  return text.split(/[^a-z0-9äöüß]+/).filter(Boolean);
-}
-
-export async function findEntities(query: string, maxResults = 10): Promise<HaEntity[]> {
-  return scoreEntities(await getStatesSnapshot(), query, maxResults);
-}
-
 // Sync-Scoring gegen einen (gecachten) Snapshot - fuer Template-Hilfsfunktion ha.find.
 export function scoreEntities(entities: HaEntity[], query: string, maxResults = 8): HaEntity[] {
   const terms = query
@@ -209,44 +197,4 @@ function fold(text: string): string {
     .replace(/ö/g, 'o')
     .replace(/ü/g, 'u')
     .replace(/ß/g, 'ss');
-}
-
-// Kompaktdarstellung einer Entity fuer LLM-Tool-Ergebnisse und Template-Ausgaben.
-export function compactEntity(e: HaEntity): Record<string, unknown> {
-  const out: Record<string, unknown> = {
-    entity_id: e.entity_id,
-    name: e.name,
-    state: e.state,
-  };
-  if (e.area) out.area = e.area;
-  if (e.unit) out.unit = e.unit;
-  if (Object.keys(e.attributes).length > 0) out.attributes = e.attributes;
-  return out;
-}
-
-export async function getState(entityId: string): Promise<HaEntity> {
-  const entities = await getStatesSnapshot();
-  const hit = entities.find((e) => e.entity_id === entityId || e.entity_id.toLowerCase() === entityId.toLowerCase());
-  if (hit) return hit;
-  const raw = await haRequest<HaStateRaw>(`/api/states/${encodeURIComponent(entityId)}`);
-  if (!raw) throw new Error(`Entity ${entityId} nicht gefunden`);
-  return toEntity(raw, '');
-}
-
-export async function callService(
-  domain: string,
-  service: string,
-  data: Record<string, unknown>
-): Promise<unknown> {
-  const { base, token } = resolveHaConfig();
-  const res = await fetch(`${base}/api/services/${encodeURIComponent(domain)}/${encodeURIComponent(service)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(data),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) throw new Error(`HA ${res.status}: ${domain}.${service}`);
-  const out = await res.json();
-  invalidateStatesSnapshot();
-  return out;
 }

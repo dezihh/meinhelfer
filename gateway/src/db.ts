@@ -368,13 +368,7 @@ export function parseAction(row: ActionRow): ParsedAction {
   } catch {
     toolList = null;
   }
-  let handlerConfig: ParsedAction['handlerConfig'] = null;
-  try {
-    handlerConfig = row.handler_config ? (JSON.parse(row.handler_config) as ParsedAction['handlerConfig']) : null;
-  } catch {
-    handlerConfig = null;
-  }
-  return { ...row, triggers, toolList, handlerConfig };
+  return { ...row, triggers, toolList };
 }
 
 export function listActions(enabledOnly: boolean): ParsedAction[] {
@@ -392,8 +386,8 @@ export function getAction(id: number): ParsedAction | undefined {
 export function createAction(data: ActionInput): ParsedAction {
   const info = db
     .prepare(
-      `INSERT INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, tools, handler_config, enabled)
-       VALUES (@name, @mode, @trigger_phrases, @fuzzy_threshold, @system_prompt, @template, @function_ref, @tools, @handler_config, @enabled)`
+      `INSERT INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, tools, enabled)
+       VALUES (@name, @mode, @trigger_phrases, @fuzzy_threshold, @system_prompt, @template, @function_ref, @tools, @enabled)`
     )
     .run(data);
   const row = getAction(Number(info.lastInsertRowid));
@@ -405,7 +399,7 @@ export function updateAction(id: number, data: ActionInput): ParsedAction | unde
   db.prepare(
     `UPDATE actions SET name = @name, mode = @mode, trigger_phrases = @trigger_phrases,
      fuzzy_threshold = @fuzzy_threshold, system_prompt = @system_prompt, template = @template,
-     function_ref = @function_ref, tools = @tools, handler_config = @handler_config, enabled = @enabled, updated_at = datetime('now')
+     function_ref = @function_ref, tools = @tools, enabled = @enabled, updated_at = datetime('now')
      WHERE id = @id`
   ).run({ ...data, id });
   return getAction(id);
@@ -694,6 +688,5 @@ export interface ActionInput {
   template: string | null;
   function_ref: string | null;
   tools: string | null;
-  handler_config: string | null;
   enabled: number;
 }
