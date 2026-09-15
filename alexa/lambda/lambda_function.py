@@ -82,7 +82,7 @@ APL_DOCUMENT = {
             "componentId": "bodyScroll",
             "delay": 4000,
             "distance": 1000000,
-            "duration": "${documentData.text.length * 120}",
+            "duration": "${documentData.scrollDuration}",
             "easing": "linear",
         }
     ],
@@ -154,11 +154,19 @@ def supports_apl(handler_input):
 
 
 def render_apl(handler_input, title, text):
+    # Scroll-Dauer serverseitig berechnen (String-.length gibt es in
+    # APL-Bindings nicht; ungueltige duration liess AutoScroll nach 1s abbrechen)
     handler_input.response_builder.add_directive(
         RenderDocumentDirective(
             token="mainhelfer-display-{}".format(int(time.time() * 1000)),
             document=APL_DOCUMENT,
-            datasources={"documentData": {"title": title, "text": text}},
+            datasources={
+                "documentData": {
+                    "title": title,
+                    "text": text,
+                    "scrollDuration": max(10000, len(text) * 120),
+                }
+            },
         )
     )
 
