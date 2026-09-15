@@ -16,6 +16,7 @@ from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirect
 
 # rohes Request-Event fuer APL-Erkennung (ask-sdk verliert Interface-Keys)
 _RAW_ENVELOPE = threading.local()
+_APL_PENDING = threading.local()
 from xml.sax.saxutils import escape
 
 logger = logging.getLogger(__name__)
@@ -139,19 +140,9 @@ def supports_apl(handler_input):
 
 
 def render_apl(handler_input, title, text):
-    datasources = {"payload": {"title": title, "text": text}}
-    try:
-        logger.info("APL-Directive gesendet: document=%dB, datasources=%s",
-                    len(json.dumps(APL_DOCUMENT)), json.dumps(datasources, ensure_ascii=False)[:1200])
-    except Exception:
-        pass
-    handler_input.response_builder.add_directive(
-        RenderDocumentDirective(
-            token="mainhelfer-display-{}".format(int(time.time() * 1000)),
-            document=APL_DOCUMENT,
-            datasources=datasources,
-        )
-    )
+    # Directive NICHT ueber ask-sdk (Verdacht: Serialisierung verliert
+    # datasources im Envelope), sondern roh in den Response injizieren.
+    _APL_PENDING.value = {"title": title, "text": text}
 
 
 def call_gateway(query, session_id, user_id):
@@ -396,4 +387,21 @@ _ask_lambda_handler = sb.lambda_handler()
 def lambda_handler(event, context):
     # rohes Event fuer supports_apl puffern, BEVOR ask-sdk es deserialisiert
     _RAW_ENVELOPE.value = event
-    return _ask_lambda_handler(event, context)
+    _APL_PENDING.value = None
+    resp = _ask_lambda_handler(event, context)
+    pending = getattr(_APL_PENDING, "value", None)
+    if pending and isinstance(resp, dict) and isinstance(resp.get("response"), dict):
+        directive = {
+            "type": "Alexa.Presentation.APL.RenderDocument",
+            "token": "mainhelfer-display-{}".format(int(time.time() * 1000)),
+            "document": APL_DOCUMENT,
+            "datasources": {"payload": pending},
+        }
+        dirs = resp["response"].setdefault("directives", [])
+        dirs.append(directive)
+        try:
+            logger.info("APL roh injiziert: %s", json.dumps(directive["datasources"], ensure_ascii=False)[:600])
+        except Exception:
+            pass
+    _APL_PENDING.value = None
+    return resp
