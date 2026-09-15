@@ -67,7 +67,8 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout: kompatibel (version 1.4), simples Layout ohne ScrollView-Risiko.
 # Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
 # Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
-# DIAGNOSE-Dokument: Item 1 hartkodiert (Rendering), Items 2+3 ueber Datenbindung.
+# APL-Layout: bewaehrt per Diagnose am Echo Show 5 (Rendering + Binding verifiziert).
+# Struktur des Diagnose-Dokuments beibehalten (Container mit Padding, Texts mit width 100%).
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
@@ -79,33 +80,25 @@ APL_DOCUMENT = {
                 "type": "Container",
                 "width": "100%",
                 "height": "100%",
-                "paddingTop": 20,
-                "paddingLeft": 30,
-                "paddingRight": 30,
+                "paddingTop": 24,
+                "paddingLeft": 36,
+                "paddingRight": 36,
                 "items": [
                     {
                         "type": "Text",
-                        "text": "APL RENDER OK",
+                        "text": "${payload.title}",
                         "width": "100%",
-                        "fontSize": 34,
+                        "fontSize": 30,
                         "fontWeight": "bold",
-                        "color": "#00FF00",
-                        "paddingBottom": 12,
+                        "color": "#00CAFF",
+                        "paddingBottom": 14,
                     },
                     {
                         "type": "Text",
-                        "text": "Titel: ${payload.title}",
+                        "text": "${payload.text}",
                         "width": "100%",
-                        "fontSize": 24,
-                        "color": "#FFFFFF",
-                        "paddingBottom": 12,
-                    },
-                    {
-                        "type": "Text",
-                        "text": "Body: ${payload.text}",
-                        "width": "100%",
-                        "fontSize": 24,
-                        "color": "#FFFF00",
+                        "fontSize": 26,
+                        "color": "#EEEEEE",
                     },
                 ],
             }
