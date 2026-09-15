@@ -47,6 +47,15 @@ jobs:
           fi
           echo "Verwende Rolle: ${ROLE_ARN}"
 
+          # 0b) CloudWatch-Logs-Policy fuer die Rolle sicherstellen (sonst keine Log-Streams)
+          ROLE_NAME_FROM_ARN="${ROLE_ARN##*/}"
+          LOG_POLICY='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:DescribeLogStreams"],"Resource":"*"}]}'
+          if aws iam put-role-policy --role-name "${ROLE_NAME_FROM_ARN}" --policy-name meinhelfer-lambda-logs --policy-document "${LOG_POLICY}"; then
+            echo "Logs-Policy gesetzt auf ${ROLE_NAME_FROM_ARN}"
+          else
+            echo "!! put-role-policy fehlgeschlagen (Rechte des Deploy-Users?) - Logs bleiben aus"
+          fi
+
           # 1) Deployment-Zip: lambda_function.py + requirements.txt
           cd alexa/lambda
           mkdir -p pkg
