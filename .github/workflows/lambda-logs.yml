@@ -29,4 +29,4 @@ jobs:
           aws logs describe-log-groups --query 'logGroups[].logGroupName' --output text 2>&1 || true
           GROUP="/aws/lambda/meinhelfer-alexa"
           echo "----- $GROUP seit $SINCE -----"
-          aws logs filter-log-events --log-group-name "$GROUP" --start-time $(date -u -d "${{ github.event.inputs.minutes }} minutes ago" +%s000) --query 'events[].message' --output text 2>&1 | grep -v "REPORT\|START\|END\|INIT_REPORT" | tail -80
+          aws logs filter-log-events --log-group-name "$GROUP" --start-time $(date -u -d "${{ github.event.inputs.minutes }} minutes ago" +%s000) --query 'events[].message' --output text 2>&1 | grep -E "^\[|Traceback|Error|Exception" | tail -60
