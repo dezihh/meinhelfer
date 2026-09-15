@@ -177,9 +177,22 @@ mit {{ http('http://dienst-intern:8080/api/status').offene_aufgaben }} offenen A
 
 Zwei Aufrufe derselben URL = ein einziger Request (Deduplizierung).
 
-**Börsen-Depot (Funktion „boerse_portfolio", live aktiv):** Yahoo-Finance-Chart-API
-kommt ohne API-Key aus; pro Position ein wörtlicher http()-Block, Stückzahl im
-`pos()`-Aufruf. Neue Position = Block + Aufruf kopieren, im Admin-UI anpassen.
+**Ghostfolio-Depotreport (Funktionen „boerse_portfolio"/„boerse_woche", live aktiv):**
+Der eigene Ghostfolio-Endpunkt liefert Top 5 / Flop 5 / Benchmarks — mit
+`format=ssml` sogar als fertigen Alexa-Sprachtext. Die Funktion ist deshalb
+nur ein dünner Wrapper; `_stale` wird als Hinweis angehängt. Perioden: `1d|1w|1m|1y`.
+
+```jinja
+{%- set d = http('https://<ghostfolio-host>/cgi-bin/gf_holdings.py?action=alexa_portfolio&period=1d&format=ssml') -%}
+{%- if d and d.ssml -%}
+{{ d.ssml }}{%- if d._stale %} Hinweis: Die Depotdaten sind nicht mehr tagesaktuell.{% endif %}
+{%- else -%}
+<speak>Ich konnte den Depot-Report gerade nicht abrufen.</speak>
+{%- endif -%}
+```
+
+**Kurs-Report über Yahoo Finance (generisches REST-Beispiel):** Chart-API ohne
+API-Key; pro Position ein wörtlicher http()-Block, Formatierung per Makro.
 
 ```jinja
 {%- set d_sap = http('https://query1.finance.yahoo.com/v8/finance/chart/SAP.DE') -%}
@@ -190,13 +203,7 @@ kommt ohne API-Key aus; pro Position ein wörtlicher http()-Block, Stückzahl im
 {{ (((m.regularMarketPrice - m.chartPreviousClose) / m.chartPreviousClose * 100) if m.chartPreviousClose else 0) | round(1) | replace('.', ',') }} Prozent.
 {%- else -%}{{ name }}: keine Kursdaten.{%- endif -%}
 {%- endmacro -%}
-<speak>
-Dein Depot:
-<break time="200ms"/>
 {{ pos('SAP', d_sap, 40) }}
-<break time="300ms"/>
-Gesamtwert rund {{ ... }} Euro.
-</speak>
 ```
 
 Dynamische Ticker-Abfragen („wie steht eigentlich Apple?") gehen noch nicht —
