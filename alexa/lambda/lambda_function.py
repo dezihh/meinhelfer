@@ -16,7 +16,6 @@ from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirect
 
 # rohes Request-Event fuer APL-Erkennung (ask-sdk verliert Interface-Keys)
 _RAW_ENVELOPE = threading.local()
-_APL_PENDING = threading.local()
 from xml.sax.saxutils import escape
 
 logger = logging.getLogger(__name__)
@@ -71,12 +70,22 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
 # mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
 # (datasources {"documentData": ...} -> ${documentData.text}).
-# (Der fruehere Fehler: Parameter "payload" mapped aufs GESAMTE datasources-
-# Objekt, "${payload.text}" adresse damit ins Leere -> stiller Leer-Text.)
+# Body in ScrollView + AutoScroll (delay 4s, linear, Dauer ~ Textlaenge),
+# Font 38dp, damit lange Antworten ueberhaupt ueberlaufen und scrollen.
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
     "background": "#161C27",
+    "onMount": [
+        {
+            "type": "AutoScroll",
+            "componentId": "bodyScroll",
+            "delay": 4000,
+            "distance": 1000000,
+            "duration": "${documentData.text.length * 120}",
+            "easing": "linear",
+        }
+    ],
     "mainTemplate": {
         "parameters": ["documentData"],
         "items": [
@@ -92,17 +101,27 @@ APL_DOCUMENT = {
                         "type": "Text",
                         "text": "${documentData.title}",
                         "width": "100%",
-                        "fontSize": 30,
+                        "fontSize": 32,
                         "fontWeight": "bold",
                         "color": "#00CAFF",
                         "paddingBottom": 12,
                     },
                     {
-                        "type": "Text",
-                        "text": "${documentData.text}",
+                        "type": "ScrollView",
+                        "componentId": "bodyScroll",
                         "width": "100%",
-                        "fontSize": 26,
-                        "color": "#EEEEEE",
+                        "flex": 1,
+                        "items": [
+                            {
+                                "type": "Text",
+                                "text": "${documentData.text}",
+                                "width": "100%",
+                                "fontSize": 38,
+                                "lineHeight": 1.35,
+                                "color": "#EEEEEE",
+                                "paddingBottom": 60,
+                            }
+                        ],
                     },
                 ],
             }
@@ -135,9 +154,13 @@ def supports_apl(handler_input):
 
 
 def render_apl(handler_input, title, text):
-    # Directive NICHT ueber ask-sdk (Verdacht: Serialisierung verliert
-    # datasources im Envelope), sondern roh in den Response injizieren.
-    _APL_PENDING.value = {"title": title, "text": text}
+    handler_input.response_builder.add_directive(
+        RenderDocumentDirective(
+            token="mainhelfer-display-{}".format(int(time.time() * 1000)),
+            document=APL_DOCUMENT,
+            datasources={"documentData": {"title": title, "text": text}},
+        )
+    )
 
 
 def call_gateway(query, session_id, user_id):
@@ -382,21 +405,4 @@ _ask_lambda_handler = sb.lambda_handler()
 def lambda_handler(event, context):
     # rohes Event fuer supports_apl puffern, BEVOR ask-sdk es deserialisiert
     _RAW_ENVELOPE.value = event
-    _APL_PENDING.value = None
-    resp = _ask_lambda_handler(event, context)
-    pending = getattr(_APL_PENDING, "value", None)
-    if pending and isinstance(resp, dict) and isinstance(resp.get("response"), dict):
-        directive = {
-            "type": "Alexa.Presentation.APL.RenderDocument",
-            "token": "mainhelfer-display-{}".format(int(time.time() * 1000)),
-            "document": APL_DOCUMENT,
-            "datasources": {"documentData": pending},
-        }
-        dirs = resp["response"].setdefault("directives", [])
-        dirs.append(directive)
-        try:
-            logger.info("APL roh injiziert: %s", json.dumps(directive["datasources"], ensure_ascii=False)[:600])
-        except Exception:
-            pass
-    _APL_PENDING.value = None
-    return resp
+    return _ask_lambda_handler(event, context)
