@@ -37,7 +37,6 @@ import {
   type McpServerInput,
 } from './db.js';
 import { getMcpContext } from './mcp/registry.js';
-import { facadeTools } from './tools/facade.js';
 import { renderActionTemplate } from './core/template.js';
 
 const app = express();
@@ -83,10 +82,15 @@ function normalizeFunctionInput(body: Record<string, unknown>): FunctionInput {
   }
   const template = String(body.template ?? '').trim();
   if (!template) throw new Error('Template fehlt');
+  let parameters: string | null = null;
+  if (body.parameters != null && typeof body.parameters === 'object') {
+    parameters = JSON.stringify(body.parameters);
+  }
   return {
     name,
     description: body.description == null ? null : String(body.description).trim() || null,
     template,
+    parameters,
     enabled: body.enabled === false ? 0 : 1,
   };
 }
@@ -434,7 +438,8 @@ app.get('/admin/api/tools', requireAuth, async (req, res) => {
   try {
     const mcp = await getMcpContext();
     const serverTools = mcp.servers.map((s) => ({ server: s.name, tools: s.tools.map((t) => t.name) }));
-    res.json({ facade: facadeTools.map((t) => t.name), mcp: serverTools });
+    const functions = listFunctions(true).map((f) => `fn_${f.name}`);
+    res.json({ mcp: serverTools, functions });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

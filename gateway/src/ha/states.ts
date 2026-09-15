@@ -144,13 +144,17 @@ function tokensOf(text: string): string[] {
 }
 
 export async function findEntities(query: string, maxResults = 10): Promise<HaEntity[]> {
+  return scoreEntities(await getStatesSnapshot(), query, maxResults);
+}
+
+// Sync-Scoring gegen einen (gecachten) Snapshot - fuer Template-Hilfsfunktion ha.find.
+export function scoreEntities(entities: HaEntity[], query: string, maxResults = 8): HaEntity[] {
   const terms = query
     .toLowerCase()
     .split(/\s+/)
     .map((t) => TERM_ALIASES[fold(t)] ?? fold(t))
     .filter((t) => t.length >= 2 && !STOPWORDS.has(t));
   if (terms.length === 0) return [];
-  const entities = await getStatesSnapshot();
   const metricDomains = new Set<string>();
   for (const hint of METRIC_DOMAIN_HINTS) {
     if (terms.some((t) => hint.re.test(t))) {
@@ -205,6 +209,19 @@ function fold(text: string): string {
     .replace(/ö/g, 'o')
     .replace(/ü/g, 'u')
     .replace(/ß/g, 'ss');
+}
+
+// Kompaktdarstellung einer Entity fuer LLM-Tool-Ergebnisse und Template-Ausgaben.
+export function compactEntity(e: HaEntity): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    entity_id: e.entity_id,
+    name: e.name,
+    state: e.state,
+  };
+  if (e.area) out.area = e.area;
+  if (e.unit) out.unit = e.unit;
+  if (Object.keys(e.attributes).length > 0) out.attributes = e.attributes;
+  return out;
 }
 
 export async function getState(entityId: string): Promise<HaEntity> {

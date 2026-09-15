@@ -2,13 +2,13 @@ import { config } from '../config.js';
 import {
   addLog,
   listActions,
+  listFunctions,
   getPrompt,
   getSetting,
   recentAgentTurns,
 } from '../db.js';
 import { chatCompletion, type ChatCompletionResult, type ChatMessage, type ToolSpec } from '../llm/client.js';
 import { getMcpContext, type McpContext } from '../mcp/registry.js';
-import { facadeTools, type FacadeTool } from '../tools/facade.js';
 import { routeAction, type RouteMatch } from './router.js';
 import { renderFunction } from './template.js';
 import type {
@@ -60,7 +60,7 @@ function rememberTurn(sessionId: string, query: string, speech: string): void {
 
 type ToolRoute =
   | { kind: 'mcp'; client: McpContext['servers'][number]['client']; toolName: string }
-  | { kind: 'facade'; tool: FacadeTool };
+  | { kind: 'function'; name: string };
 
 type ToolRouteMap = { specs: ToolSpec[]; routes: Map<string, ToolRoute> };
 
@@ -106,15 +106,25 @@ function buildTools(
 ): ToolRouteMap {
   const routes = new Map<string, ToolRoute>();
   const specs: ToolSpec[] = [];
-  for (const tool of facadeTools) {
-    if (allowlist && !allowlist.includes(tool.name)) continue;
-    routes.set(tool.name, { kind: 'facade', tool });
+  buildMcpTools(mcp, allowlist, routes, specs);
+  // Funktionen (Stufe 2.5): registrierte Funktionen als dynamische LLM-Tools,
+  // optional mit Parameter-Schema; Argumente landen als args im Template.
+  for (const fn of listFunctions(true)) {
+    const toolName = `fn_${fn.name}`;
+    if (allowlist && !allowlist.includes(fn.name) && !allowlist.includes(toolName)) continue;
+    routes.set(toolName, { kind: 'function', name: fn.name });
     specs.push({
       type: 'function',
-      function: { name: tool.name, description: tool.description.slice(0, 300), parameters: tool.parameters },
+      function: {
+        name: toolName,
+        description: (fn.description ?? `Funktion ${fn.name}`).slice(0, 300),
+        parameters:
+          fn.parameters && typeof fn.parameters === 'object'
+            ? (fn.parameters as ToolSpec['function']['parameters'])
+            : { type: 'object', properties: {} },
+      },
     });
   }
-  buildMcpTools(mcp, allowlist, routes, specs);
   return { specs, routes };
 }
 
@@ -254,7 +264,7 @@ async function runToolLoop(
   ];
   const overallDeadline = Date.now() + config.toolDeadlineMs * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
-  const toolBudgets: Record<string, number> = { web_url_read: 1, search_web: 1, get_house_status: 1 };
+  const toolBudgets: Record<string, number> = { searxng_web_search: 1, web_url_read: 1, fn_ha_find: 2, fn_ha_get: 3, fn_hausstatus_gw: 1, fn_hausstatus: 1 };
   const toolCalls: Record<string, number> = {};
   const runTools = async (message: ChatMessage): Promise<void> => {
     messages.push({
@@ -286,8 +296,11 @@ async function runToolLoop(
             args.num_results = 3;
           }
           const out =
-            route.kind === 'facade'
-              ? await route.tool.run(args, mcp)
+            route.kind === 'function'
+              ? await (async () => {
+                  const resp = await renderFunction(route.name, mcp, trace, args);
+                  return { bericht: (resp.ssml ? stripSsmlTags(resp.speech) : resp.speech).slice(0, 4000) };
+                })()
               : await route.client.callTool(route.toolName, args);
           result = JSON.stringify(out).slice(0, 2000);
           trace.push({ ts: Date.now(), step: 'tool.call', detail: { tool: call.function.name, args } });

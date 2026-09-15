@@ -1,7 +1,7 @@
 import nunjucks from 'nunjucks';
 import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
-import { getStatesSnapshot } from '../ha/states.js';
+import { getStatesSnapshot, scoreEntities, type HaEntity } from '../ha/states.js';
 import { getFunctionByName } from '../db.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
@@ -19,6 +19,7 @@ interface LiteralCalls {
   calls: string[];
   shells: string[];
   fns: string[];
+  httpUrls: string[];
 }
 
 function extractLiterals(template: string): LiteralCalls {
@@ -27,6 +28,7 @@ function extractLiterals(template: string): LiteralCalls {
   const calls: string[] = [];
   const shells: string[] = [];
   const fns: string[] = [];
+  const httpUrls: string[] = [];
   for (const m of template.matchAll(/ha\.state\(\s*["']([^"']+)["']\s*\)/g)) states.push(m[1] as string);
   for (const m of template.matchAll(/ha\.entities\(\s*["']([^"']*)["']\s*\)/g)) {
     const domain = m[1] as string;
@@ -35,7 +37,37 @@ function extractLiterals(template: string): LiteralCalls {
   for (const m of template.matchAll(/ha\.call\(\s*["']([^"']+)["']\s*\)/g)) calls.push(m[1] as string);
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
   for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
-  return { states, entityCalls, calls, shells, fns };
+  for (const m of template.matchAll(/http\(\s*["']([^"']+)["']\s*\)/g)) httpUrls.push(m[1] as string);
+  return { states, entityCalls, calls, shells, fns, httpUrls };
+}
+
+// HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
+// Absicherungen: Timeout + Groessencap; JSON wird automatisch geparst,
+// damit Templates direkt auf Felder zugreifen koennen.
+const HTTP_TIMEOUT_MS = 5000;
+const HTTP_BODY_CAP = 100_000;
+
+async function fetchUrl(url: string, trace: TraceEvent[]): Promise<unknown | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+    const raw = (await res.text()).slice(0, HTTP_BODY_CAP);
+    if (!res.ok) {
+      trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url, status: res.status, body: raw.slice(0, 200) } });
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch {
+      return raw;
+    }
+  } catch (e) {
+    trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url, error: String(e) } });
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Verschachtelungstiefe fuer fn()-Aufrufe; verhindert Zyklen und Runaways.
@@ -126,15 +158,50 @@ async function preheat(
   mcp: McpContext,
   trace: TraceEvent[],
   depth: number,
-  active: Set<string>
+  active: Set<string>,
+  args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { states, entityCalls, calls, shells, fns } = extractLiterals(template);
+  const { states, entityCalls, calls, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const entityMap = new Map<string, unknown[]>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
   const fnMap = new Map<string, string | null>();
+  const httpMap = new Map<string, unknown | null>();
   const listTool = findTool(mcp, [/search|lookup|entit/i]);
+
+  // HTTP-URLs parallel laden (dedupliziert)
+  await Promise.all(
+    httpUrls.map(async (url) => {
+      if (httpMap.has(url)) return;
+      httpMap.set(url, await fetchUrl(url, trace));
+      trace.push({ ts: Date.now(), step: 'template.http', detail: { url } });
+    })
+  );
+
+  // Snapshot vorwaermen (60s-Cache) - Basis fuer ha.find/ha.get (sync-Helper).
+  let snapshot: HaEntity[] = [];
+  try {
+    snapshot = await getStatesSnapshot();
+  } catch (e) {
+    trace.push({ ts: Date.now(), step: 'template.snapshot.error', detail: { error: String(e) } });
+  }
+  // Liefert kompakte, sprechbare Zeilen (LLM- und sprachtauglich), keine JSON-Objekte.
+  const fmtEntity = (e: HaEntity): string => {
+    const unit = e.unit ? ` ${e.unit}` : '';
+    const area = e.area ? ` [${e.area}]` : '';
+    const temp = e.attributes && 'current_temperature' in e.attributes ? ` (aktuell ${e.attributes.current_temperature}°C)` : '';
+    return `${e.entity_id} | ${e.name}: ${e.state}${unit}${area}${temp}`;
+  };
+  const haFind = (query: string): string => {
+    if (snapshot.length === 0) return 'HA-Snapshot nicht verfuegbar';
+    const hits = scoreEntities(snapshot, String(query ?? ''), 8).map(fmtEntity);
+    return hits.length > 0 ? hits.join('\n') : 'keine Treffer';
+  };
+  const haGet = (entityId: string): string => {
+    const found = snapshot.find((e) => e.entity_id === entityId);
+    return found ? fmtEntity(found) : `${entityId}: unbekannt`;
+  };
 
   for (const name of fns) {
     if (fnMap.has(name)) continue;
@@ -213,13 +280,17 @@ async function preheat(
   }
 
   return {
+    args,
     ha: {
       state: (entityId: string): string | null => stateMap.get(entityId) ?? null,
       entities: (domain: string): unknown[] => entityMap.get(domain) ?? [],
       call: (toolName: string): string | null => callMap.get(toolName) ?? null,
+      find: haFind,
+      get: haGet,
     },
     shell: (cmd: string): string | null => shellMap.get(cmd) ?? null,
     fn: (name: string): string | null => fnMap.get(name) ?? null,
+    http: (url: string): unknown | null => httpMap.get(url) ?? null,
     now: (() => {
       const d = new Date();
       return { hour: d.getHours(), weekday: d.toLocaleDateString('de-DE', { weekday: 'long' }), date: d.toLocaleDateString('de-DE'), time: d.toTimeString().slice(0, 5) };
@@ -227,24 +298,38 @@ async function preheat(
   };
 }
 
-async function renderPlain(template: string, mcp: McpContext, trace: TraceEvent[], depth: number, active: Set<string>): Promise<string> {
-  const ctx = await preheat(template, mcp, trace, depth, active);
+async function renderPlain(
+  template: string,
+  mcp: McpContext,
+  trace: TraceEvent[],
+  depth: number,
+  active: Set<string>,
+  args: Record<string, unknown> = {}
+): Promise<string> {
+  const ctx = await preheat(template, mcp, trace, depth, active, args);
   return env.renderString(template, ctx).trim();
 }
 
-// Rendert eine Funktion aus der Registry direkt (function_ref am Vorgang).
-export async function renderFunction(name: string, mcp: McpContext, trace: TraceEvent[]): Promise<AssistantResponse> {
+// Rendert eine Funktion aus der Registry (function_ref am Vorgang oder
+// als LLM-Tool-Aufruf mit Argumenten, die als args zur Verfuegung stehen).
+export async function renderFunction(
+  name: string,
+  mcp: McpContext,
+  trace: TraceEvent[],
+  args: Record<string, unknown> = {}
+): Promise<AssistantResponse> {
   const row = getFunctionByName(name);
   if (!row) throw new Error(`Funktion ${name} nicht gefunden oder inaktiv`);
-  return renderActionTemplate(row.template, mcp, trace);
+  return renderActionTemplate(row.template, mcp, trace, args);
 }
 
 export async function renderActionTemplate(
   template: string,
   mcp: McpContext,
-  trace: TraceEvent[]
+  trace: TraceEvent[],
+  args: Record<string, unknown> = {}
 ): Promise<AssistantResponse> {
-  const out = await renderPlain(template, mcp, trace, 0, new Set());  if (/^<speak[\s>]/i.test(out)) {
+  const out = await renderPlain(template, mcp, trace, 0, new Set(), args);  if (/^<speak[\s>]/i.test(out)) {
     return { speech: out, ssml: true };
   }
   if (out.startsWith('{')) {

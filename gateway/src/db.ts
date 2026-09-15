@@ -101,6 +101,7 @@ db.exec(`
     name TEXT NOT NULL UNIQUE,
     description TEXT,
     template TEXT NOT NULL,
+    parameters TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -137,6 +138,7 @@ for (const stmt of [
   'ALTER TABLE mcp_servers ADD COLUMN args TEXT',
   'ALTER TABLE mcp_servers ADD COLUMN env TEXT',
   'ALTER TABLE actions ADD COLUMN function_ref TEXT',
+  'ALTER TABLE tpl_functions ADD COLUMN parameters TEXT',
 ]) {
   try {
     db.exec(stmt);
@@ -226,6 +228,50 @@ db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
     db.prepare("UPDATE actions SET function_ref = ?, template = NULL, updated_at = datetime('now') WHERE id = ?").run(fname, r.id);
   }
 }
+
+// HA-Lesetools als parameterisierte Funktionen (ersetzen die alten Facade-Tools).
+db.prepare(
+  'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
+).run(
+  'ha_find',
+  'Findet HA-Entities zu Stichworten (Name, Raum, Domain) und liefert deren aktuelle Zustände mit (max. 8 Treffer). IMMER zuerst bei Fragen zu Temperatur, Verbrauch, Sensorwerten oder Gerätestatus.',
+  '{{ ha.find(args.query) }}',
+  JSON.stringify({
+    type: 'object',
+    properties: { query: { type: 'string', description: "Stichwörter, z. B. 'Schlafzimmer Temperatur' oder 'Zisterne'" } },
+    required: ['query'],
+  })
+);
+db.prepare(
+  'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
+).run(
+  'ha_get',
+  'Liest den aktuellen Zustand einer konkreten HA-Entity per entity_id inkl. sprechrelevanter Attribute.',
+  '{{ ha.get(args.entity_id) }}',
+  JSON.stringify({
+    type: 'object',
+    properties: { entity_id: { type: 'string', description: "z. B. 'sensor.schlafzimmer_temperature'" } },
+    required: ['entity_id'],
+  })
+);
+
+// Prompt-Migration: alte Facade-Lesetools -> parameterisierte Funktions-Tools.
+{
+  const sys = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content?: string } | undefined;
+  if (sys?.content && sys.content.includes('find_ha_entities')) {
+    const neu = sys.content
+      .replaceAll('find_ha_entities', 'fn_ha_find')
+      .replaceAll('get_ha_state', 'fn_ha_get');
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_system'").run(neu);
+  }
+  const inv = db.prepare("SELECT content FROM prompts WHERE key = 'agent_inventory'").get() as { content?: string } | undefined;
+  if (inv?.content && inv.content.includes('find_ha_entities')) {
+    const neu = inv.content
+      .replaceAll('find_ha_entities', 'fn_ha_find')
+      .replaceAll('get_ha_state', 'fn_ha_get');
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_inventory'").run(neu);
+  }
+}
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('assistant_name', 'Smart Pilot');
 // News als deterministischer Fastpath entfernt (Konzept: Nachrichten/Fragen -> Agent).
 // Bestehende Action-Datei ebenfalls aufraeumen.
@@ -247,6 +293,45 @@ db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fuz
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_followup', 'beides');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe');
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debug_logging', '0');
+
+// Facade-Abbau: agent_system + agent_inventory auf rohe MCP-Tools und
+// dynamische Funktions-Tools (fn_*) umschreiben - nur falls noch alter Text
+// mit den entfernten Facade-Tools drinsteht.
+{
+  const sys = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content?: string } | undefined;
+  if (sys?.content && sys.content.includes('control_device')) {
+    const neu = `Du bist {assistant_name}, ein deutscher Sprachassistent für Home Assistant über Alexa.
+Identität: Du bist {assistant_name} - wenn du gefragt wirst, wer du bist oder wie du heisst, sage WOERTLICH: "Ich bin Dein Helfer".
+Deine FINALE Antwort (sobald keine Tool-Aufrufe mehr nötig) ist AUSSCHLIESSLICH ein JSON-Objekt: {"needs_clarification": <true|false>, "speech": "<Antwort>", "keep_open": <true|false>}.
+Die speech ist kurz, präzise und sprechbar (keine Listen, Zahlen wie "22,4 Grad"). needs_clarification=true nur bei echter Mehrdeutigkeit.
+Anreden am Anfang ("{assistant_name}", "Voice Assist") sind kein Teil der Frage. "mehr dazu" bezieht sich auf das letzte Thema.
+
+Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
+- Messwerte/Zustände (Temperatur, Füllstand, Verbrauch, an/aus): NIEMALS aus eigenem Wissen. find_ha_entities mit Stichworten - Treffer enthalten den aktuellen Zustand, daraus sofort antworten (max. 1 Aufruf pro Frage).
+- Schalten (Licht, Schalter, Rolladen, Klima): HassTurnOn / HassTurnOff mit name (z. B. "Stehlampe") oder area. Detail: Helligkeit/Farbtemperatur HassLightSet, Zieltemperatur HassClimateSetTemperature, Rolladenposition HassSetPosition.
+- Hausstatus (Akku, Verbrauch, Solar, Benzin): fn_hausstatus_gw, Bericht sinngemäß wiedergeben.
+- Benzinpreis (OneShot, z. B. "was kostet Super E10"): get_ha_state mit entity_id "sensor.nordoel_sieker_landstrasse_178_super_e10".
+- Nachrichten/Suche: searxng_web_search (language "de", num_results 5; time_range "week" bei Nachrichten; bei konkreter Quelle direkt darauf zielen). web_url_read ausschliesslich wenn der Nutzer eine konkrete Seite/URL nennt.
+- Kombinierte Anfragen (z. B. "Nachrichten und dann der Hausstatus"): DER REIHENFOLGE NACH abarbeiten - fuer den zweiten Teil weitere Tool-Aufrufe erlaubt.
+- Mehrteilige Antworten (Nachrichten, Listen, mehrere Themen): Trenne logische Teile mit Zeilenumbruechen (\\n\\n) zwischen den Teilen.`;
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_system'").run(neu);
+  }
+  const inv = db.prepare("SELECT content FROM prompts WHERE key = 'agent_inventory'").get() as { content?: string } | undefined;
+  if (inv?.content && inv.content.includes('control_device')) {
+    const neu = `Nimm dieses Nachschlagewerk als Pflicht-Referenz, bevor du ein Tool aufrufst:
+
+- Hauswerte lesen (Temperatur, Verbrauch, Füllstand, Status): find_ha_entities mit Stichworten - Treffer enthalten den aktuellen Zustand, sofort antworten. Konkrete entity_id: get_ha_state.
+- Schalten (Licht, Schalter, Rolladen, Klima): HassTurnOn / HassTurnOff mit name (z. B. "Stehlampe") oder area. Detail: HassLightSet (Helligkeit/Farbtemperatur), HassClimateSetTemperature (Thermostat), HassSetPosition (Rolladen).
+- Hausstatus (Akkustand, Verbrauch, Solar, Benzin): fn_hausstatus_gw (fertiger Bericht, keinen eigenen Bericht bauen).
+- Benzinpreis (OneShot, z. B. "was kostet Super E10", "sollte ich jetzt tanken"): get_ha_state auf entity_id "sensor.nordoel_sieker_landstrasse_178_super_e10".
+- Boersen-/Finanznachrichten (onvista, boerse.de, finanzen.net): searxng_web_search gezielt auf die Quelle (z. B. "onvista news").
+- Allgemeine Nachrichten/Recherche: searxng_web_search (time_range "week"), aus Snippets mit Quelle antworten.
+- Konkrete Seite/URL lesen: web_url_read (nur auf ausdruecklichen Wunsch).
+
+Kombinationen (z. B. "News und dann Hausstatus"): jeder Teil nutzt das jeweils zustaendige Tool - der Reihenfolge nach, nicht abbrechen.`;
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_inventory'").run(neu);
+  }
+}
 
 for (const action of [
   {
@@ -335,6 +420,7 @@ export interface ParsedFunction {
   name: string;
   description: string | null;
   template: string;
+  parameters: unknown | null;
   enabled: boolean;
 }
 
@@ -342,6 +428,7 @@ export interface FunctionInput {
   name: string;
   description: string | null;
   template: string;
+  parameters: string | null;
   enabled: number;
 }
 
@@ -350,11 +437,25 @@ interface FunctionRow {
   name: string;
   description: string | null;
   template: string;
+  parameters: string | null;
   enabled: number;
 }
 
 function parseFunction(row: FunctionRow): ParsedFunction {
-  return { id: row.id, name: row.name, description: row.description, template: row.template, enabled: !!row.enabled };
+  let parameters: unknown | null = null;
+  try {
+    parameters = row.parameters ? (JSON.parse(row.parameters) as unknown) : null;
+  } catch {
+    parameters = null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    template: row.template,
+    parameters,
+    enabled: !!row.enabled,
+  };
 }
 
 export function listFunctions(enabledOnly: boolean): ParsedFunction[] {
@@ -377,8 +478,8 @@ export function getFunctionByName(name: string): ParsedFunction | undefined {
 export function createFunction(data: FunctionInput): ParsedFunction {
   const info = db
     .prepare(
-      `INSERT INTO tpl_functions (name, description, template, enabled)
-       VALUES (@name, @description, @template, @enabled)`
+      `INSERT INTO tpl_functions (name, description, template, parameters, enabled)
+       VALUES (@name, @description, @template, @parameters, @enabled)`
     )
     .run(data);
   const row = getFunction(Number(info.lastInsertRowid));
@@ -389,7 +490,7 @@ export function createFunction(data: FunctionInput): ParsedFunction {
 export function updateFunction(id: number, data: FunctionInput): ParsedFunction | undefined {
   db.prepare(
     `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
-     enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
+     parameters = @parameters, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
   ).run({ ...data, id });
   return getFunction(id);
 }

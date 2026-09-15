@@ -43,10 +43,13 @@ betrieben (Amazon baut/hostet die Lambda in seinem Account); die ausgelieferte
 
 Zentrale Architekturregeln (Adapter-Muster, Auth-/Berechtigungs-Ebenen, Datenmodell): [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
 
+Funktionen-Registry, Template-Bausteine (`ha.*`, `shell`, `http`, `fn`, `args`) und Vorgänge: [doc/FUNKTIONEN.md](doc/FUNKTIONEN.md)
+
 ## Features
 
 - **MCP-Integration:** Alexa-Anfragen werden von lokalen MCP-Servern beantwortet (HA, Suche, …)
 - **Gelenkte Prompt-Actions:** definierte Prompts lösen Aktionen aus, die das LLM mit definierten Tools ausführt und nach deterministischem Muster strukturiert zurückgibt (z. B. Hausstatus, Nachrichten zu Thema X)
+- **Funktionen-Registry:** eigene Jinja-Funktionen mit Daten-Bausteinen (`ha.*`, `shell`, `http`, `fn`) — im Admin-UI pflegbar, per „Ausführen" testbar; als deterministische Vorgangs-Quelle und als dynamische LLM-Tools (mit Parametern) nutzbar — neue Domänen ohne Gateway-Code ([doc/FUNKTIONEN.md](doc/FUNKTIONEN.md))
 - **Nachfragen bei Mehrdeutigkeit (Clarification):** bei unklaren Fragen darf das LLM kurz nachfragen – die Session bleibt dafür offen
 - **Kontext & Follow-ups:** jede Antwort wandert ins Kurzzeitgedächtnis, Folgefragen innerhalb einer offenen Session funktionieren ohne Neu-Invocation
 - **Warteton bei längerer Recherche:** dauert eine Antwort länger, meldet sich der Skill nach wenigen Sekunden mit einer kurzen Ansage (Progressive Response), damit Alexa das Antwortfenster nicht abbricht

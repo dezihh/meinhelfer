@@ -227,7 +227,7 @@ async function loadToolPicker(selected) {
   }
   try {
     const info = await api('/tools');
-    group('Gateway-Tools (Facade)', info.facade ?? []);
+    group('Funktionen (als LLM-Tools)', info.functions ?? []);
     for (const srv of info.mcp ?? []) group(`${srv.server} (MCP)`, srv.tools ?? []);
   } catch {
     // Tools nicht ladbar: Editor trotzdem nutzbar (dann manuell)
