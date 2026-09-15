@@ -68,14 +68,17 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout: kompatibel (version 1.4), simples Layout ohne ScrollView-Risiko.
 # Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
 # Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
-# APL-Diagnose-Layout: Grau-Probe (hartkodiert, gleiche Farbe wie der Body)
-# trennt "Farbe unsichtbar" von "Binding leer". Directive-JSON geht ins Log.
+# APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
+# mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
+# (datasources {"documentData": ...} -> ${documentData.text}).
+# (Der fruehere Fehler: Parameter "payload" mapped aufs GESAMTE datasources-
+# Objekt, "${payload.text}" adresse damit ins Leere -> stiller Leer-Text.)
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
     "background": "#161C27",
     "mainTemplate": {
-        "parameters": ["payload"],
+        "parameters": ["documentData"],
         "items": [
             {
                 "type": "Container",
@@ -87,7 +90,7 @@ APL_DOCUMENT = {
                 "items": [
                     {
                         "type": "Text",
-                        "text": CARD_TITLE,
+                        "text": "${documentData.title}",
                         "width": "100%",
                         "fontSize": 30,
                         "fontWeight": "bold",
@@ -96,15 +99,7 @@ APL_DOCUMENT = {
                     },
                     {
                         "type": "Text",
-                        "text": "PROBE GRAU (hartkodiert)",
-                        "width": "100%",
-                        "fontSize": 26,
-                        "color": "#EEEEEE",
-                        "paddingBottom": 12,
-                    },
-                    {
-                        "type": "Text",
-                        "text": "\u200b${payload.text}",
+                        "text": "${documentData.text}",
                         "width": "100%",
                         "fontSize": 26,
                         "color": "#EEEEEE",
@@ -395,7 +390,7 @@ def lambda_handler(event, context):
             "type": "Alexa.Presentation.APL.RenderDocument",
             "token": "mainhelfer-display-{}".format(int(time.time() * 1000)),
             "document": APL_DOCUMENT,
-            "datasources": {"payload": pending},
+            "datasources": {"documentData": pending},
         }
         dirs = resp["response"].setdefault("directives", [])
         dirs.append(directive)
