@@ -70,7 +70,6 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
-    "theme": "dark",
     "background": "#161C27",
     "mainTemplate": {
         "parameters": ["payload"],
@@ -79,26 +78,27 @@ APL_DOCUMENT = {
                 "type": "Container",
                 "width": "100%",
                 "height": "100%",
+                "paddingTop": 40,
+                "paddingLeft": 40,
+                "paddingRight": 40,
                 "items": [
                     {
                         "type": "Text",
+                        "componentId": "titleText",
                         "text": "${payload.title}",
+                        "width": "100%",
                         "fontSize": 26,
                         "fontWeight": "bold",
                         "color": "#00CAFF",
-                        "paddingTop": 40,
-                        "paddingLeft": 40,
-                        "paddingRight": 40,
                         "paddingBottom": 16,
                     },
                     {
                         "type": "Text",
+                        "componentId": "bodyText",
                         "text": "${payload.text}",
+                        "width": "100%",
                         "fontSize": 28,
                         "color": "#EEEEEE",
-                        "paddingLeft": 40,
-                        "paddingRight": 40,
-                        "paddingBottom": 40,
                     },
                 ],
             }
