@@ -25,6 +25,8 @@ jobs:
       - name: Letzte Logs holen
         run: |
           SINCE=$(date -u -d "${{ github.event.inputs.minutes }} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
-          GROUP=$(aws logs describe-log-groups --log-group-name-prefix /aws/lambda/meinhelfer --query 'logGroups[0].logGroupName' --output text)
-          echo "Gruppe: $GROUP seit $SINCE"
-          aws logs tail "$GROUP" --since "${SINCE}" --format short 2>&1 | grep -v "REPORT\|START\|END" | tail -120
+          echo "Alle Log-Gruppen:"
+          aws logs describe-log-groups --query 'logGroups[].logGroupName' --output text 2>&1 || true
+          GROUP="/aws/lambda/meinhelfer-alexa"
+          echo "----- $GROUP seit $SINCE -----"
+          aws logs filter-log-events --log-group-name "$GROUP" --start-time $(date -u -d "${{ github.event.inputs.minutes }} minutes ago" +%s000) --query 'events[].message' --output text 2>&1 | grep -v "REPORT\|START\|END\|INIT_REPORT" | tail -80
