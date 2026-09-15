@@ -7,16 +7,20 @@ import { processQuery } from './core/engine.js';
 import { chatCompletion } from './llm/client.js';
 import { fromAssistantResponse, toVoiceQuery } from './adapters/alexa.js';
 import { invalidateMcpCache, createClient } from './mcp/registry.js';
-import type { ActionMode } from './types.js';
+import type { ActionMode, TraceEvent } from './types.js';
 import {
   createAction,
   createMcpServer,
   deleteAction,
+  deleteFunction,
   deleteMcpServer,
   getAction,
+  getFunction,
   getMcpServer,
   getSettings,
   listActions,
+  listFunctions,
+  createFunction,
   listLogs,
   listMcpServers,
   listPrompts,
@@ -24,14 +28,17 @@ import {
   setSetting,
   summarizeUsage,
   updateAction,
+  updateFunction,
   updateMcpServer,
   addLog,
   getSetting,
   type ActionInput,
+  type FunctionInput,
   type McpServerInput,
 } from './db.js';
 import { getMcpContext } from './mcp/registry.js';
 import { facadeTools } from './tools/facade.js';
+import { renderActionTemplate } from './core/template.js';
 
 const app = express();
 app.use(
@@ -57,6 +64,7 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
     fuzzy_threshold: body.fuzzy_threshold == null ? null : Number(body.fuzzy_threshold),
     system_prompt: body.system_prompt == null ? null : String(body.system_prompt),
     template: body.template == null ? null : String(body.template),
+    function_ref: body.function_ref == null ? null : String(body.function_ref).trim() || null,
     tools: tools && tools.length > 0 ? JSON.stringify(tools) : null,
     handler_config:
       body.handler_config == null
@@ -64,6 +72,21 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
         : typeof body.handler_config === 'string'
           ? String(body.handler_config) || null
           : JSON.stringify(body.handler_config),
+    enabled: body.enabled === false ? 0 : 1,
+  };
+}
+
+function normalizeFunctionInput(body: Record<string, unknown>): FunctionInput {
+  const name = String(body.name ?? '').trim();
+  if (!/^[a-z0-9_]{2,40}$/.test(name)) {
+    throw new Error('Name: 2-40 Zeichen, nur a-z, 0-9, _');
+  }
+  const template = String(body.template ?? '').trim();
+  if (!template) throw new Error('Template fehlt');
+  return {
+    name,
+    description: body.description == null ? null : String(body.description).trim() || null,
+    template,
     enabled: body.enabled === false ? 0 : 1,
   };
 }
@@ -315,6 +338,7 @@ app.get('/admin/api/bootstrap', requireAuth, (req, res) => {
   res.json({
     settings: getSettings(),
     actions: listActions(false),
+    functions: listFunctions(false),
     servers: listMcpServers(false),
     prompts: listPrompts(),
   });
@@ -332,6 +356,47 @@ app.put('/admin/api/settings', requireAuth, (req, res) => {
 
 app.get('/admin/api/actions', requireAuth, (req, res) => {
   res.json({ actions: listActions(false) });
+});
+
+app.get('/admin/api/functions', requireAuth, (req, res) => {
+  res.json({ functions: listFunctions(false) });
+});
+
+app.post('/admin/api/functions', requireAuth, (req, res) => {
+  try {
+    const fn = createFunction(normalizeFunctionInput(req.body as Record<string, unknown>));
+    res.json({ function: fn });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
+});
+
+app.put('/admin/api/functions/:id', requireAuth, (req, res) => {
+  try {
+    const fn = updateFunction(Number(req.params.id), normalizeFunctionInput(req.body as Record<string, unknown>));
+    if (!fn) return res.status(404).json({ error: 'Funktion nicht gefunden' });
+    res.json({ function: fn });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
+});
+
+app.delete('/admin/api/functions/:id', requireAuth, (req, res) => {
+  deleteFunction(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+// Vorschau: Template direkt rendern (mit echtem MCP-Kontext), fuer den Funktionen-Editor
+app.post('/admin/api/functions/preview', requireAuth, async (req, res) => {
+  try {
+    const template = String((req.body as { template?: unknown }).template ?? '');
+    const mcp = await getMcpContext();
+    const trace: TraceEvent[] = [];
+    const rendered = await renderActionTemplate(template, mcp, trace);
+    res.json({ rendered, trace });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
 });
 
 app.post('/admin/api/actions', requireAuth, (req, res) => {

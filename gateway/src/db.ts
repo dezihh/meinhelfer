@@ -88,8 +88,19 @@ db.exec(`
     fuzzy_threshold REAL,
     system_prompt TEXT,
     template TEXT,
+    function_ref TEXT,
     tools TEXT,
     handler_config TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS tpl_functions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    template TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -125,6 +136,7 @@ for (const stmt of [
   'ALTER TABLE mcp_servers ADD COLUMN command TEXT',
   'ALTER TABLE mcp_servers ADD COLUMN args TEXT',
   'ALTER TABLE mcp_servers ADD COLUMN env TEXT',
+  'ALTER TABLE actions ADD COLUMN function_ref TEXT',
 ]) {
   try {
     db.exec(stmt);
@@ -190,6 +202,30 @@ Kombinationen (z.B. "News und dann Hausstatus"): jeder Teil nutzt das jeweils zu
 db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor', 'facade_mode')").run();
 // Toter Prompt-Key: fastpath_system gehoerte zum entfernten News-Fastpath.
 db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
+
+// Inline-Templates -> Funktionen: Bestehende Vorgangs-Templates in die
+// Funktionen-Registry ueberfuehren (Funktion ist seither Pflicht fuer
+// deterministic/hybrid). Existiert bereits eine Funktion mit dem Namen,
+// wird sie wiederverwendet.
+{
+  const rows = db
+    .prepare(
+      "SELECT id, name, template FROM actions WHERE template IS NOT NULL AND template != '' AND (function_ref IS NULL OR function_ref = '')"
+    )
+    .all() as { id: number; name: string; template: string }[];
+  for (const r of rows) {
+    const fname = r.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+    const existing = db.prepare('SELECT id FROM tpl_functions WHERE name = ?').get(fname);
+    if (!existing) {
+      db.prepare('INSERT INTO tpl_functions (name, description, template, enabled) VALUES (?, ?, ?, 1)').run(
+        fname,
+        `Aus Vorgang "${r.name}" migriert`,
+        r.template
+      );
+    }
+    db.prepare("UPDATE actions SET function_ref = ?, template = NULL, updated_at = datetime('now') WHERE id = ?").run(fname, r.id);
+  }
+}
 db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('assistant_name', 'Smart Pilot');
 // News als deterministischer Fastpath entfernt (Konzept: Nachrichten/Fragen -> Agent).
 // Bestehende Action-Datei ebenfalls aufraeumen.
@@ -271,8 +307,8 @@ export function getAction(id: number): ParsedAction | undefined {
 export function createAction(data: ActionInput): ParsedAction {
   const info = db
     .prepare(
-      `INSERT INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, tools, handler_config, enabled)
-       VALUES (@name, @mode, @trigger_phrases, @fuzzy_threshold, @system_prompt, @template, @tools, @handler_config, @enabled)`
+      `INSERT INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, tools, handler_config, enabled)
+       VALUES (@name, @mode, @trigger_phrases, @fuzzy_threshold, @system_prompt, @template, @function_ref, @tools, @handler_config, @enabled)`
     )
     .run(data);
   const row = getAction(Number(info.lastInsertRowid));
@@ -284,7 +320,7 @@ export function updateAction(id: number, data: ActionInput): ParsedAction | unde
   db.prepare(
     `UPDATE actions SET name = @name, mode = @mode, trigger_phrases = @trigger_phrases,
      fuzzy_threshold = @fuzzy_threshold, system_prompt = @system_prompt, template = @template,
-     tools = @tools, handler_config = @handler_config, enabled = @enabled, updated_at = datetime('now')
+     function_ref = @function_ref, tools = @tools, handler_config = @handler_config, enabled = @enabled, updated_at = datetime('now')
      WHERE id = @id`
   ).run({ ...data, id });
   return getAction(id);
@@ -292,6 +328,74 @@ export function updateAction(id: number, data: ActionInput): ParsedAction | unde
 
 export function deleteAction(id: number): void {
   db.prepare('DELETE FROM actions WHERE id = ?').run(id);
+}
+
+export interface ParsedFunction {
+  id: number;
+  name: string;
+  description: string | null;
+  template: string;
+  enabled: boolean;
+}
+
+export interface FunctionInput {
+  name: string;
+  description: string | null;
+  template: string;
+  enabled: number;
+}
+
+interface FunctionRow {
+  id: number;
+  name: string;
+  description: string | null;
+  template: string;
+  enabled: number;
+}
+
+function parseFunction(row: FunctionRow): ParsedFunction {
+  return { id: row.id, name: row.name, description: row.description, template: row.template, enabled: !!row.enabled };
+}
+
+export function listFunctions(enabledOnly: boolean): ParsedFunction[] {
+  const rows = enabledOnly
+    ? (db.prepare('SELECT * FROM tpl_functions WHERE enabled = 1 ORDER BY name').all() as FunctionRow[])
+    : (db.prepare('SELECT * FROM tpl_functions ORDER BY name').all() as FunctionRow[]);
+  return rows.map(parseFunction);
+}
+
+export function getFunction(id: number): ParsedFunction | undefined {
+  const row = db.prepare('SELECT * FROM tpl_functions WHERE id = ?').get(id) as FunctionRow | undefined;
+  return row ? parseFunction(row) : undefined;
+}
+
+export function getFunctionByName(name: string): ParsedFunction | undefined {
+  const row = db.prepare('SELECT * FROM tpl_functions WHERE name = ? AND enabled = 1').get(name) as FunctionRow | undefined;
+  return row ? parseFunction(row) : undefined;
+}
+
+export function createFunction(data: FunctionInput): ParsedFunction {
+  const info = db
+    .prepare(
+      `INSERT INTO tpl_functions (name, description, template, enabled)
+       VALUES (@name, @description, @template, @enabled)`
+    )
+    .run(data);
+  const row = getFunction(Number(info.lastInsertRowid));
+  if (!row) throw new Error('Funktion konnte nicht gelesen werden');
+  return row;
+}
+
+export function updateFunction(id: number, data: FunctionInput): ParsedFunction | undefined {
+  db.prepare(
+    `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
+     enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
+  ).run({ ...data, id });
+  return getFunction(id);
+}
+
+export function deleteFunction(id: number): void {
+  db.prepare('DELETE FROM tpl_functions WHERE id = ?').run(id);
 }
 
 export interface McpServerInput {
@@ -487,6 +591,7 @@ export interface ActionInput {
   fuzzy_threshold: number | null;
   system_prompt: string | null;
   template: string | null;
+  function_ref: string | null;
   tools: string | null;
   handler_config: string | null;
   enabled: number;

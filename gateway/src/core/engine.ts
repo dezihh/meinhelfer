@@ -10,7 +10,7 @@ import { chatCompletion, type ChatCompletionResult, type ChatMessage, type ToolS
 import { getMcpContext, type McpContext } from '../mcp/registry.js';
 import { facadeTools, type FacadeTool } from '../tools/facade.js';
 import { routeAction, type RouteMatch } from './router.js';
-import { renderActionTemplate } from './template.js';
+import { renderFunction } from './template.js';
 import type {
   AssistantResponse,
   EngineResult,
@@ -362,11 +362,16 @@ async function executeAction(
   mcp: McpContext,
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
-  if (action.mode === 'llm' || (action.mode === 'hybrid' && !action.template)) {
+  if (action.mode === 'llm') {
     const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
-  const rendered = await renderActionTemplate(action.template ?? '', mcp, trace);
+  // deterministic/hybrid: Daten kommen ausschliesslich aus einer Funktion
+  if (!action.function_ref) {
+    trace.push({ ts: Date.now(), step: 'action.error', detail: { action: action.name, reason: 'keine Funktion zugewiesen' } });
+    return { speech: 'Dieser Vorgang ist nicht richtig eingerichtet: Es ist keine Funktion zugewiesen.' };
+  }
+  const rendered = await renderFunction(action.function_ref, mcp, trace);
   if (action.mode === 'deterministic') return rendered;
   const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
   const messages: ChatMessage[] = [

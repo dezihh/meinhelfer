@@ -139,6 +139,9 @@ td.actions { text-align: right; white-space: nowrap; }
 .tool-row .check { flex: 1; }
 .tool-insert { padding: 0.05rem 0.45rem; font-size: 0.8rem; line-height: 1.4; }
 
+.snippet-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.35rem; }
+.snippet-row .snippet { font-family: ui-monospace, monospace; font-size: 0.75rem; }
+
 .help {
   width: 1.25rem;
   height: 1.25rem;

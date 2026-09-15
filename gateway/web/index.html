@@ -14,6 +14,7 @@
         <a data-tab="settings" class="active">Grundeinstellungen</a>
         <a data-tab="monitor">Monitor / Test</a>
         <a data-tab="actions">Vorgänge</a>
+        <a data-tab="functions">Funktionen</a>
         <a data-tab="mcp">MCP-Registry</a>
         <a data-tab="logs">Logs</a>
       </nav>
@@ -88,9 +89,9 @@
           <div class="field">
             <div class="field-head"><label>Modus</label><button type="button" class="help" title="deterministic = nur Template (schnell, kein LLM). llm = Agent mit optionalem eigenen Prompt. hybrid = Template liefert Daten, das LLM formuliert die Antwort." aria-label="Hilfe zu Modus">?</button></div>
             <div class="field-help hidden">
-              deterministic: Die Antwort kommt 1:1 aus dem Template — kein LLM-Aufruf, schnell und kostengünstig. Ideal für feste Auskünfte.
+              deterministic: Die gewählte Funktion wird gerendert und ihre Ausgabe direkt als Antwort gesprochen — kein LLM-Aufruf, schnell und kostengünstig.
               llm: Der Agent beantwortet die Anfrage frei, optional mit eigenem System-Prompt und eingeschränkten Tools.
-              hybrid: Das Template sammelt zuerst die Daten, das LLM formuliert daraus eine sprechbare Antwort.
+              hybrid: Die Funktion sammelt zuerst die Daten, das LLM formuliert daraus eine sprechbare Antwort.
             </div>
             <select id="action-mode">
               <option value="deterministic">deterministisch (Template)</option>
@@ -113,17 +114,12 @@
             <div class="field-help hidden">Gilt nur für llm/hybrid. Leer lassen, um den globalen Agent-Prompt zu verwenden. Der Platzhalter {assistant_name} wird durch den Assistenten-Namen ersetzt. Das Tool-Inventory (agent_inventory) wird weiterhin angehängt.</div>
             <textarea id="action-system" rows="4"></textarea>
           </div>
-          <div class="field">
-            <div class="field-head"><label>Template (deterministisch / hybrid)</label><button type="button" class="help" title="Antwort-Vorlage mit Daten-Abrufen: ha.state('entity_id'), ha.entities('domain'), ha.call('toolname'), shell('befehl'). Toolnamen per ➕-Button im Tool-Picker einfügen." aria-label="Hilfe zu Template">?</button></div>
-            <div class="field-help hidden">
-              Jinja/Nunjucks-Syntax, echte Werte werden vor dem Rendern vorab geladen:
-              {{ ha.state('sensor.temperatur') }} → Zustand einer Entität (HA-Snapshot).
-              {{ ha.entities('light') }} → Liste einer Domain (über das MCP-Such-Tool).
-              {{ ha.call('toolname') }} → ruft ein MCP-Tool ohne Argumente auf; Toolnamen per ➕-Button im Tool-Picker einfügen.
-              {{ shell('befehl') }} → Shell-Befehl im Gateway-Container (Timeout 5 s, Output auf 4000 Zeichen begrenzt). Nur sinnvoll für lokale Skripte/Daten.
-              Auch Nunjucks-Filter und Logik sind verfügbar, z. B. {{ ha.state('x') | round }} oder {% if %}…
-            </div>
-            <textarea id="action-template" rows="10" placeholder="{{ ha.state('sensor.x') }}"></textarea>
+          <div class="field" id="action-function-field">
+            <div class="field-head"><label>Daten aus Funktion</label><button type="button" class="help" title="Pflicht im deterministischen/hybriden Modus: wähle eine Funktion aus dem Funktionen-Tab." aria-label="Hilfe zu Daten aus Funktion">?</button></div>
+            <div class="field-help hidden">Im deterministic/hybrid-Modus rendert dieser Vorgang die gewählte Funktion (ha.state, ha.call, shell + Jinja — pflegbar und testbar im Funktionen-Tab). Neue Funktionen dort anlegen, dann hier auswählen. Im reinen LLM-Modus nicht nötig.</div>
+            <select id="action-function">
+              <option value="">— Funktion wählen —</option>
+            </select>
           </div>
           <div class="field">
             <div class="field-head"><label>Erlaubte Tools (leer = alle erlaubt)</label><button type="button" class="help" title="Begrenzt die LLM-Modi (llm/hybrid) auf die angehakten Tools. Das Template (deterministic) ist davon nicht betroffen." aria-label="Hilfe zu Erlaubte Tools">?</button></div>
@@ -139,6 +135,56 @@
             <button id="action-save" class="btn primary">Speichern</button>
             <button id="action-delete" class="btn danger">Löschen</button>
           </div>
+        </div>
+      </section>
+
+      <section id="tab-functions" class="tab">
+        <div class="card">
+          <div class="toolbar">
+            <h2>Funktionen</h2>
+            <button id="fn-new" class="btn primary">Neu</button>
+          </div>
+          <p class="field-help" style="margin-bottom: 0.6rem;">
+            Wiederverwendbare Jinja-Bausteine mit Datenabruf (ha.state, ha.call, shell).
+            In Templates aufrufen mit <code>{{ fn('name') }}</code>.
+          </p>
+          <table id="functions-table">
+            <thead><tr><th>Name</th><th>Beschreibung</th><th>Aktiv</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card hidden" id="fn-editor">
+          <h2 id="fn-editor-title">Funktion bearbeiten</h2>
+          <input type="hidden" id="fn-id">
+          <div class="field">
+            <div class="field-head"><label>Name</label><button type="button" class="help" title="Kleingeschrieben, a-z 0-9 _ — Aufruf im Template als {{ fn('name') }}." aria-label="Hilfe zu Name">?</button></div>
+            <div class="field-help hidden">Der Aufrufname der Funktion. Kleingeschrieben, 2-40 Zeichen, nur a-z, 0-9 und Unterstrich. Nutzung: {{ fn('name') }} in Vorgangs-Templates oder in anderen Funktionen.</div>
+            <input id="fn-name" type="text">
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Beschreibung</label><button type="button" class="help" title="Freitext für die Übersicht; ab Stufe 2 zusätzlich als Tool-Beschreibung für das LLM." aria-label="Hilfe zu Beschreibung">?</button></div>
+            <div class="field-help hidden">Freitext für die Übersicht. Ab Stufe 2 wird die Beschreibung dem LLM als Tool-Beschreibung der dynamischen Funktion angezeigt.</div>
+            <input id="fn-description" type="text">
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Template</label><button type="button" class="help" title="Wie Vorgangs-Templates: ha.state('entity'), ha.entities('domain'), ha.call('toolname'), shell('befehl') + Jinja. Der gerenderte Text ist das Ergebnis der Funktion." aria-label="Hilfe zu Template">?</button></div>
+            <div class="field-help hidden">
+              Gleiches Repertoire wie Vorgangs-Templates:
+              {{ ha.state('sensor.x') }} → Zustand einer Entität,
+              {{ ha.entities('domain') }} → Liste einer Domain,
+              {{ ha.call('toolname') }} → MCP-Tool ohne Argumente,
+              {{ shell('befehl') }} → Shell im Gateway-Container (5 s Timeout, 4000 Zeichen).
+              Jinja-Logik und Filter erlaubt. Das gerenderte Ergebnis ist der Rückgabewert der Funktion.
+            </div>
+            <textarea id="fn-template" rows="8"></textarea>
+          </div>
+          <label class="check"><input id="fn-enabled" type="checkbox" checked> Aktiv</label>
+          <div class="toolbar">
+            <button id="fn-preview" class="btn" title="Template live rendern — Ergebnis + Trace-Schritte werden darunter angezeigt">Ausführen</button>
+            <button id="fn-save" class="btn primary">Speichern</button>
+            <button id="fn-delete" class="btn danger">Löschen</button>
+          </div>
+          <div id="fn-preview-out" class="test-answer hidden"></div>
         </div>
       </section>
 

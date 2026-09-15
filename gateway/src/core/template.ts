@@ -2,6 +2,7 @@ import nunjucks from 'nunjucks';
 import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
 import { getStatesSnapshot } from '../ha/states.js';
+import { getFunctionByName } from '../db.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
 const env = new nunjucks.Environment(null, { autoescape: false });
@@ -17,6 +18,7 @@ interface LiteralCalls {
   entityCalls: string[];
   calls: string[];
   shells: string[];
+  fns: string[];
 }
 
 function extractLiterals(template: string): LiteralCalls {
@@ -24,6 +26,7 @@ function extractLiterals(template: string): LiteralCalls {
   const entityCalls: string[] = [];
   const calls: string[] = [];
   const shells: string[] = [];
+  const fns: string[] = [];
   for (const m of template.matchAll(/ha\.state\(\s*["']([^"']+)["']\s*\)/g)) states.push(m[1] as string);
   for (const m of template.matchAll(/ha\.entities\(\s*["']([^"']*)["']\s*\)/g)) {
     const domain = m[1] as string;
@@ -31,8 +34,12 @@ function extractLiterals(template: string): LiteralCalls {
   }
   for (const m of template.matchAll(/ha\.call\(\s*["']([^"']+)["']\s*\)/g)) calls.push(m[1] as string);
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
-  return { states, entityCalls, calls, shells };
+  for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
+  return { states, entityCalls, calls, shells, fns };
 }
+
+// Verschachtelungstiefe fuer fn()-Aufrufe; verhindert Zyklen und Runaways.
+const FN_MAX_DEPTH = 3;
 
 function runShell(cmd: string, trace: TraceEvent[]): Promise<string | null> {
   return new Promise((resolve) => {
@@ -117,14 +124,47 @@ function unwrapSpeech(value: unknown): UnwrappedSpeech | null {
 async function preheat(
   template: string,
   mcp: McpContext,
-  trace: TraceEvent[]
+  trace: TraceEvent[],
+  depth: number,
+  active: Set<string>
 ): Promise<Record<string, unknown>> {
-  const { states, entityCalls, calls, shells } = extractLiterals(template);
+  const { states, entityCalls, calls, shells, fns } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const entityMap = new Map<string, unknown[]>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
+  const fnMap = new Map<string, string | null>();
   const listTool = findTool(mcp, [/search|lookup|entit/i]);
+
+  for (const name of fns) {
+    if (fnMap.has(name)) continue;
+    if (active.has(name) || depth >= FN_MAX_DEPTH) {
+      trace.push({
+        ts: Date.now(),
+        step: 'fn.error',
+        detail: { name, reason: active.has(name) ? 'zyklus' : `tiefe > ${FN_MAX_DEPTH}` },
+      });
+      fnMap.set(name, null);
+      continue;
+    }
+    const row = getFunctionByName(name);
+    if (!row) {
+      trace.push({ ts: Date.now(), step: 'fn.error', detail: { name, reason: 'unbekannt oder inaktiv' } });
+      fnMap.set(name, null);
+      continue;
+    }
+    try {
+      active.add(name);
+      const rendered = await renderPlain(row.template, mcp, trace, depth + 1, active);
+      active.delete(name);
+      fnMap.set(name, rendered);
+      trace.push({ ts: Date.now(), step: 'fn.render', detail: { name, chars: rendered.length } });
+    } catch (e) {
+      active.delete(name);
+      trace.push({ ts: Date.now(), step: 'fn.error', detail: { name, error: String(e) } });
+      fnMap.set(name, null);
+    }
+  }
 
   for (const toolName of calls) {
     if (callMap.has(toolName)) continue;
@@ -179,7 +219,24 @@ async function preheat(
       call: (toolName: string): string | null => callMap.get(toolName) ?? null,
     },
     shell: (cmd: string): string | null => shellMap.get(cmd) ?? null,
+    fn: (name: string): string | null => fnMap.get(name) ?? null,
+    now: (() => {
+      const d = new Date();
+      return { hour: d.getHours(), weekday: d.toLocaleDateString('de-DE', { weekday: 'long' }), date: d.toLocaleDateString('de-DE'), time: d.toTimeString().slice(0, 5) };
+    })(),
   };
+}
+
+async function renderPlain(template: string, mcp: McpContext, trace: TraceEvent[], depth: number, active: Set<string>): Promise<string> {
+  const ctx = await preheat(template, mcp, trace, depth, active);
+  return env.renderString(template, ctx).trim();
+}
+
+// Rendert eine Funktion aus der Registry direkt (function_ref am Vorgang).
+export async function renderFunction(name: string, mcp: McpContext, trace: TraceEvent[]): Promise<AssistantResponse> {
+  const row = getFunctionByName(name);
+  if (!row) throw new Error(`Funktion ${name} nicht gefunden oder inaktiv`);
+  return renderActionTemplate(row.template, mcp, trace);
 }
 
 export async function renderActionTemplate(
@@ -187,9 +244,7 @@ export async function renderActionTemplate(
   mcp: McpContext,
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
-  const ctx = await preheat(template, mcp, trace);
-  const out = env.renderString(template, ctx).trim();
-  if (/^<speak[\s>]/i.test(out)) {
+  const out = await renderPlain(template, mcp, trace, 0, new Set());  if (/^<speak[\s>]/i.test(out)) {
     return { speech: out, ssml: true };
   }
   if (out.startsWith('{')) {

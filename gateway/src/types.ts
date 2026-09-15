@@ -30,6 +30,7 @@ export interface ActionRow {
   fuzzy_threshold: number | null;
   system_prompt: string | null;
   template: string | null;
+  function_ref: string | null;
   tools: string | null;
   handler_config: string | null;
   enabled: number;

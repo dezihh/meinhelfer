@@ -1,5 +1,5 @@
 const API = '/admin/api';
-let bootstrap = { settings: {}, actions: [], servers: [], prompts: [] };
+let bootstrap = { settings: {}, actions: [], functions: [], servers: [], prompts: [] };
 
 function token() {
   return localStorage.getItem('va_token') ?? '';
@@ -30,6 +30,7 @@ async function loadBootstrap() {
     renderSettings();
     renderPromptKeys();
     renderActions();
+    renderFunctions();
     renderServers();
   } catch (e) {
     alert(`Bootstrap fehlgeschlagen: ${e.message}`);
@@ -39,7 +40,7 @@ async function loadBootstrap() {
 function showTab(name) {
   document.querySelectorAll('.sidebar nav a').forEach((a) => a.classList.toggle('active', a.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
-  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', mcp: 'MCP-Registry', logs: 'Logs' };
+  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', mcp: 'MCP-Registry', logs: 'Logs' };
   $('tab-title').textContent = titles[name] ?? '';
   if (name === 'logs') loadLogs();
 }
@@ -201,12 +202,6 @@ function syncActionToolsInput() {
   $('action-tools').value = Array.from(checks).map((c) => c.value).join('\n');
 }
 
-function insertTemplateCall(name) {
-  const ta = $('action-template');
-  const base = ta.value.replace(/\s*$/, '');
-  ta.value = base ? `${base}\n{{ ha.call('${name}') }}` : `{{ ha.call('${name}') }}`;
-}
-
 async function loadToolPicker(selected) {
   const list = $('action-tools-list');
   const sel = new Set(selected ?? []);
@@ -218,8 +213,6 @@ async function loadToolPicker(selected) {
     sum.textContent = `${label} (${names.length})`;
     det.append(sum);
     for (const name of names) {
-      const row = document.createElement('div');
-      row.className = 'tool-row';
       const lab = document.createElement('label');
       lab.className = 'check';
       const cb = document.createElement('input');
@@ -228,23 +221,105 @@ async function loadToolPicker(selected) {
       cb.checked = sel.has(name);
       cb.addEventListener('change', syncActionToolsInput);
       lab.append(cb, ' ', name);
-      const ins = document.createElement('button');
-      ins.type = 'button';
-      ins.className = 'btn small tool-insert';
-      ins.textContent = '➕';
-      ins.title = `{{ ha.call('${name}') }} ins Template einfügen`;
-      ins.onclick = () => insertTemplateCall(name);
-      row.append(lab, ins);
-      det.append(row);
+      det.append(lab);
     }
     list.append(det);
   }
   try {
     const info = await api('/tools');
-    group('Facade (HA, Suche, Hausstatus)', info.facade ?? []);
+    group('Gateway-Tools (Facade)', info.facade ?? []);
     for (const srv of info.mcp ?? []) group(`${srv.server} (MCP)`, srv.tools ?? []);
   } catch {
     // Tools nicht ladbar: Editor trotzdem nutzbar (dann manuell)
+  }
+}
+
+function renderFunctions() {
+  const tbody = $('functions-table').querySelector('tbody');
+  tbody.innerHTML = '';
+  for (const f of bootstrap.functions ?? []) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><code>{{ fn('${esc(f.name)}') }}</code></td>
+      <td>${esc(f.description)}</td>
+      <td>${f.enabled ? '✔' : '✖'}</td>
+      <td class="actions"><button class="btn small">Bearbeiten</button></td>`;
+    tr.querySelector('button').onclick = () => openFunctionEditor(f.id);
+    tbody.append(tr);
+  }
+}
+
+function openFunctionEditor(id) {
+  const f = id ? (bootstrap.functions ?? []).find((x) => x.id === id) : null;
+  $('fn-editor').classList.remove('hidden');
+  $('fn-preview-out').classList.add('hidden');
+  $('fn-editor-title').textContent = f ? `Funktion: ${f.name}` : 'Neue Funktion';
+  $('fn-id').value = f?.id ?? '';
+  $('fn-name').value = f?.name ?? '';
+  $('fn-description').value = f?.description ?? '';
+  $('fn-template').value = f?.template ?? '';
+  $('fn-enabled').checked = f ? !!f.enabled : true;
+}
+
+function functionPayload() {
+  return {
+    name: $('fn-name').value.trim(),
+    description: $('fn-description').value.trim() || null,
+    template: $('fn-template').value.trim(),
+    enabled: $('fn-enabled').checked,
+  };
+}
+
+async function saveFunction() {
+  try {
+    const payload = functionPayload();
+    const id = $('fn-id').value;
+    if (id) await api(`/functions/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    else await api('/functions', { method: 'POST', body: JSON.stringify(payload) });
+    await loadBootstrap();
+    $('fn-editor').classList.add('hidden');
+  } catch (e) {
+    alert(`Speichern fehlgeschlagen: ${e.message}`);
+  }
+}
+
+async function deleteFunctionUi() {
+  const id = $('fn-id').value;
+  if (!id || !confirm('Funktion löschen?')) return;
+  await api(`/functions/${id}`, { method: 'DELETE' });
+  await loadBootstrap();
+  $('fn-editor').classList.add('hidden');
+}
+
+async function previewFunction() {
+  const out = $('fn-preview-out');
+  out.classList.remove('hidden');
+  out.textContent = 'Rendere …';
+  try {
+    const d = await api('/functions/preview', {
+      method: 'POST',
+      body: JSON.stringify({ template: $('fn-template').value.trim() }),
+    });
+    const steps = (d.trace ?? []).map((t) => t.step).join(' → ');
+    out.textContent = `${d.rendered?.speech ?? ''}\n\n[trace] ${steps || '(keine Datenabrufe)'}`;
+  } catch (e) {
+    out.textContent = `Fehler: ${e.message}`;
+  }
+}
+
+function fillFunctionSelect(selected) {
+  const sel = $('action-function');
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '— Inline-Template verwenden —';
+  sel.append(none);
+  for (const f of bootstrap.functions ?? []) {
+    const opt = document.createElement('option');
+    opt.value = f.name;
+    opt.textContent = `${f.name}${f.enabled ? '' : ' (inaktiv)'}${f.description ? ' — ' + f.description.slice(0, 60) : ''}`;
+    if (f.name === selected) opt.selected = true;
+    sel.append(opt);
   }
 }
 
@@ -258,10 +333,15 @@ function openActionEditor(id) {
   $('action-triggers').value = (a?.triggers ?? []).join('\n');
   $('action-threshold').value = a?.fuzzy_threshold ?? '';
   $('action-system').value = a?.system_prompt ?? '';
-  $('action-template').value = a?.template ?? '';
+  fillFunctionSelect(a?.function_ref ?? '');
   $('action-tools-list').innerHTML = '';
   void loadToolPicker(a?.toolList ?? []).then(syncActionToolsInput);
   $('action-enabled').checked = a ? !!a.enabled : true;
+  updateFunctionFieldVisibility();
+}
+
+function updateFunctionFieldVisibility() {
+  $('action-function-field').classList.toggle('hidden', $('action-mode').value === 'llm');
 }
 
 function actionPayload() {
@@ -273,13 +353,19 @@ function actionPayload() {
     trigger_phrases: lines($('action-triggers').value),
     fuzzy_threshold: threshold === '' ? null : Number(threshold),
     system_prompt: $('action-system').value.trim() || null,
-    template: $('action-template').value.trim() || null,
+    function_ref: $('action-function').value || null,
+    template: null,
     tools: lines($('action-tools').value),
     enabled: $('action-enabled').checked,
   };
 }
 
 async function saveAction() {
+  const mode = $('action-mode').value;
+  if (mode !== 'llm' && !$('action-function').value) {
+    alert(`Im ${mode === 'hybrid' ? 'hybriden' : 'deterministischen'} Modus muss eine Funktion gewählt sein (Funktionen-Tab zum Anlegen).`);
+    return;
+  }
   syncActionToolsInput();
   const payload = actionPayload();
   const id = $('action-id').value;
@@ -478,13 +564,28 @@ function init() {
 $('action-new').onclick = () => openActionEditor(null);
 $('action-save').onclick = saveAction;
 $('action-delete').onclick = deleteActionUi;
-$('action-editor').onclick = (e) => {
-  const btn = e.target instanceof Element ? e.target.closest('button.help') : null;
+$('fn-new').onclick = () => openFunctionEditor(null);
+$('fn-save').onclick = saveFunction;
+$('fn-delete').onclick = deleteFunctionUi;
+$('fn-preview').onclick = previewFunction;
+$('fn-editor').onclick = (e) => {
+  if (!(e.target instanceof Element)) return;
+  const btn = e.target.closest('button.help');
   if (!btn) return;
   const fieldEl = btn.closest('.field');
   const helpText = fieldEl?.querySelector('.field-help');
   if (helpText) helpText.classList.toggle('hidden');
 };
+$('action-editor').onclick = (e) => {
+  if (!(e.target instanceof Element)) return;
+  const btn = e.target.closest('button.help');
+  if (!btn) return;
+  const fieldEl = btn.closest('.field');
+  const helpText = fieldEl?.querySelector('.field-help');
+  if (helpText) helpText.classList.toggle('hidden');
+};
+$('action-mode').addEventListener('change', updateFunctionFieldVisibility);
+
 $('mcp-new').onclick = () => openServerEditor(null);
 $('mcp-save').onclick = saveServer;
 $('mcp-health').onclick = healthServer;
