@@ -70,20 +70,23 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
 # mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
 # (datasources {"documentData": ...} -> ${documentData.text}).
-# Body in ScrollView + AutoScroll (delay 4s, linear, Dauer ~ Textlaenge),
-# Font 38dp, damit lange Antworten ueberhaupt ueberlaufen und scrollen.
+# Body als Sequence (manuelles Wischen + Autoscroll via Sequential/Scroll).
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
     "background": "#161C27",
     "onMount": [
         {
-            "type": "AutoScroll",
-            "componentId": "bodyScroll",
+            # Autoscroll ohne AutoPage/Extension: Sequential + Scroll-Schleife
+            # (Standard-Commands in APL 1.4). ~20 dp/s, Start nach 4 s Lesezeit,
+            # 250 Wiederholungen decken auch lange Antworten ab (Scroll nach
+            # Ende ist ein No-op).
+            "type": "Sequential",
             "delay": 4000,
-            "distance": 1000000,
-            "duration": "${documentData.scrollDuration}",
-            "easing": "linear",
+            "repeatCount": 250,
+            "commands": [
+                {"type": "Scroll", "componentId": "bodyScroll", "distance": 4, "duration": 200}
+            ],
         }
     ],
     "mainTemplate": {
@@ -154,19 +157,11 @@ def supports_apl(handler_input):
 
 
 def render_apl(handler_input, title, text):
-    # Scroll-Dauer serverseitig berechnen (String-.length gibt es in
-    # APL-Bindings nicht; ungueltige duration liess AutoScroll nach 1s abbrechen)
     handler_input.response_builder.add_directive(
         RenderDocumentDirective(
             token="mainhelfer-display-{}".format(int(time.time() * 1000)),
             document=APL_DOCUMENT,
-            datasources={
-                "documentData": {
-                    "title": title,
-                    "text": text,
-                    "scrollDuration": max(10000, len(text) * 120),
-                }
-            },
+            datasources={"documentData": {"title": title, "text": text}},
         )
     )
 
