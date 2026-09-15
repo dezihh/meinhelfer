@@ -67,10 +67,8 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout: kompatibel (version 1.4), simples Layout ohne ScrollView-Risiko.
 # Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
 # Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
-# APL-Layout: empirisch verifiziertes Diagnose-Muster (Echo Show 5).
-# Wichtig: Binding-Ausdruecke brauchen einen Prafix vor "${...}" - reine
-# "${payload.x}"-Strings blieben am Geraet schwarz. Titel ist hartkodiert,
-# beim Body dient ein Zero-Width-Space (\u200b) als unsichtbarer Prafix.
+# APL-Diagnose-Layout: Grau-Probe (hartkodiert, gleiche Farbe wie der Body)
+# trennt "Farbe unsichtbar" von "Binding leer". Directive-JSON geht ins Log.
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
@@ -93,6 +91,14 @@ APL_DOCUMENT = {
                         "fontSize": 30,
                         "fontWeight": "bold",
                         "color": "#00CAFF",
+                        "paddingBottom": 12,
+                    },
+                    {
+                        "type": "Text",
+                        "text": "PROBE GRAU (hartkodiert)",
+                        "width": "100%",
+                        "fontSize": 26,
+                        "color": "#EEEEEE",
                         "paddingBottom": 12,
                     },
                     {
@@ -133,11 +139,17 @@ def supports_apl(handler_input):
 
 
 def render_apl(handler_input, title, text):
+    datasources = {"payload": {"title": title, "text": text}}
+    try:
+        logger.info("APL-Directive gesendet: document=%dB, datasources=%s",
+                    len(json.dumps(APL_DOCUMENT)), json.dumps(datasources, ensure_ascii=False)[:1200])
+    except Exception:
+        pass
     handler_input.response_builder.add_directive(
         RenderDocumentDirective(
             token="mainhelfer-display-{}".format(int(time.time() * 1000)),
             document=APL_DOCUMENT,
-            datasources={"payload": {"title": title, "text": text}},
+            datasources=datasources,
         )
     )
 
