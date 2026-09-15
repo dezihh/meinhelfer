@@ -177,6 +177,32 @@ mit {{ http('http://dienst-intern:8080/api/status').offene_aufgaben }} offenen A
 
 Zwei Aufrufe derselben URL = ein einziger Request (Deduplizierung).
 
+**Börsen-Depot (Funktion „boerse_portfolio", live aktiv):** Yahoo-Finance-Chart-API
+kommt ohne API-Key aus; pro Position ein wörtlicher http()-Block, Stückzahl im
+`pos()`-Aufruf. Neue Position = Block + Aufruf kopieren, im Admin-UI anpassen.
+
+```jinja
+{%- set d_sap = http('https://query1.finance.yahoo.com/v8/finance/chart/SAP.DE') -%}
+{%- macro pos(name, d, stueck) -%}
+{%- if d and d.chart -%}{%- set m = d.chart.result[0].meta -%}
+{{ name }}: {{ m.regularMarketPrice | round(2) | replace('.', ',') }} Euro,
+{{ 'plus' if m.regularMarketPrice >= m.chartPreviousClose else 'minus' }}
+{{ (((m.regularMarketPrice - m.chartPreviousClose) / m.chartPreviousClose * 100) if m.chartPreviousClose else 0) | round(1) | replace('.', ',') }} Prozent.
+{%- else -%}{{ name }}: keine Kursdaten.{%- endif -%}
+{%- endmacro -%}
+<speak>
+Dein Depot:
+<break time="200ms"/>
+{{ pos('SAP', d_sap, 40) }}
+<break time="300ms"/>
+Gesamtwert rund {{ ... }} Euro.
+</speak>
+```
+
+Dynamische Ticker-Abfragen („wie steht eigentlich Apple?") gehen noch nicht —
+`http()`-URLs sind wörtlich; Ad-hoc-Abfragen wären eine Erweiterung
+(URL-Template mit `args`).
+
 ## Grenzen & Fallstricke
 
 - `http()`-URLs müssen **wörtlich** im Template stehen (Vorladen);
