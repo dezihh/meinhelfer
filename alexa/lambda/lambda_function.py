@@ -107,7 +107,7 @@ APL_DOCUMENT = {
                         "paddingBottom": 12,
                     },
                     {
-                        "type": "ScrollView",
+                        "type": "Sequence",
                         "componentId": "bodyScroll",
                         "width": "100%",
                         "flex": 1,
