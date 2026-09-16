@@ -82,3 +82,26 @@ jobs:
           PYEOF2
           echo "--- response.json ---"
           head -c 1500 /tmp/response.json 2>/dev/null
+          echo ""
+          echo "--- response-summary (Directives/Commands/Transformers) ---"
+          python3 - <<'PYEOF3'
+          import json
+          try:
+              resp = json.load(open("/tmp/response.json"))
+              r = resp.get("response", {})
+              print("outputSpeech:", "vorhanden" if r.get("outputSpeech") else "NICHT VORHANDEN (APL-only-Modus)")
+              print("shouldEndSession:", r.get("shouldEndSession"))
+              for d in r.get("directives", []):
+                  t = d.get("type", "?")
+                  if t == "Alexa.Presentation.APL.RenderDocument":
+                      ds = d.get("datasources", {}).get("documentData", {})
+                      print(f"Directive: {t} | token={d.get('token')}")
+                      print("  transformers:", json.dumps(ds.get("transformers", [])))
+                      print("  datasource-keys:", list(ds.keys()))
+                  elif t == "Alexa.Presentation.APL.ExecuteCommands":
+                      print(f"Directive: {t} | token={d.get('token')} | commands={json.dumps(d.get('commands', []))}")
+                  else:
+                      print(f"Directive: {t}")
+          except Exception as e:
+              print("Summary-Fehler:", e)
+          PYEOF3
