@@ -142,16 +142,27 @@ SQLite, bewusst klein:
 Credentials pragmatisch (`.env`/Env-Vars) – kein ausgefeiltes Secret-Management
 als POC-Blocker.
 
-## Schnittstellen: vollständig MCP
+## Schnittstellen: vollständig MCP, Code ohne Systembezug
 
 Fähigkeiten externer Systeme (z. B. Smart Home) laufen **ausschließlich** über
-deren **MCP-Server** — Home Assistant inklusive. Der früher als
-„Lückenschluss" gedachte REST-Pfad auf die HA-API (`/api/states`,
-`/api/template`) wurde entfernt: Entity- und Areas-Snapshot kommen über das
-MCP-Tool `ha_eval_template` des HA-MCP-Servers (60 s Cache im Gateway, Scoring
-lokal). Begründung des Musters: MCP liefert Discovery (`tools/list`) und
-maschinenlesbare Schemata mit; REST-Integration müsste Endpunkt- und
-Payload-Wissen fest im Gateway verdrahten.
+deren **MCP-Server**. Der Gateway-Code enthält **keinen** Systembezug mehr:
+weder REST (`/api/states`, `/api/template` wurden entfernt) noch HA-Toolnamen
+oder HA-Fuzzy-Logik. Zwei generische Muster decken alles ab:
+
+1. **`mcp.call(tool, args)`** — Weiterleitung an ein beliebiges MCP-Tool aus
+   Templates (deterministische Vorgänge); der Agent ruft MCP-Tools direkt im
+   Toolloop auf.
+2. **Parametrierter Entity-Index** — Fuzzy-Suche/Lookups im RAM (< 1 ms) gegen
+   einen Index, der per **einem** MCP-Call pro TTL-Fenster gefüllt wird
+   (gemessen ~0,6 s für ~1200 Einträge). Tool, Extraktions-Template
+   (Datenvertrag `id|name|state|unit|area|key=value;...`), Aliase,
+   Domain-Hints und Stopwords stehen als JSON-Setting `entity_index`
+   (Default: HA via `ha_eval_template`) — ein anderes System wird durch ein
+   anderes Setting angebunden, nicht durch Code. Begründung: Serverseitige
+   Fuzzy-Suche (z. B. `ha_search`) bleibt für deutsche Mehrwort-Voice-Queries
+   klar schwächer (BM25-AND-Gating, kein Umlaut-Folding, keine Aliase, im
+   Test 0 Treffer auf existierende Entities) — Treffersicherheit und
+   Performance leben daher lokal, Universalität in der Parametrisierung.
 
 ### Tool-Vertrag: Was wir von MCP-Tools erwarten
 
@@ -172,10 +183,14 @@ Domain mitgeben) und Doppel-/Geister-Entities im Quellsystem ausräumen.
 
 ### MCP-Einsatz
 
-- Alle HA-Zugriffe (Snapshot, Suche, Aufrufe) laufen über MCP-Tools des in der
-  MCP-Registry eingetragenen HA-Servers.
+- Alle Systemzugriffe (Index, Lookups, Aufrufe) laufen über MCP-Tools der in
+  der MCP-Registry eingetragenen Server.
 - Die generischen Template-Bausteine (`http`, `shell`) bleiben für Dienste
-  **ohne** MCP-Fassade (z. B. externe Web-APIs) — das ist kein HA-REST.
+  **ohne** MCP-Fassade (z. B. externe Web-APIs).
+- Backlog (Phase 2): **Index-Assistent-Makro** — LLM-gestütztes Einbinden
+  neuer Quellen (tools/list lesen, Extraktions-Template entwerfen, gegen den
+  Datenvertrag validieren, mit Admin-Bestaetigung als `entity_index`-Setting
+  speichern).
 - Konkrete Rezepte (nur Beispiele) leben in [FUNKTIONEN.md](FUNKTIONEN.md),
   nicht hier.
 

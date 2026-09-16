@@ -8,7 +8,7 @@ sind anonymisiert (`sensor.wohnzimmer_temperatur`, `sensor.tankstelle_e10`, …)
 
 ```text
 Ebene 1 – Daten-Bausteine (Code im Gateway, generisch)
-   ha.state · ha.find · ha.get · ha.call · ha.entities · shell · http · fn · now · args
+   index.state · index.find · index.get · mcp.call · shell · http · fn · now · args
         │
 Ebene 2 – Funktionen (Datenbank, im Admin-UI pflegbar und testbar)
    benannte Pipelines aus den Bausteinen, z. B. „hausstatus_gw"
@@ -39,18 +39,56 @@ und zeigt Ergebnis + Trace-Schritte — ohne zu speichern.
 
 ## Template-Bausteine (Referenz)
 
+### Originäre Bausteine (generisch, kein Systembezug im Code)
+
 | Baustein | Wirkung | Hinweise |
 |----------|---------|----------|
-| `ha.state('entity_id')` | Zustand einer Entity als String | HA-MCP-Snapshot (`ha_eval_template`), 60 s Cache |
-| `ha.find('stichworte')` | Fuzzy-Suche über alle Entities (Aliase, Räume, Scoring), max. 8 Treffer | liefert sprechbare Textzeilen |
-| `ha.get('entity_id')` | Zustand + Attribute einer konkreten Entity | aus dem selben Snapshot |
-| `ha.entities('domain')` | Entities einer Domain | benötigt ein MCP-Tool, dessen Name auf `search/lookup/entit` passt |
-| `ha.call('toolname')` | MCP-Tool **ohne Argumente** aufrufen | Ergebnis als Text |
+| `index.find('stichworte')` | Fuzzy-Suche über den Entity-Index (Aliase, Räume, Scoring), max. 8 Treffer | Scoring lokal im RAM; Aliase/Domain-Hints/Stopwords sind Parameter (Settings) |
+| `index.state('id')` | Zustand eines Eintrags als String | aus dem gecachten Index |
+| `index.get('id')` | Zustand + Attribute eines konkreten Eintrags | aus dem selben Index |
 | `shell('befehl')` | Shell im Gateway-Container | Timeout 5 s, Output auf 4000 Zeichen begrenzt |
-| `http('url')` | GET-Request auf eine REST-URL | Timeout 5 s, 100 KB; JSON wird geparst → direkter Feldzugriff |
+| `http('url')` | GET-Request auf eine URL | Timeout 5 s, 100 KB; JSON wird geparst → direkter Feldzugriff |
 | `fn('name')` | Andere Funktion einbetten | Verschachtelung bis Tiefe 3, Zyklus-Schutz |
 | `args` | Argumente eines LLM-Tool-Aufrufs | nur bei parameterisierten Funktionen (siehe unten) |
 | `now` | `now.hour`, `now.weekday`, `now.date`, `now.time` | Gateway-Zeit |
+
+### Der Entity-Index ist parametriert, nicht verdrahtet
+
+Woher der Index kommt, steht ausschließlich in den Settings (Admin-UI,
+Schlüssel `entity_index`, JSON):
+
+```json
+{
+  "tool": "ha_eval_template",
+  "template": "{% for e in states %}{{ e.entity_id }}|{{ area_name(e.entity_id) }}|{{ e.state }}|...{% endfor %}",
+  "ttlMs": 60000,
+  "aliases": { "draussen": "aussen" },
+  "domainHints": [{ "re": "temperatur|warm", "domains": ["sensor", "climate"] }],
+  "stopwords": ["wie", "ist"]
+}
+```
+
+- **Datenvertrag** (vom `template` geliefert): eine Zeile je Eintrag im
+  Format `id|name|state|unit|friendly_name|key=value;...`
+- **1 MCP-Call pro TTL-Fenster**, Lookups/Scoring danach lokal (< 1 ms)
+- **Kein Systembezug im Code**: Der Default bindet Home Assistant
+  (ha-mcp `ha_eval_template`); Music Assistant o. Ä. = anderes Setting,
+  kein Code. Umbenennen von `index.*` nicht nötig — der Name ist generisch.
+
+### MCP-Bindung: `mcp.call('tool', {args})`
+
+Weiterleitung an ein beliebiges MCP-Tool (exakter Name) aus den Templates —
+für deterministische Vorgänge ohne LLM. Der Agent ruft MCP-Tools dagegen
+direkt im Toolloop.
+
+```jinja
+{{ mcp.call('ha_get_state', {'entity_id': 'sun.sun'}) }}
+```
+
+- Args als **flaches JSON-Literal in einer Zeile**; identische Aufrufe
+  (Tool + Args) werden dedupliziert; Ergebnis als Text
+- Dynamische Argumente (z. B. `args.query`) gehen nicht ins Preheat — dafür
+  gibt es die `index.*`-Helfer bzw. den Agenten-Toolloop
 
 Alle Bausteine werden **vor** dem Rendern parallel aufgelöst („preheat") und
 dedupliziert — zwei gleiche Aufrufe = ein Request. Helfer geben **Text**
@@ -59,10 +97,10 @@ zurück, keine Objekte (verhindert `[object Object]` in Antworten).
 ### Beispiele (anonymisiert)
 
 ```jinja
-{{ ha.state('sensor.wohnzimmer_temperatur') }}
+{{ index.state('sensor.wohnzimmer_temperatur') }}
    → 23.4
 
-{{ ha.find('garage temperatur') }}
+{{ index.find('garage temperatur') }}
    → sensor.garage_temperatur | Garage Temperatur: 17.8 °C [Garage]
 
 {{ shell('cat /proc/uptime | cut -d . -f1') }}
@@ -75,7 +113,7 @@ zurück, keine Objekte (verhindert `[object Object]` in Antworten).
 Nunjucks-Logik ist voll verfügbar (Filter, `if`, `for`, `macro`, `set`):
 
 ```jinja
-{{ ha.state('sensor.tankstelle_e10') | replace('.', ',') }} Euro
+{{ index.state('sensor.tankstelle_e10') | replace('.', ',') }} Euro
 {{ (shell('cat /proc/uptime | cut -d . -f1') | int / 86400) | round(1) }} Tagen
 ```
 
@@ -88,7 +126,7 @@ im Template als `args` bereit.
 Beispiel „ha_find" (ersetzt den früheren statischen Such-Helper):
 
 - Parameter: `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
-- Template: `{{ ha.find(args.query) }}`
+- Template: `{{ index.find(args.query) }}`
 - Agent ruft: `fn_ha_find {"query": "garage temperatur"}`
 
 Damit lassen sich beliebige eigene Tools bauen — z. B. eine Datei- oder
@@ -128,7 +166,7 @@ editierbar) lehren das Modell die Nutzung; `{assistant_name}` wird ersetzt.
 **Bericht mit Zahlenformatierung (Funktion „benzinpreis"):**
 
 ```jinja
-Super E10 an der Tankstelle kostet {{ ha.state('sensor.tankstelle_e10') | replace('.', ',') }} Euro.
+Super E10 an der Tankstelle kostet {{ index.state('sensor.tankstelle_e10') | replace('.', ',') }} Euro.
 ```
 
 **Lokale Systemdaten (Funktion „gateway_uptime"):**
@@ -147,16 +185,17 @@ Das Gateway läuft seit {{ (shell('cat /proc/uptime | cut -d . -f1') | int / 864
 <speak>
 {{ gr }} hier ist Smart Pilot!
 <break time="300ms"/>
-Der Akkustand beträgt {{ gfmt(ha.state('sensor.batterie_soc'),0) }} Prozent.
-{%- if (ha.state('group.fenster_tueren') | lower) != 'off' %}
+Der Akkustand beträgt {{ gfmt(index.state('sensor.batterie_soc'),0) }} Prozent.
+{%- if (index.state('group.fenster_tueren') | lower) != 'off' %}
 <break time="200ms"/> Es sind Fenster oder Türen geöffnet.
 {%- endif %}
 </speak>
 ```
 
-Beginnt das Ergebnis mit `<speak>`, wird es als SSML gesprochen. Die
-Gateway-Variante rendert in ~10 ms (kalter Snapshot einmal pro Minute
-eingerechnet) — ein vergleichbares HA-Script brauchte ~180 ms Rundreise.
+Beginnt das Ergebnis mit `<speak>`, wird es als SSML gesprochen. Warm rendert
+die Gateway-Variante in ~10 ms; der Entity-Index kostet 1 MCP-Call pro TTL-
+Fenster (gemessen ~0,6 s für ~1200 Einträge) und wird 60 s gecacht — für
+deterministische Funktionen ist das billiger als einzelne MCP-Lookups.
 
 **Kombination (Funktion „morgen_brief"):**
 
@@ -215,9 +254,9 @@ Dynamische Ticker-Abfragen („wie steht eigentlich Apple?") gehen noch nicht �
 - `http()`-URLs müssen **wörtlich** im Template stehen (Vorladen);
   dynamische URLs über `shell('curl …')`.
 - Helfer liefern Text — für Rohdaten in Variablen den Snapshot über
-  `ha.find`/`ha.get`-Ergebnisse parsen oder `| dump` nutzen.
+  `index.find`/`index.get`-Ergebnisse parsen oder `| dump` nutzen.
 - `shell` und `http` sind Admin-only editierbar und laufen im Gateway-Container;
   Timeouts und Caps verhindern hängende Antworten.
 - Hauswerte-Scoring (Aliase wie „warm" → Temperatur, Raum-Matching) lebt in
-  `ha.find` — für gesprochene Fragen deutlich treffsicherer als reines
+  `index.find` — für gesprochene Fragen deutlich treffsicherer als reines
   Substring-Matching.
