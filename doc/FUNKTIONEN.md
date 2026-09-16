@@ -55,25 +55,46 @@ und zeigt Ergebnis + Trace-Schritte — ohne zu speichern.
 ### Der Entity-Index ist parametriert, nicht verdrahtet
 
 Woher der Index kommt, steht ausschließlich in den Settings (Admin-UI,
-Schlüssel `entity_index`, JSON):
+Schlüssel `entity_index`, JSON — `args` ist das freie Argument-Objekt des
+Index-Tools, das Extraktions-Template steckt im arg, das der Server erwartet):
 
 ```json
 {
   "tool": "ha_eval_template",
-  "template": "{% for e in states %}{{ e.entity_id }}|{{ area_name(e.entity_id) }}|{{ e.state }}|...{% endfor %}",
+  "args": {
+    "template": "{% for e in states %}{{ e.entity_id }}|{{ area_name(e.entity_id) }}|{{ e.state }}|...{% endfor %}",
+    "timeout": 15
+  },
   "ttlMs": 60000,
-  "aliases": { "draussen": "aussen" },
+  "aliases": { "draußen": "aussen", "temperatur": "temperature" },
   "domainHints": [{ "re": "temperatur|warm", "domains": ["sensor", "climate"] }],
   "stopwords": ["wie", "ist"]
 }
 ```
 
-- **Datenvertrag** (vom `template` geliefert): eine Zeile je Eintrag im
+- **Datenvertrag** (vom Tool geliefert): eine Zeile je Eintrag im
   Format `id|name|state|unit|friendly_name|key=value;...`
 - **1 MCP-Call pro TTL-Fenster**, Lookups/Scoring danach lokal (< 1 ms)
 - **Kein Systembezug im Code**: Der Default bindet Home Assistant
   (ha-mcp `ha_eval_template`); Music Assistant o. Ä. = anderes Setting,
-  kein Code. Umbenennen von `index.*` nicht nötig — der Name ist generisch.
+  kein Code. Die generischen Lesetools heißen entsprechend neutral
+  `fn_find_entities` / `fn_get_entity`.
+
+### Index-Assistent (LLM-gestütztes Einbinden, Phase 2)
+
+Neue Quelle anbinden, ohne Template selbst zu schreiben — zwei
+Admin-Endpoints:
+
+1. `POST /admin/api/index/assist` `{ "goal": "…" }` — das LLM liest den
+   Tool-Katalog der MCP-Registry und entwirft ein Draft (Tool, Argumente,
+   Aliase, Probefragen). Der **deterministische Validator** führt das Draft
+   probehalber aus (nur erkennbar lesende Tools, nur Toolnamen-Klassifikation,
+   da Beschreibungen Beispiel-Code enthalten), prüft den Datenvertrag
+   (≥ 5 Einträge) und lässt das LLM bei Fehlern nachbessern (max. 3 Iterationen).
+   Antwort: `{ draft, validation, iterations }`.
+2. `POST /admin/api/index/apply` `{ "draft": … }` — validiert erneut und
+   speichert nach Admin-Prüfung das Draft als `entity_index`-Setting
+   (Human-in-the-Loop; Cache wird invalidiert).
 
 ### MCP-Bindung: `mcp.call('tool', {args})`
 
@@ -123,11 +144,11 @@ Hat eine Funktion ein **Parameter-Schema**, erscheint sie dem Agenten als
 Tool `fn_<name>` mit genau diesem Schema. Die Argumente des Aufrufs stehen
 im Template als `args` bereit.
 
-Beispiel „ha_find" (ersetzt den früheren statischen Such-Helper):
+Beispiel „find_entities" (ersetzt den früheren statischen Such-Helper):
 
 - Parameter: `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
 - Template: `{{ index.find(args.query) }}`
-- Agent ruft: `fn_ha_find {"query": "garage temperatur"}`
+- Agent ruft: `fn_find_entities {"query": "garage temperatur"}`
 
 Damit lassen sich beliebige eigene Tools bauen — z. B. eine Datei- oder
 Mediensuche über einen eigenen HTTP-Endpunkt (URL wörtlich im Template,
@@ -155,8 +176,8 @@ Das LLM sieht pro Frage:
 2. **Alle aktiven Funktionen** als `fn_<name>` — parameterisierte mit ihrem
    Schema, parameterlose ohne Argumente.
 
-Budgets pro Frage verhindern Schleifen: z. B. Websuche 1×, `fn_ha_find` 2×,
-`fn_ha_get` 3×, Hausstatus-Bericht 1×.
+Budgets pro Frage verhindern Schleifen: z. B. Websuche 1×, `fn_find_entities` 2×,
+`fn_get_entity` 3×, Hausstatus-Bericht 1×.
 
 Die beiden Prompts (`agent_system`, `agent_inventory`, im Admin-UI
 editierbar) lehren das Modell die Nutzung; `{assistant_name}` wird ersetzt.

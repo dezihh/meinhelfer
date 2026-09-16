@@ -154,7 +154,7 @@ oder HA-Fuzzy-Logik. Zwei generische Muster decken alles ab:
    Toolloop auf.
 2. **Parametrierter Entity-Index** — Fuzzy-Suche/Lookups im RAM (< 1 ms) gegen
    einen Index, der per **einem** MCP-Call pro TTL-Fenster gefüllt wird
-   (gemessen ~0,6 s für ~1200 Einträge). Tool, Extraktions-Template
+   (gemessen ~0,6 s für ~1200 Einträge). Tool, freies Argument-Objekt
    (Datenvertrag `id|name|state|unit|area|key=value;...`), Aliase,
    Domain-Hints und Stopwords stehen als JSON-Setting `entity_index`
    (Default: HA via `ha_eval_template`) — ein anderes System wird durch ein
@@ -163,6 +163,10 @@ oder HA-Fuzzy-Logik. Zwei generische Muster decken alles ab:
    klar schwächer (BM25-AND-Gating, kein Umlaut-Folding, keine Aliase, im
    Test 0 Treffer auf existierende Entities) — Treffersicherheit und
    Performance leben daher lokal, Universalität in der Parametrisierung.
+3. **Index-Assistent** (`POST /admin/api/index/assist` + `/index/apply`) —
+   LLM entwirft das Index-Binding, ein deterministischer Validator prüft es
+   live gegen den Datenvertrag (nur lesende Tools, max. 3 Self-Correction-
+   Iterationen), das Speichern erfolgt erst nach Admin-Bestaetigung.
 
 ### Tool-Vertrag: Was wir von MCP-Tools erwarten
 
@@ -187,10 +191,9 @@ Domain mitgeben) und Doppel-/Geister-Entities im Quellsystem ausräumen.
   der MCP-Registry eingetragenen Server.
 - Die generischen Template-Bausteine (`http`, `shell`) bleiben für Dienste
   **ohne** MCP-Fassade (z. B. externe Web-APIs).
-- Backlog (Phase 2): **Index-Assistent-Makro** — LLM-gestütztes Einbinden
-  neuer Quellen (tools/list lesen, Extraktions-Template entwerfen, gegen den
-  Datenvertrag validieren, mit Admin-Bestaetigung als `entity_index`-Setting
-  speichern).
+- Neue Index-Quellen werden über den Index-Assistenten eingebunden (siehe
+  [FUNKTIONEN.md](FUNKTIONEN.md)); die generischen Lesetools heißen
+  systemneutral `fn_find_entities` / `fn_get_entity`.
 - Konkrete Rezepte (nur Beispiele) leben in [FUNKTIONEN.md](FUNKTIONEN.md),
   nicht hier.
 

@@ -35,7 +35,8 @@ export async function chatCompletion(
   messages: ChatMessage[],
   tools?: ToolSpec[],
   timeoutMs?: number,
-  modelOverride?: string
+  modelOverride?: string,
+  maxTokensOverride?: number
 ): Promise<ChatCompletionResult> {
   const primaryModel = modelOverride ?? config.llm.model;
   const fallbackBase = modelOverride ? '' : config.llm.fallbackBaseUrl;
@@ -44,17 +45,17 @@ export async function chatCompletion(
 
   // Tool-Roundtrips brauchen Tool- und JSON-Faehigkeit -> nur Primaermodell
   if (!useFallback || (tools && tools.length > 0)) {
-    return callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs);
+    return callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs, maxTokensOverride);
   }
 
   // Timeout-Deckel: Primaermodell hat volle Chance bis zur Schwelle;
   // erst danach (oder bei Primaerfehler) uebernimmt der lokale Fallback.
   // Alle Rejections werden gefangen -> niemals unhandled rejection (Prozess-Crash).
-  const primaryOk = callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs).then(
+  const primaryOk = callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs, maxTokensOverride).then(
     (res) => ({ res }),
     () => ({ err: true })
   );
-  const fallbackOk = callLlm(fallbackBase, '', fallbackModel, messages, tools, timeoutMs).then(
+  const fallbackOk = callLlm(fallbackBase, '', fallbackModel, messages, tools, timeoutMs, maxTokensOverride).then(
     (fb) => ({ fb: fb.usage ? { ...fb, usage: { ...fb.usage, via_fallback: true, model: fallbackModel } } : fb }),
     () => ({ err: true })
   );
@@ -117,12 +118,13 @@ async function callLlm(
   model: string,
   messages: ChatMessage[],
   tools?: ToolSpec[],
-  timeoutMs?: number
+  timeoutMs?: number,
+  maxTokensOverride?: number
 ): Promise<ChatCompletionResult> {
   const body: Record<string, unknown> = {
     model,
     messages,
-    max_tokens: config.llm.maxTokens,
+    max_tokens: maxTokensOverride ?? config.llm.maxTokens,
     temperature: 0.2,
   };
   if (tools && tools.length > 0) {

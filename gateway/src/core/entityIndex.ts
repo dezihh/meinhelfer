@@ -25,7 +25,10 @@ interface DomainHint {
 
 interface IndexConfig {
   tool: string;
-  template: string;
+  // Freies Argument-Objekt fuer den Index-Tool-Call; das Extraktions-Template
+  // steckt in dem Argument, das der jeweilige Server erwartet (HA:
+  // args.template). So bleibt die Bindung an JEDES System reine Konfiguration.
+  args: Record<string, unknown>;
   ttlMs: number;
   aliases: Record<string, string>;
   domainHints: DomainHint[];
@@ -56,7 +59,7 @@ const RELEVANT_ATTRS = new Set([
 function defaultConfig(): IndexConfig {
   return {
     tool: 'ha_eval_template',
-    template: DEFAULT_SNAPSHOT_TEMPLATE,
+    args: { template: DEFAULT_SNAPSHOT_TEMPLATE },
     ttlMs: 60_000,
     aliases: { draussen: 'aussen', drausen: 'aussen' },
     domainHints: [
@@ -85,14 +88,16 @@ function loadConfig(): IndexConfig {
   try {
     const parsed = JSON.parse(raw) as {
       tool?: string;
-      template?: string;
+      args?: Record<string, unknown>;
+      template?: string; // Alt-Format (Kompatibilitaet)
       ttlMs?: number;
       aliases?: Record<string, string>;
       domainHints?: { re: string; domains: string[] }[];
       stopwords?: string[];
     };
     if (parsed.tool) cfg.tool = parsed.tool;
-    if (parsed.template) cfg.template = parsed.template;
+    if (parsed.args && typeof parsed.args === 'object') cfg.args = parsed.args;
+    else if (parsed.template) cfg.args = { template: parsed.template };
     if (typeof parsed.ttlMs === 'number' && parsed.ttlMs > 0) cfg.ttlMs = parsed.ttlMs;
     if (parsed.aliases) cfg.aliases = { ...cfg.aliases, ...parsed.aliases };
     if (parsed.domainHints) {
@@ -165,22 +170,64 @@ export async function getIndexSnapshot(force = false): Promise<IndexEntry[]> {
   let result: unknown = null;
   for (const server of mcp.servers) {
     if (server.tools.some((t) => t.name === cfg.tool)) {
-      result = await server.client.callTool(cfg.tool, { template: cfg.template });
+      result = await server.client.callTool(cfg.tool, cfg.args);
       break;
     }
   }
   if (result === null) {
     throw new Error(`Index-Tool ${cfg.tool} nicht gefunden - MCP-Server aktiv?`);
   }
-  const entries = unwrapToolText(result)
-    .split('\n')
-    .map((line) => parseLine(line.trim()))
-    .filter((e): e is IndexEntry => e !== null);
+  const { entries, error } = parseIndexResult(result);
+  if (error) {
+    throw new Error(`Index-Tool ${cfg.tool} fehlgeschlagen: ${error}`);
+  }
   if (entries.length === 0) {
     throw new Error(`Index leer (${cfg.tool}): ${unwrapToolText(result).slice(0, 120)}`);
   }
   cache = { ts: Date.now(), entries };
   return entries;
+}
+
+// Parst das Ergebnis eines Index-Tool-Calls. Liefert Eintraege plus optional
+// einen Tool-Fehler (JSON-Envelope mit success=false, z. B. bei Timeout).
+export function parseIndexResult(result: unknown): { entries: IndexEntry[]; error: string | null } {
+  const content = (result as { content?: { text?: unknown }[] })?.content;
+  let text = String(result ?? '');
+  if (Array.isArray(content)) {
+    text = content
+      .map((c) => (c && typeof c === 'object' && typeof c.text === 'string' ? c.text : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (text.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text) as {
+        success?: unknown;
+        result?: unknown;
+        error?: { message?: string } | string;
+      };
+      if (typeof parsed.result === 'string') {
+        return { entries: splitLines(parsed.result), error: null };
+      }
+      if (parsed.success === false) {
+        const err = parsed.error;
+        const msg =
+          err && typeof err === 'object' ? String(err.message ?? JSON.stringify(err)) : String(err ?? 'success=false');
+        return { entries: [], error: msg.slice(0, 300) };
+      }
+      // Envelope ohne result/success-false: Rohtext unten versuchen
+    } catch {
+      // kein JSON-Envelope
+    }
+  }
+  return { entries: splitLines(text), error: null };
+}
+
+function splitLines(text: string): IndexEntry[] {
+  return text
+    .split('\n')
+    .map((line) => parseLine(line.trim()))
+    .filter((e): e is IndexEntry => e !== null);
 }
 
 // Sprechbare Zeile (LLM- und sprachtauglich), keine JSON-Objekte.

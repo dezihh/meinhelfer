@@ -38,6 +38,7 @@ import {
 } from './db.js';
 import { getMcpContext } from './mcp/registry.js';
 import { renderActionTemplate } from './core/template.js';
+import { assistIndex, applyDraft } from './core/indexAssistant.js';
 
 const app = express();
 app.use(
@@ -392,6 +393,27 @@ app.post('/admin/api/functions/preview', requireAuth, async (req, res) => {
     const trace: TraceEvent[] = [];
     const rendered = await renderActionTemplate(template, mcp, trace);
     res.json({ rendered, trace });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
+});
+
+// Index-Assistent (Phase 2): LLM entwirft ein Index-Draft, der deterministische
+// Validator prueft es live (lesende Tools only, Datenvertrag). Speichern nur
+// ueber /index/apply nach Admin-Bestaetigung.
+app.post('/admin/api/index/assist', requireAuth, async (req, res) => {
+  try {
+    const goal = String((req.body as { goal?: unknown }).goal ?? '');
+    res.json(await assistIndex(goal));
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
+});
+
+app.post('/admin/api/index/apply', requireAuth, async (req, res) => {
+  try {
+    const draft = (req.body as { draft?: unknown }).draft as never;
+    res.json(await applyDraft(draft));
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
   }
