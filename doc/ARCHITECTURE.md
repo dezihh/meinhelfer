@@ -80,7 +80,7 @@ Routing-Details und Latenzbudgets: [DESIGN_WEBUI.md](DESIGN_WEBUI.md), [DESIGN_S
 |---|---|---|
 | **Client-Auth** (Alexa → Gateway `/alexa`) | `applicationId`-Vergleich gegen `ALEXA_SKILL_ID` (aktiv, sobald gesetzt); optionale Alexa-Signatur-Verifikation (Zertifikatskette gem. Amazon, Timestamp-Toleranz) via `ALEXA_VERIFY_MODE` off/warn/enforce (Default `off`) | — |
 | **API-/Admin-Auth** (`/api/*`, `/admin/*`) | Bearer-Token (`AUTH_TOKEN`), constant-time über `timingSafeEqual` | Replay-Schutz via HMAC (Timestamp + Nonce) → Issue #5 |
-| **MCP-Server-Auth** (Gateway → HA `/api/mcp`) | Long-Lived Access Token als Bearer | OAuth (IndieAuth-artig) → Issue #6 |
+| **MCP-Server-Auth** (Gateway → HA-MCP `192.168.10.3:9584/mcp`) | ohne Token (LAN-intern, Community-Server ha-mcp) | falls später exponiert: Bearer-Token in der MCP-Registry |
 
 - Zweck der Client-Auth auf `/alexa`: „Der Request kommt von meinem Alexa-Skill (applicationId) und wirklich von Amazon (Signatur)."
 - Eine spätere Trennung zwischen Client-Authentifizierung und User-Identität bleibt möglich

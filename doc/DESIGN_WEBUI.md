@@ -73,7 +73,7 @@ Router abgebildet (→ Entscheidung in [Issue #1](https://github.com/dezihh/mein
 | Admin-Frontend | **Vanilla HTML/CSS/JS** – kein SPA-Framework, kein Node-Frontend-Build |
 | Admin-Zugang | **LAN-only** (CIDR-Allowlist im Reverse-Proxy), kein zusätzlicher Login im MVP |
 | Such-MCP | **Bestehender SearXNG-MCP auf knx** wird angebunden, kein eigenes Hosting |
-| HA-MCP | **Offizielle HA-Integration** (`/api/mcp`), Long-Lived Access Token als Bearer; OAuth später (Issue #6) |
+| HA-MCP | **Community-Server ha-mcp** (Streamable HTTP `http://192.168.10.3:9584/mcp`, 77 Tools, stateless, kein Token); ersetzt seit 16.09. die offizielle HA-Integration (`/api/mcp`) |
 | Client-Auth (POC) | **Zwei Ebenen:** `/alexa` mit applicationId + optionaler Alexa-Signatur-Prüfung; `/api/*`, `/admin/*` mit Bearer-Token; Replay-Schutz später (Issue #5) |
 | Persistenz | **SQLite** (`mcp_servers`, `actions`, `prompts`, `settings`), Credentials pragmatisch via `.env` |
 | Session-Schnittstelle | `sessionId`/`conversationId` ab POC in der internen API, State-Ausbau später (siehe ARCHITECTURE.md) |
