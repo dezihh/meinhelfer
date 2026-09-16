@@ -142,12 +142,59 @@ SQLite, bewusst klein:
 Credentials pragmatisch (`.env`/Env-Vars) – kein ausgefeiltes Secret-Management
 als POC-Blocker.
 
+## Schnittstellen: MCP-first, REST als Lückenschluss
+
+Fähigkeiten externer Systeme (z. B. Smart Home) werden primär über deren
+**MCP-Server** genutzt. REST greift nur, wo das MCP-Angebot lückenhaft ist —
+und wird zurückgebaut, sobald die MCP-Tools nachziehen. Begründung: MCP liefert
+Discovery (`tools/list`) und maschinenlesbare Schemata mit; REST-Integration
+müsste Endpunkt- und Payload-Wissen fest im Gateway verdrahten.
+
+### Tool-Vertrag: Was wir von MCP-Tools erwarten
+
+Damit Agent, Template-Bausteine und Funktions-Registry ein MCP-Tool **ohne
+Sondercode** nutzen können:
+
+| Anforderung | Warum |
+|---|---|
+| Discovery via `tools/list` mit vollständigem JSON-Schema (Parameternamen, Typen, Pflichtfelder) | Agent und Admin-UI leiten Aufruf und Prompt-Beschreibung automatisch daraus ab |
+| Ziele in **Nutzersprache** (Name, Raum, Etage), nicht interne IDs | Sprachclient und LLM kennen keine internen IDs; IDs sind Implementierungsdetail des Zielsystems |
+| Typsichere Parameter inkl. Validierung (z. B. Ganzzahl 0–100 statt Float 0.0–1.0) | Falsche Typen/Einheiten sollen beim Aufruf abgelehnt werden, nicht falsch ausgeführt |
+| Deterministische, maschinenlesbare Fehler **mit Trefferliste** (z. B. `DUPLICATE_NAME`, `MULTIPLE_TARGETS`) | Mehrdeutigkeiten übersetzt der Agent in eine Rückfrage (Clarification) statt zu raten |
+| Lesende und schreibende Tools am Naming/der Beschreibung erkennbar | Grundlage für spätere Tool-Allowlists und Berechtigungen (#3/#4) |
+
+Beispielhafte Erfahrung aus dem HA-MCP: Namensauflösung ohne Raumbezug scheitert
+schnell an Duplikaten — Aufrufe so spezifisch wie möglich formulieren (Raum +
+Domain mitgeben) und Doppel-/Geister-Entities im Quellsystem ausräumen.
+
+### REST-Einsatz regeln
+
+- REST ist **Lückenschluss**, kein zweiter Standardweg: Entity-Suche/-Filter
+  mit Scoring, Template-Auswertung, Dienste ohne MCP-Fassade.
+- Anbindung generisch über die Template-Bausteine (`http`, `shell`, `ha.*`) —
+  **kein dienstspezifischer Gateway-Code**. Konkrete Rezepte (nur Beispiele)
+  leben in [FUNKTIONEN.md](FUNKTIONEN.md), nicht hier.
+- Zielbild: REST-Verbindungen (Basis-URL, Port, Token) werden wie MCP-Server
+  als verwaltete Verbindungen gepflegt (Settings/Admin-UI).
+
+### Gateway-eigene REST-API (Angebot)
+
+| Endpoint | Zweck |
+|---|---|
+| `POST /api/query` | Einstieg für Adapter (Text/Session → AssistantResponse), Bearer-Token |
+| `/admin/api/*` | Admin-UI: Vorgänge, Funktionen-Registry, MCP-Registry, Logs, Einstellungen |
+
 ## Externe Dienste
 
 | Dienst | Endpoint (konfigurierbar via `.env`) |
 |---|---|
 | LLM | LiteLLM (OpenAI-kompatibel, `chat/completions`; Base-URL via Env `LLM_BASE_URL`, z. B. Modell `chat-fast`/`chat-quality`; API-Key via Env) |
 | MCP (HA) | Offizielle HA-Integration `/api/mcp` (Streamable HTTP, Bearer-LLAT) |
+
+Weitere fachliche Dienste werden bewusst **nur allgemein** hier geführt: sie
+werden generisch über die Template-Bausteine angebunden und sind austauschbar.
+Konkrete Endpunkte und Rezepte sind Beispiele und gehören in
+[FUNKTIONEN.md](FUNKTIONEN.md), nicht in die Architektur-Doku.
 
 ## Conversation State
 
