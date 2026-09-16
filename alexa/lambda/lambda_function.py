@@ -12,7 +12,10 @@ from ask_sdk_core.api_client import DefaultApiClient
 from ask_sdk_core.dispatch_components import AbstractRequestHandler, AbstractExceptionHandler
 from ask_sdk_model.services.directive import SendDirectiveRequest, Header, SpeakDirective
 from ask_sdk_model.ui import SimpleCard
-from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
+from ask_sdk_model.interfaces.alexa.presentation.apl import (
+    ExecuteCommandsDirective,
+    RenderDocumentDirective,
+)
 
 # rohes Request-Event fuer APL-Erkennung (ask-sdk verliert Interface-Keys)
 _RAW_ENVELOPE = threading.local()
@@ -67,27 +70,21 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
 # mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
 # (datasources {"documentData": ...} -> ${documentData.text}).
-# Body als Sequence. WICHTIG: Eine vertikale Sequence ohne height defaultet
-# auf 100dp (= ~2 Textzeilen -> Echo-Bug "nur 2 Zeilen sichtbar", "flex" ist
-# keine gueltige APL-Eigenschaft). Daher height "100%" und groesseres
-# paddingBottom am Text, damit nach dem Autoscroll die letzte Zeile oben
-# nicht am Bildschirmrand abgeschnitten bleibt.
+# Sprachsync nach offiziellem Muster "Synchronize spoken text with text on
+# the screen": Der Body-Text liegt in einer ScrollView und ist per
+# speech-Property an die TTS gebunden. Die Transformer ssmlToSpeech/ssmlToText
+# erzeugen aus der SSML im Datasource die TTS-Audio-URL (speech) und den
+# Klartext (text). Gesprochen wird dann via SpeakItem (ExecuteCommands) statt
+# outputSpeech -> das Geraet scrollt automatisch zeilenweise mit der Sprache
+# mit (highlightMode "line"). Bekannter Tradeoff: Nutzer-Touch waehrend der
+# Wiedergabe stoppt die Sprache (Geraete-UX, nicht konfigurierbar).
+# WICHTIG: Eine ScrollView ohne height defaultet auf 100dp; daher height
+# "100%". Etwas paddingBottom am Text, damit die letzte Zeile nicht am
+# Bildschirmrand abgeschnitten bleibt.
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
     "background": "#161C27",
-    "onMount": [
-        {
-            # Offizielles Muster fuer kontinuierliches Scrollen (APL-Doku,
-            # Scroll-Command): ein Scroll mit sehr grossem distance. distance
-            # ist in PAGES gemessen, positiver Wert scrollt vorwaerts.
-            # delay (Base-Property) = 4 s Lesezeit vor dem Start.
-            "type": "Scroll",
-            "componentId": "bodyScroll",
-            "delay": 4000,
-            "distance": 10000,
-        }
-    ],
     "mainTemplate": {
         "parameters": ["documentData"],
         "items": [
@@ -109,19 +106,20 @@ APL_DOCUMENT = {
                         "paddingBottom": 12,
                     },
                     {
-                        "type": "Sequence",
-                        "componentId": "bodyScroll",
+                        "type": "ScrollView",
                         "width": "100%",
                         "height": "100%",
                         "items": [
                             {
                                 "type": "Text",
+                                "componentId": "bodyText",
                                 "text": "${documentData.text}",
+                                "speech": "${documentData.speech}",
                                 "width": "100%",
                                 "fontSize": 38,
                                 "lineHeight": 1.35,
                                 "color": "#EEEEEE",
-                                "paddingBottom": 90,
+                                "paddingBottom": 60,
                             }
                         ],
                     },
@@ -155,12 +153,46 @@ def supports_apl(handler_input):
         return False
 
 
-def render_apl(handler_input, title, text):
+def build_ssml(speech, is_ssml):
+    """SSML fuer den APL-Datasource: vorhandenes SSML uebernehmen (Wrapper
+    ergaenzen, falls fehlend), Klartext escapen und in <speak> packen."""
+    if is_ssml:
+        return speech if "<speak" in speech else "<speak>{}</speak>".format(speech)
+    return "<speak>{}</speak>".format(escape(speech))
+
+
+def render_apl(handler_input, title, ssml):
+    """RenderDocument + ExecuteCommands(SpeakItem) mit identischem Token.
+    Sprache laeuft NUR ueber SpeakItem - outputSpeech wuerde doppelt sprechen."""
+    token = "mainhelfer-display-{}".format(int(time.time() * 1000))
     handler_input.response_builder.add_directive(
         RenderDocumentDirective(
-            token="mainhelfer-display-{}".format(int(time.time() * 1000)),
+            token=token,
             document=APL_DOCUMENT,
-            datasources={"documentData": {"title": title, "text": text}},
+            datasources={
+                "documentData": {
+                    "title": title,
+                    "ssml": ssml,
+                    "transformers": [
+                        {"transformer": "ssmlToSpeech", "inputName": "ssml", "outputName": "speech"},
+                        {"transformer": "ssmlToText", "inputName": "ssml", "outputName": "text"},
+                    ],
+                }
+            },
+        )
+    )
+    handler_input.response_builder.add_directive(
+        ExecuteCommandsDirective(
+            token=token,
+            commands=[
+                {
+                    "type": "SpeakItem",
+                    "componentId": "bodyText",
+                    "highlightMode": "line",
+                    "align": "center",
+                    "minimumDwellTime": 200,
+                }
+            ],
         )
     )
 
@@ -299,14 +331,14 @@ class GptQueryIntentHandler(AbstractRequestHandler):
         lambda_trace(session_id, "response_sent", int((time.monotonic() - trace_start) * 1000))
         # ask-sdk speak() wrappt in <speak> und trimmt vorhandenen Wrapper;
         # Klartext muss XML-escaped werden (SSML aus dem Gateway nicht)
-        response_builder.speak(escape(speech) if not is_ssml else speech)
         # Anzeige: Klartext ohne SSML-Tags (Echo Show / Alexa App)
         display = display_text or strip_ssml(speech)
         response_builder.set_card(SimpleCard(title=CARD_TITLE, content=display))
-        # APL: kontrollierte Schriftgroesse + Scroll auf unterstuetzten Geraeten
+        # APL: kontrollierte Schriftgroesse + sprachsync-Autoscroll (SpeakItem)
         if supports_apl(handler_input):
-            render_apl(handler_input, CARD_TITLE, display)
+            render_apl(handler_input, CARD_TITLE, build_ssml(speech, is_ssml))
         else:
+            response_builder.speak(escape(speech) if not is_ssml else speech)
             logger.warning("Kein APL-Support erkannt - nur SimpleCard gesendet. Rohe Interfaces: %r",
                            ((getattr(_RAW_ENVELOPE, "value", None) or {})
                             .get("context", {}).get("System", {})
