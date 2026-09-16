@@ -41,7 +41,7 @@ und zeigt Ergebnis + Trace-Schritte — ohne zu speichern.
 
 | Baustein | Wirkung | Hinweise |
 |----------|---------|----------|
-| `ha.state('entity_id')` | Zustand einer Entity als String | HA-REST-Snapshot, 60 s Cache |
+| `ha.state('entity_id')` | Zustand einer Entity als String | HA-MCP-Snapshot (`ha_eval_template`), 60 s Cache |
 | `ha.find('stichworte')` | Fuzzy-Suche über alle Entities (Aliase, Räume, Scoring), max. 8 Treffer | liefert sprechbare Textzeilen |
 | `ha.get('entity_id')` | Zustand + Attribute einer konkreten Entity | aus dem selben Snapshot |
 | `ha.entities('domain')` | Entities einer Domain | benötigt ein MCP-Tool, dessen Name auf `search/lookup/entit` passt |

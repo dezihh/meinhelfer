@@ -142,13 +142,16 @@ SQLite, bewusst klein:
 Credentials pragmatisch (`.env`/Env-Vars) – kein ausgefeiltes Secret-Management
 als POC-Blocker.
 
-## Schnittstellen: MCP-first, REST als Lückenschluss
+## Schnittstellen: vollständig MCP
 
-Fähigkeiten externer Systeme (z. B. Smart Home) werden primär über deren
-**MCP-Server** genutzt. REST greift nur, wo das MCP-Angebot lückenhaft ist —
-und wird zurückgebaut, sobald die MCP-Tools nachziehen. Begründung: MCP liefert
-Discovery (`tools/list`) und maschinenlesbare Schemata mit; REST-Integration
-müsste Endpunkt- und Payload-Wissen fest im Gateway verdrahten.
+Fähigkeiten externer Systeme (z. B. Smart Home) laufen **ausschließlich** über
+deren **MCP-Server** — Home Assistant inklusive. Der früher als
+„Lückenschluss" gedachte REST-Pfad auf die HA-API (`/api/states`,
+`/api/template`) wurde entfernt: Entity- und Areas-Snapshot kommen über das
+MCP-Tool `ha_eval_template` des HA-MCP-Servers (60 s Cache im Gateway, Scoring
+lokal). Begründung des Musters: MCP liefert Discovery (`tools/list`) und
+maschinenlesbare Schemata mit; REST-Integration müsste Endpunkt- und
+Payload-Wissen fest im Gateway verdrahten.
 
 ### Tool-Vertrag: Was wir von MCP-Tools erwarten
 
@@ -167,15 +170,14 @@ Beispielhafte Erfahrung aus dem HA-MCP: Namensauflösung ohne Raumbezug scheiter
 schnell an Duplikaten — Aufrufe so spezifisch wie möglich formulieren (Raum +
 Domain mitgeben) und Doppel-/Geister-Entities im Quellsystem ausräumen.
 
-### REST-Einsatz regeln
+### MCP-Einsatz
 
-- REST ist **Lückenschluss**, kein zweiter Standardweg: Entity-Suche/-Filter
-  mit Scoring, Template-Auswertung, Dienste ohne MCP-Fassade.
-- Anbindung generisch über die Template-Bausteine (`http`, `shell`, `ha.*`) —
-  **kein dienstspezifischer Gateway-Code**. Konkrete Rezepte (nur Beispiele)
-  leben in [FUNKTIONEN.md](FUNKTIONEN.md), nicht hier.
-- Zielbild: REST-Verbindungen (Basis-URL, Port, Token) werden wie MCP-Server
-  als verwaltete Verbindungen gepflegt (Settings/Admin-UI).
+- Alle HA-Zugriffe (Snapshot, Suche, Aufrufe) laufen über MCP-Tools des in der
+  MCP-Registry eingetragenen HA-Servers.
+- Die generischen Template-Bausteine (`http`, `shell`) bleiben für Dienste
+  **ohne** MCP-Fassade (z. B. externe Web-APIs) — das ist kein HA-REST.
+- Konkrete Rezepte (nur Beispiele) leben in [FUNKTIONEN.md](FUNKTIONEN.md),
+  nicht hier.
 
 ### Gateway-eigene REST-API (Angebot)
 
@@ -189,7 +191,7 @@ Domain mitgeben) und Doppel-/Geister-Entities im Quellsystem ausräumen.
 | Dienst | Endpoint (konfigurierbar via `.env`) |
 |---|---|
 | LLM | LiteLLM (OpenAI-kompatibel, `chat/completions`; Base-URL via Env `LLM_BASE_URL`, z. B. Modell `chat-fast`/`chat-quality`; API-Key via Env) |
-| MCP (HA) | Offizielle HA-Integration `/api/mcp` (Streamable HTTP, Bearer-LLAT) |
+| MCP (HA) | HA-MCP-Server (Streamable HTTP, Bearer; URL/Token in der MCP-Registry) |
 
 Weitere fachliche Dienste werden bewusst **nur allgemein** hier geführt: sie
 werden generisch über die Template-Bausteine angebunden und sind austauschbar.
