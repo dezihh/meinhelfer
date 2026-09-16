@@ -1,7 +1,7 @@
 import nunjucks from 'nunjucks';
 import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
-import { getStatesSnapshot, scoreEntities, type HaEntity } from '../ha/states.js';
+import { getIndexSnapshot, scoreEntries, fmtEntry, type IndexEntry } from './entityIndex.js';
 import { getFunctionByName } from '../db.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
@@ -15,8 +15,7 @@ const SHELL_OUTPUT_CAP = 4000;
 
 interface LiteralCalls {
   states: string[];
-  entityCalls: string[];
-  calls: string[];
+  calls: { tool: string; args: string | null }[];
   shells: string[];
   fns: string[];
   httpUrls: string[];
@@ -24,21 +23,19 @@ interface LiteralCalls {
 
 function extractLiterals(template: string): LiteralCalls {
   const states: string[] = [];
-  const entityCalls: string[] = [];
-  const calls: string[] = [];
+  const calls: { tool: string; args: string | null }[] = [];
   const shells: string[] = [];
   const fns: string[] = [];
   const httpUrls: string[] = [];
-  for (const m of template.matchAll(/ha\.state\(\s*["']([^"']+)["']\s*\)/g)) states.push(m[1] as string);
-  for (const m of template.matchAll(/ha\.entities\(\s*["']([^"']*)["']\s*\)/g)) {
-    const domain = m[1] as string;
-    if (domain) entityCalls.push(domain);
+  for (const m of template.matchAll(/index\.state\(\s*["']([^"']+)["']\s*\)/g)) states.push(m[1] as string);
+  // mcp.call('tool') bzw. mcp.call('tool', {flaches JSON-Literal, eine Zeile})
+  for (const m of template.matchAll(/mcp\.call\(\s*["']([^"']+)["']\s*(?:,\s*(\{[^\n]*?\}))?\s*\)/g)) {
+    calls.push({ tool: m[1] as string, args: (m[2] as string | undefined) ?? null });
   }
-  for (const m of template.matchAll(/ha\.call\(\s*["']([^"']+)["']\s*\)/g)) calls.push(m[1] as string);
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
   for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
   for (const m of template.matchAll(/http\(\s*["']([^"']+)["']\s*\)/g)) httpUrls.push(m[1] as string);
-  return { states, entityCalls, calls, shells, fns, httpUrls };
+  return { states, calls, shells, fns, httpUrls };
 }
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -95,19 +92,6 @@ function runShell(cmd: string, trace: TraceEvent[]): Promise<string | null> {
   });
 }
 
-function findTool(
-  mcp: McpContext,
-  patterns: RegExp[]
-): { server: McpContext['servers'][number]; toolName: string } | undefined {
-  for (const server of mcp.servers) {
-    for (const pattern of patterns) {
-      const tool = server.tools.find((t) => pattern.test(t.name));
-      if (tool) return { server, toolName: tool.name };
-    }
-  }
-  return undefined;
-}
-
 function findToolExact(
   mcp: McpContext,
   toolName: string
@@ -117,6 +101,23 @@ function findToolExact(
     if (tool) return { server, toolName: tool.name };
   }
   return undefined;
+}
+
+// mcp.call-Args: flaches JSON-Literal im Template; einzelne Anfuehrungs-
+// striche (Jinja-Stil) werden tolerant auf doppelte gemappt.
+function parseCallArgs(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  for (const candidate of [raw, raw.replace(/'/g, '"')]) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // naechste Variante
+    }
+  }
+  return null;
 }
 
 function extractText(result: unknown): string {
@@ -161,14 +162,12 @@ async function preheat(
   active: Set<string>,
   args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { states, entityCalls, calls, shells, fns, httpUrls } = extractLiterals(template);
+  const { states, calls, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
-  const entityMap = new Map<string, unknown[]>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
   const fnMap = new Map<string, string | null>();
   const httpMap = new Map<string, unknown | null>();
-  const listTool = findTool(mcp, [/search|lookup|entit/i]);
 
   // HTTP-URLs parallel laden (dedupliziert)
   await Promise.all(
@@ -179,28 +178,21 @@ async function preheat(
     })
   );
 
-  // Snapshot vorwaermen (60s-Cache) - Basis fuer ha.find/ha.get (sync-Helper).
-  let snapshot: HaEntity[] = [];
+  // Entity-Index vorwaermen (TTL-Cache) - Basis fuer index.find/index.get/index.state.
+  let snapshot: IndexEntry[] = [];
   try {
-    snapshot = await getStatesSnapshot();
+    snapshot = await getIndexSnapshot();
   } catch (e) {
-    trace.push({ ts: Date.now(), step: 'template.snapshot.error', detail: { error: String(e) } });
+    trace.push({ ts: Date.now(), step: 'template.index.error', detail: { error: String(e) } });
   }
-  // Liefert kompakte, sprechbare Zeilen (LLM- und sprachtauglich), keine JSON-Objekte.
-  const fmtEntity = (e: HaEntity): string => {
-    const unit = e.unit ? ` ${e.unit}` : '';
-    const area = e.area ? ` [${e.area}]` : '';
-    const temp = e.attributes && 'current_temperature' in e.attributes ? ` (aktuell ${e.attributes.current_temperature}°C)` : '';
-    return `${e.entity_id} | ${e.name}: ${e.state}${unit}${area}${temp}`;
-  };
-  const haFind = (query: string): string => {
-    if (snapshot.length === 0) return 'HA-Snapshot nicht verfuegbar';
-    const hits = scoreEntities(snapshot, String(query ?? ''), 8).map(fmtEntity);
+  const indexFind = (query: string): string => {
+    if (snapshot.length === 0) return 'Entity-Index nicht verfuegbar';
+    const hits = scoreEntries(snapshot, String(query ?? ''), 8).map(fmtEntry);
     return hits.length > 0 ? hits.join('\n') : 'keine Treffer';
   };
-  const haGet = (entityId: string): string => {
-    const found = snapshot.find((e) => e.entity_id === entityId);
-    return found ? fmtEntity(found) : `${entityId}: unbekannt`;
+  const indexGet = (entityId: string): string => {
+    const found = snapshot.find((e) => e.id === entityId);
+    return found ? fmtEntry(found) : `${entityId}: unbekannt`;
   };
 
   for (const name of fns) {
@@ -233,44 +225,34 @@ async function preheat(
     }
   }
 
-  for (const toolName of calls) {
-    if (callMap.has(toolName)) continue;
+  for (const call of calls) {
+    // Normalisierter Key (geparste Args) = Lookup-Schluessel im Template-ctx;
+    // identische Aufrufe mit gleichem Tool+Args werden dedupliziert.
+    const parsedArgs = parseCallArgs(call.args);
+    const normKey = `${call.tool}|${parsedArgs ? JSON.stringify(parsedArgs) : ''}`;
+    if (callMap.has(normKey)) continue;
     try {
-      const found = findToolExact(mcp, toolName);
-      if (!found) throw new Error(`Tool ${toolName} auf keinem MCP-Server gefunden`);
-      const result = await found.server.client.callTool(found.toolName, {});
-      callMap.set(toolName, extractText(result));
-      trace.push({ ts: Date.now(), step: 'template.call', detail: { toolName, server: found.server.name } });
+      const found = findToolExact(mcp, call.tool);
+      if (!found) throw new Error(`Tool ${call.tool} auf keinem MCP-Server gefunden`);
+      const result = await found.server.client.callTool(found.toolName, parsedArgs ?? {});
+      callMap.set(normKey, extractText(result));
+      trace.push({ ts: Date.now(), step: 'template.mcp', detail: { tool: call.tool, server: found.server.name } });
     } catch (e) {
-      trace.push({ ts: Date.now(), step: 'template.call.error', detail: { toolName, error: String(e) } });
-      callMap.set(toolName, null);
+      trace.push({ ts: Date.now(), step: 'template.mcp.error', detail: { tool: call.tool, error: String(e) } });
+      callMap.set(normKey, null);
     }
   }
 
   for (const entityId of states) {
     if (stateMap.has(entityId)) continue;
     try {
-      const entities = await getStatesSnapshot();
-      const entity = entities.find((e) => e.entity_id === entityId);
+      const entity = snapshot.find((e) => e.id === entityId);
       if (!entity) throw new Error(`Entity ${entityId} nicht gefunden`);
       stateMap.set(entityId, entity.state);
       trace.push({ ts: Date.now(), step: 'template.state', detail: { entityId } });
     } catch (e) {
       trace.push({ ts: Date.now(), step: 'template.state.error', detail: { entityId, error: String(e) } });
       stateMap.set(entityId, null);
-    }
-  }
-
-  for (const domain of entityCalls) {
-    if (entityMap.has(domain)) continue;
-    try {
-      if (!listTool) throw new Error('kein Entity-Tool gefunden');
-      const result = await listTool.server.client.callTool(listTool.toolName, { domain });
-      entityMap.set(domain, (result as unknown[]) ?? []);
-      trace.push({ ts: Date.now(), step: 'template.entities', detail: { domain } });
-    } catch (e) {
-      trace.push({ ts: Date.now(), step: 'template.entities.error', detail: { domain, error: String(e) } });
-      entityMap.set(domain, []);
     }
   }
 
@@ -281,12 +263,16 @@ async function preheat(
 
   return {
     args,
-    ha: {
+    index: {
       state: (entityId: string): string | null => stateMap.get(entityId) ?? null,
-      entities: (domain: string): unknown[] => entityMap.get(domain) ?? [],
-      call: (toolName: string): string | null => callMap.get(toolName) ?? null,
-      find: haFind,
-      get: haGet,
+      get: (entityId: string): string => indexGet(entityId),
+      find: (query: string): string => indexFind(String(query ?? '')),
+    },
+    mcp: {
+      // Bewusst Objekt (nicht Funktion): mcp.call(...) im Template wuerde
+      // sonst Function.prototype.call statt der Lookup-Funktion aufrufen.
+      call: (tool: string, callArgs?: Record<string, unknown>): string | null =>
+        callMap.get(`${tool}|${callArgs ? JSON.stringify(callArgs) : ''}`) ?? null,
     },
     shell: (cmd: string): string | null => shellMap.get(cmd) ?? null,
     fn: (name: string): string | null => fnMap.get(name) ?? null,
