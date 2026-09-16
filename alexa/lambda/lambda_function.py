@@ -64,13 +64,14 @@ def strip_ssml(text):
 
 CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 
-# APL-Layout: kompatibel (version 1.4), simples Layout ohne ScrollView-Risiko.
-# Interface-Aktivierung erfolgt ueber skill.json (interfaces: ALEXA_PRESENTATION_APL).
-# Datenbindung: datasources -> payload.title/text (std. APL, kein package-Import noetig).
 # APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
 # mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
 # (datasources {"documentData": ...} -> ${documentData.text}).
-# Body als Sequence (manuelles Wischen + Autoscroll via Sequential/Scroll).
+# Body als Sequence. WICHTIG: Eine vertikale Sequence ohne height defaultet
+# auf 100dp (= ~2 Textzeilen -> Echo-Bug "nur 2 Zeilen sichtbar", "flex" ist
+# keine gueltige APL-Eigenschaft). Daher height "100%" und groesseres
+# paddingBottom am Text, damit nach dem Autoscroll die letzte Zeile oben
+# nicht am Bildschirmrand abgeschnitten bleibt.
 APL_DOCUMENT = {
     "type": "APL",
     "version": "1.4",
@@ -111,7 +112,7 @@ APL_DOCUMENT = {
                         "type": "Sequence",
                         "componentId": "bodyScroll",
                         "width": "100%",
-                        "flex": 1,
+                        "height": "100%",
                         "items": [
                             {
                                 "type": "Text",
@@ -120,7 +121,7 @@ APL_DOCUMENT = {
                                 "fontSize": 38,
                                 "lineHeight": 1.35,
                                 "color": "#EEEEEE",
-                                "paddingBottom": 60,
+                                "paddingBottom": 90,
                             }
                         ],
                     },
