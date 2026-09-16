@@ -264,7 +264,7 @@ async function runToolLoop(
   ];
   const overallDeadline = Date.now() + config.toolDeadlineMs * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
-  const toolBudgets: Record<string, number> = { searxng_web_search: 1, web_url_read: 1, fn_ha_find: 2, fn_ha_get: 3, fn_hausstatus_gw: 1 };
+  const toolBudgets: Record<string, number> = { searxng_web_search: 1, web_url_read: 1, fn_find_entities: 2, fn_get_entity: 3, fn_hausstatus_gw: 1 };
   const toolCalls: Record<string, number> = {};
   const runTools = async (message: ChatMessage): Promise<void> => {
     messages.push({

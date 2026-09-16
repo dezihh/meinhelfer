@@ -229,13 +229,15 @@ db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
   }
 }
 
-// HA-Lesetools als parameterisierte Funktionen (ersetzen die alten Facade-Tools).
+// Generische Lesetools als parameterisierte Funktionen (ersetzen die alten
+// Facade-Tools); Namen bewusst systemneutral - die Bindung an Home Assistant
+// steckt im entity_index-Setting, nicht im Funktionsnamen.
 db.prepare(
   'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
 ).run(
-  'ha_find',
-  'Findet HA-Entities zu Stichworten (Name, Raum, Domain) und liefert deren aktuelle Zustände mit (max. 8 Treffer). IMMER zuerst bei Fragen zu Temperatur, Verbrauch, Sensorwerten oder Gerätestatus.',
-  '{{ ha.find(args.query) }}',
+  'find_entities',
+  'Findet Eintraege im Entity-Index zu Stichworten (Name, Raum, Typ) und liefert deren aktuelle Zustaende mit (max. 8 Treffer). IMMER zuerst bei Fragen zu Messwerten, Zustaenden oder Geraetestatus.',
+  '{{ index.find(args.query) }}',
   JSON.stringify({
     type: 'object',
     properties: { query: { type: 'string', description: "Stichwörter, z. B. 'Schlafzimmer Temperatur' oder 'Zisterne'" } },
@@ -245,30 +247,53 @@ db.prepare(
 db.prepare(
   'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
 ).run(
-  'ha_get',
-  'Liest den aktuellen Zustand einer konkreten HA-Entity per entity_id inkl. sprechrelevanter Attribute.',
-  '{{ ha.get(args.entity_id) }}',
+  'get_entity',
+  'Liest den aktuellen Zustand eines konkreten Index-Eintrags per ID inkl. sprechrelevanter Attribute.',
+  '{{ index.get(args.entity_id) }}',
   JSON.stringify({
     type: 'object',
-    properties: { entity_id: { type: 'string', description: "z. B. 'sensor.schlafzimmer_temperature'" } },
+    properties: { entity_id: { type: 'string', description: "ID des Eintrags, z. B. 'sensor.schlafzimmer_temperature'" } },
     required: ['entity_id'],
   })
 );
+
+// Umbenennung der frueheren HA-praefigierten Lesetools (Funktion + Referenzen).
+// Alte Row gewinnt (kann User-Aenderungen tragen): frisches Seed-Duplikat
+// entfernen, dann umbenennen.
+{
+  const renames: [string, string][] = [['ha_find', 'find_entities'], ['ha_get', 'get_entity']];
+  for (const [alt, neu] of renames) {
+    const oldRow = db.prepare('SELECT 1 FROM tpl_functions WHERE name = ?').get(alt);
+    if (!oldRow) continue;
+    db.prepare('DELETE FROM tpl_functions WHERE name = ? AND name != ?').run(neu, alt);
+    db.prepare('UPDATE tpl_functions SET name = ? WHERE name = ?').run(neu, alt);
+    db.prepare('UPDATE actions SET function_ref = ? WHERE function_ref = ?').run(neu, alt);
+  }
+  for (const key of ['agent_system', 'agent_inventory']) {
+    const row = db.prepare('SELECT content FROM prompts WHERE key = ?').get(key) as { content?: string } | undefined;
+    if (row?.content && (row.content.includes('fn_ha_find') || row.content.includes('fn_ha_get'))) {
+      const neu = row.content
+        .replaceAll('fn_ha_find', 'fn_find_entities')
+        .replaceAll('fn_ha_get', 'fn_get_entity');
+      db.prepare('UPDATE prompts SET content = ?, updated_at = datetime(\'now\') WHERE key = ?').run(neu, key);
+    }
+  }
+}
 
 // Prompt-Migration: alte Facade-Lesetools -> parameterisierte Funktions-Tools.
 {
   const sys = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content?: string } | undefined;
   if (sys?.content && sys.content.includes('find_ha_entities')) {
     const neu = sys.content
-      .replaceAll('find_ha_entities', 'fn_ha_find')
-      .replaceAll('get_ha_state', 'fn_ha_get');
+      .replaceAll('find_ha_entities', 'fn_find_entities')
+      .replaceAll('get_ha_state', 'fn_get_entity');
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_system'").run(neu);
   }
   const inv = db.prepare("SELECT content FROM prompts WHERE key = 'agent_inventory'").get() as { content?: string } | undefined;
   if (inv?.content && inv.content.includes('find_ha_entities')) {
     const neu = inv.content
-      .replaceAll('find_ha_entities', 'fn_ha_find')
-      .replaceAll('get_ha_state', 'fn_ha_get');
+      .replaceAll('find_ha_entities', 'fn_find_entities')
+      .replaceAll('get_ha_state', 'fn_get_entity');
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_inventory'").run(neu);
   }
 }
