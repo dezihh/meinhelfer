@@ -90,9 +90,15 @@ function unwrapToolText(result: unknown): string {
 function parseEntityLine(line: string): HaEntity | null {
   const parts = line.split('|');
   if (parts.length < 6) return null;
-  const [entityId, area, state, unit, name, extra] = parts;
-  if (!entityId || !area || !state || !unit || !name || !extra) return null;
-  if (!entityId.includes('.')) return null;
+  // Leere Felder sind gueltig (z. B. Entities ohne relevante Attribute haben
+  // ein leeres extra-Feld) - nur voellig unvollstaendige Zeilen verwerfen.
+  const entityId = parts[0];
+  const area = parts[1] ?? '';
+  const state = parts[2] ?? '';
+  const unit = parts[3] ?? '';
+  const name = parts[4] ?? '';
+  const extra = parts[5] ?? '';
+  if (!entityId || !entityId.includes('.')) return null;
   const attributes: Record<string, string> = {};
   for (const pair of extra.split(';')) {
     const eq = pair.indexOf('=');
