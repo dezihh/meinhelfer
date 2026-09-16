@@ -33,6 +33,7 @@ export function sessionValid(req: Request): boolean {
   const match = /(?:^|;\s*)va_session=([^;]+)/.exec(raw);
   if (!match) return false;
   const id = match[1];
+  if (!id) return false;
   const expires = sessions.get(id);
   if (!expires) return false;
   if (expires < Date.now()) {

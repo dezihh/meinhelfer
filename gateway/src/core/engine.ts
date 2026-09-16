@@ -394,8 +394,8 @@ async function executeAction(
       content: `Daten:\n${rendered.speech}\n\nAnfrage: ${query.text}\nFormuliere daraus eine kurze, sprechbare Antwort.`,
     },
   ];
-  const message = await chatCompletion(messages);
-  return parseAgentAnswer(message.content ?? '', trace);
+  const result = await chatCompletion(messages);
+  return parseAgentAnswer(result.message.content ?? '', trace);
 }
 
 const CHAT_CHAT_SESSIONS = new Set<string>();

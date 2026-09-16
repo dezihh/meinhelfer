@@ -73,13 +73,17 @@ export async function verifyAlexaSignature(
   }
 
   const certs = splitPems(pem);
-  if (certs.length === 0) return { ok: false, reason: 'kein Zertifikat in Chain' };
-  const leaf = new X509Certificate(certs[0]);
+  const leafPem = certs[0];
+  if (!leafPem) return { ok: false, reason: 'kein Zertifikat in Chain' };
+  const leaf = new X509Certificate(leafPem);
   if (!datesValid(leaf)) return { ok: false, reason: 'Leaf-Zertifikat ausserhalb Gueltigkeit' };
 
   for (let i = 0; i < certs.length - 1; i++) {
-    const child = new X509Certificate(certs[i]);
-    const parent = new X509Certificate(certs[i + 1]);
+    const childPem = certs[i];
+    const parentPem = certs[i + 1];
+    if (!childPem || !parentPem) return { ok: false, reason: 'Chain-Struktur inkonsistent' };
+    const child = new X509Certificate(childPem);
+    const parent = new X509Certificate(parentPem);
     if (child.issuer !== parent.subject) return { ok: false, reason: 'Chain-Struktur inkonsistent' };
   }
 

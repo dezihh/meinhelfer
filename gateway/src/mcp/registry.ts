@@ -72,7 +72,7 @@ async function loadServer(row: { id: number; transport: 'http' | 'stdio'; url: s
   return { client, tools, ts: Date.now() };
 }
 
-async function refreshLater(id: number, row: { transport: 'http' | 'stdio'; url: string; auth_token: string | null; command: string | null; args: string | null; env: string | null }): Promise<void> {
+async function refreshLater(id: number, row: { id: number; transport: 'http' | 'stdio'; url: string; auth_token: string | null; command: string | null; args: string | null; env: string | null }): Promise<void> {
   if (REFRESH_IN_FLIGHT.has(id)) return REFRESH_IN_FLIGHT.get(id);
   const p = (async () => {
     try {
