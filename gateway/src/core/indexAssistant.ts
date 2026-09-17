@@ -8,7 +8,7 @@ import { setSetting } from '../db.js';
 // Index-Assistent (Phase 2): LLM-gestuetztes Einbinden neuer Index-Quellen.
 // Rollenverteilung: Das LLM ENTWERFT ein Draft (Tool + Argumente + Aliase),
 // der deterministische Validator PRUEFT es live gegen den Server und den
-// Datenvertrag (id|name|state|unit|area|key=value;...). Fehler gehen mit
+// Datenvertrag (id|area|state|unit|name|key=value;...). Fehler gehen mit
 // Self-Correction zurueck ans LLM (max. 3 Iterationen). Speichern passiert
 // nur durch den Apply-Endpoint nach Admin-Bestaetigung.
 
@@ -97,7 +97,7 @@ export async function validateDraft(mcp: McpContext, draft: IndexDraft): Promise
         }
         entryCount = entries.length;
         if (entries.length < 5) {
-          errors.push(`Nur ${entries.length} Eintraege geparst (mind. 5 erwartet) - Extraktion passt nicht zum Datenvertrag id|name|state|unit|area|key=value;...`);
+          errors.push(`Nur ${entries.length} Eintraege geparst (mind. 5 erwartet) - Extraktion passt nicht zum Datenvertrag id|area|state|unit|name|key=value;...`);
         }
         samples = entries.slice(0, 3).map(fmtEntry);
         for (const q of (draft.sampleQueries ?? []).slice(0, 3)) {
@@ -115,7 +115,7 @@ export async function validateDraft(mcp: McpContext, draft: IndexDraft): Promise
 const ASSISTANT_SYSTEM_PROMPT = `Du konfigurierst den Entity-Index eines universellen MCP-Gateways.
 Aufgabe: Finde auf den angegebenen MCP-Servern das Tool, das eine VOLLSTAENDIGE LISTE aller Eintraege liefert (States/Entities/Medien/...), und entwirf die Argumente, damit das Ergebnis folgendem Datenvertrag entspricht:
 - EINE Zeile pro Eintrag
-- Format: id|name|state|unit|friendly_name|key=value;key=value  (Pipe-getrennt, letzte Spalte optional)
+- Format: id|area|state|unit|name|key=value;key=value  (Pipe-getrennt, letzte Spalte optional)
 - "state" ist der aktuelle Zustand, "area" der Raum/Standort (leer erlaubt)
 
 Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):

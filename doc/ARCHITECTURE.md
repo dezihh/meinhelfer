@@ -155,7 +155,7 @@ oder HA-Fuzzy-Logik. Zwei generische Muster decken alles ab:
 2. **Parametrierter Entity-Index** — Fuzzy-Suche/Lookups im RAM (< 1 ms) gegen
    einen Index, der per **einem** MCP-Call pro TTL-Fenster gefüllt wird
    (gemessen ~0,6 s für ~1200 Einträge). Tool, freies Argument-Objekt
-   (Datenvertrag `id|name|state|unit|area|key=value;...`), Aliase,
+  (Datenvertrag `id|area|state|unit|name|key=value;...`), Aliase,
    Domain-Hints und Stopwords stehen als JSON-Setting `entity_index`
    (Default: HA via `ha_eval_template`) — ein anderes System wird durch ein
    anderes Setting angebunden, nicht durch Code. Begründung: Serverseitige

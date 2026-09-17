@@ -12,10 +12,7 @@ from ask_sdk_core.api_client import DefaultApiClient
 from ask_sdk_core.dispatch_components import AbstractRequestHandler, AbstractExceptionHandler
 from ask_sdk_model.services.directive import SendDirectiveRequest, Header, SpeakDirective
 from ask_sdk_model.ui import SimpleCard
-from ask_sdk_model.interfaces.alexa.presentation.apl import (
-    ExecuteCommandsDirective,
-    RenderDocumentDirective,
-)
+from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
 
 # rohes Request-Event fuer APL-Erkennung (ask-sdk verliert Interface-Keys)
 _RAW_ENVELOPE = threading.local()
@@ -70,14 +67,6 @@ CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 # APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
 # mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
 # (datasources {"documentData": ...} -> ${documentData.text}).
-# Sprachsync nach offiziellem Muster "Synchronize spoken text with text on
-# the screen": Der Body-Text liegt in einer ScrollView und ist per
-# speech-Property an die TTS gebunden. Die Transformer ssmlToSpeech/ssmlToText
-# erzeugen aus der SSML im Datasource die TTS-Audio-URL (speech) und den
-# Klartext (text). Gesprochen wird dann via SpeakItem (ExecuteCommands) statt
-# outputSpeech -> das Geraet scrollt automatisch zeilenweise mit der Sprache
-# mit (highlightMode "line"). Bekannter Tradeoff: Nutzer-Touch waehrend der
-# Wiedergabe stoppt die Sprache (Geraete-UX, nicht konfigurierbar).
 # WICHTIG: Eine ScrollView ohne height defaultet auf 100dp; daher height
 # "100%". Etwas paddingBottom am Text, damit die letzte Zeile nicht am
 # Bildschirmrand abgeschnitten bleibt.
@@ -114,7 +103,6 @@ APL_DOCUMENT = {
                                 "type": "Text",
                                 "componentId": "bodyText",
                                 "text": "${documentData.text}",
-                                "speech": "${documentData.speech}",
                                 "width": "100%",
                                 "fontSize": 38,
                                 "lineHeight": 1.35,
@@ -153,17 +141,8 @@ def supports_apl(handler_input):
         return False
 
 
-def build_ssml(speech, is_ssml):
-    """SSML fuer den APL-Datasource: vorhandenes SSML uebernehmen (Wrapper
-    ergaenzen, falls fehlend), Klartext escapen und in <speak> packen."""
-    if is_ssml:
-        return speech if "<speak" in speech else "<speak>{}</speak>".format(speech)
-    return "<speak>{}</speak>".format(escape(speech))
-
-
-def render_apl(handler_input, title, ssml):
-    """RenderDocument + ExecuteCommands(SpeakItem) mit identischem Token.
-    Sprache laeuft NUR ueber SpeakItem - outputSpeech wuerde doppelt sprechen."""
+def render_apl(handler_input, title, text):
+    """Rendert den Antworttext in einer manuell scrollbaren APL-Ansicht."""
     token = "mainhelfer-display-{}".format(int(time.time() * 1000))
     handler_input.response_builder.add_directive(
         RenderDocumentDirective(
@@ -172,27 +151,9 @@ def render_apl(handler_input, title, ssml):
             datasources={
                 "documentData": {
                     "title": title,
-                    "ssml": ssml,
-                    "transformers": [
-                        {"transformer": "ssmlToSpeech", "inputName": "ssml", "outputName": "speech"},
-                        {"transformer": "ssmlToText", "inputName": "ssml", "outputName": "text"},
-                    ],
+                    "text": text,
                 }
             },
-        )
-    )
-    handler_input.response_builder.add_directive(
-        ExecuteCommandsDirective(
-            token=token,
-            commands=[
-                {
-                    "type": "SpeakItem",
-                    "componentId": "bodyText",
-                    "highlightMode": "line",
-                    "align": "center",
-                    "minimumDwellTime": 200,
-                }
-            ],
         )
     )
 
@@ -333,12 +294,12 @@ class GptQueryIntentHandler(AbstractRequestHandler):
         # Klartext muss XML-escaped werden (SSML aus dem Gateway nicht)
         # Anzeige: Klartext ohne SSML-Tags (Echo Show / Alexa App)
         display = display_text or strip_ssml(speech)
+        response_builder.speak(escape(speech) if not is_ssml else speech)
         response_builder.set_card(SimpleCard(title=CARD_TITLE, content=display))
-        # APL: kontrollierte Schriftgroesse + sprachsync-Autoscroll (SpeakItem)
+        # APL: kontrollierte Schriftgroesse + manuell scrollbar auf Displays
         if supports_apl(handler_input):
-            render_apl(handler_input, CARD_TITLE, build_ssml(speech, is_ssml))
+            render_apl(handler_input, CARD_TITLE, display)
         else:
-            response_builder.speak(escape(speech) if not is_ssml else speech)
             logger.warning("Kein APL-Support erkannt - nur SimpleCard gesendet. Rohe Interfaces: %r",
                            ((getattr(_RAW_ENVELOPE, "value", None) or {})
                             .get("context", {}).get("System", {})

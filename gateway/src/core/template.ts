@@ -14,6 +14,7 @@ const SHELL_TIMEOUT_MS = 5000;
 const SHELL_OUTPUT_CAP = 4000;
 
 interface LiteralCalls {
+  usesIndex: boolean;
   states: string[];
   calls: { tool: string; args: string | null }[];
   shells: string[];
@@ -22,6 +23,7 @@ interface LiteralCalls {
 }
 
 function extractLiterals(template: string): LiteralCalls {
+  const usesIndex = /index\.(?:state|get|find)\s*\(/.test(template);
   const states: string[] = [];
   const calls: { tool: string; args: string | null }[] = [];
   const shells: string[] = [];
@@ -35,7 +37,7 @@ function extractLiterals(template: string): LiteralCalls {
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
   for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
   for (const m of template.matchAll(/http\(\s*["']([^"']+)["']\s*\)/g)) httpUrls.push(m[1] as string);
-  return { states, calls, shells, fns, httpUrls };
+  return { usesIndex, states, calls, shells, fns, httpUrls };
 }
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -162,7 +164,7 @@ async function preheat(
   active: Set<string>,
   args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { states, calls, shells, fns, httpUrls } = extractLiterals(template);
+  const { usesIndex, states, calls, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
@@ -178,12 +180,14 @@ async function preheat(
     })
   );
 
-  // Entity-Index vorwaermen (TTL-Cache) - Basis fuer index.find/index.get/index.state.
+  // Entity-Index nur bei Bedarf vorwaermen - Basis fuer index.find/index.get/index.state.
   let snapshot: IndexEntry[] = [];
-  try {
-    snapshot = await getIndexSnapshot();
-  } catch (e) {
-    trace.push({ ts: Date.now(), step: 'template.index.error', detail: { error: String(e) } });
+  if (usesIndex) {
+    try {
+      snapshot = await getIndexSnapshot();
+    } catch (e) {
+      trace.push({ ts: Date.now(), step: 'template.index.error', detail: { error: String(e) } });
+    }
   }
   const indexFind = (query: string): string => {
     if (snapshot.length === 0) return 'Entity-Index nicht verfuegbar';

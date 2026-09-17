@@ -43,7 +43,61 @@ betrieben (Amazon baut/hostet die Lambda in seinem Account); die ausgelieferte
 
 Zentrale Architekturregeln (Adapter-Muster, Auth-/Berechtigungs-Ebenen, Datenmodell): [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
 
-Funktionen-Registry, Template-Bausteine (`ha.*`, `shell`, `http`, `fn`, `args`) und Vorgänge: [doc/FUNKTIONEN.md](doc/FUNKTIONEN.md)
+Funktionen-Registry, Template-Bausteine (`index.*`, `mcp.call`, `shell`, `http`, `fn`, `args`) und Vorgänge: [doc/FUNKTIONEN.md](doc/FUNKTIONEN.md)
+
+### Vom Sprachbefehl zur Antwort
+
+```mermaid
+flowchart TD
+  A[Sprachbefehl] --> B[Alexa-Plattform]
+  B --> C[AWS Lambda<br/>Alexa-Adapter]
+  C -->|VoiceQuery per HTTPS| D[Gateway-Router]
+
+  D -->|Trigger passt| E{Vorgang}
+  D -->|kein Vorgang| F[LLM-Agent]
+  E -->|deterministisch| G[Funktion rendern]
+  E -->|hybrid| G
+  E -->|LLM-Modus| F
+  F -->|fn_-Tool| G
+  F -->|rohes Tool| H[MCP-Registry]
+
+  G --> I{Daten-Bausteine}
+  I -->|index.find / get / state| J[Entity-Index]
+  I -->|mcp.call| H
+  I -->|http| K[REST- oder Web-Dienst]
+  I -->|shell| L[Gateway-Container]
+  I -->|fn| G
+  I -->|now / args| M[Laufzeitdaten]
+
+  H --> N[MCP-Server<br/>Home Assistant, Suche, weitere]
+  N -->|vollstaendiger Snapshot per MCP| J
+  J --> O[TTL-Cache im Gateway]
+  O --> P[Lokale deutsche Suche<br/>Umlaute, Aliase, Raeume, Domain-Hinweise]
+
+  P --> Q[Deterministisch ermittelte Daten]
+  H --> Q
+  K --> Q
+  L --> Q
+  M --> Q
+  Q -->|direkt| R[AssistantResponse]
+  Q -->|hybrid: nur formulieren| S[LLM]
+  S --> R
+  F --> R
+
+  R -->|speech, SSML, display, followUp| C
+  C --> T[Sprachausgabe und Card / APL]
+  T --> U[Echo oder Echo Show]
+```
+
+**Die Phasen:**
+
+1. **Verstehen und routen:** Der Router erkennt einen konfigurierten Vorgang; andernfalls übernimmt der Agent.
+2. **Daten beschaffen:** Eine Funktion kombiniert kontrolliert `index.*`, `mcp.call`, `http`, `shell`, weitere `fn`-Funktionen sowie `now` und `args`. Home-Assistant-Daten werden ausschließlich über dessen MCP-Server geladen, nicht über direkte HA-REST-Aufrufe.
+3. **Entities finden:** Ein konfigurierbares MCP-Tool liefert periodisch einen Snapshot. Das Gateway cached ihn und führt die deutsche Fuzzy-Suche lokal aus. Für andere Systeme können Index-Tool, Argumente, Aliase und Hinweise ausgetauscht werden.
+4. **Antwort erzeugen:** Deterministische Vorgänge sprechen das Funktionsergebnis direkt. Hybride Vorgänge lassen nur die bereits beschafften Daten vom LLM formulieren; der freie Agent kann Funktionen und freigegebene MCP-Tools selbst wählen.
+5. **Ausgeben:** Das Gateway liefert eine neutrale `AssistantResponse`; erst die Lambda erzeugt Alexa-Sprachausgabe, SSML, Card und die scrollbar dargestellte APL-Ansicht.
+
+`http()` und `shell()` sind bewusst generische Bausteine für Quellen ohne MCP-Fassade. Sie werden nur ausgeführt, wenn eine administrativ gepflegte Funktion sie ausdrücklich verwendet.
 
 ## Features
 

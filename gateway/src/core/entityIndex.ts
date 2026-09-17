@@ -4,7 +4,7 @@ import { getMcpContext } from '../mcp/registry.js';
 // Generischer Entity-Index: quelle = 1 parametrierter MCP-Call (Settings),
 // Parsing/Scoring/Lookups laufen lokal im RAM (60 s TTL). Kein Systembezug im
 // Code: Welches Tool die Liste liefert, wie sie aussieht (Datenvertrag
-// id|name|state|unit|area|key=value;...), Aliase und Domain-Hints stehen in
+// id|area|state|unit|name|key=value;...), Aliase und Domain-Hints stehen in
 // den Settings (JSON unter dem Schluessel "entity_index"). Die Defaults unten
 // binden Home Assistant (ha-mcp, ha_eval_template) - ein anderes System wird
 // ausschliesslich durch ein anderes Setting angebunden, nicht durch Code.
@@ -99,11 +99,15 @@ function loadConfig(): IndexConfig {
     if (parsed.args && typeof parsed.args === 'object') cfg.args = parsed.args;
     else if (parsed.template) cfg.args = { template: parsed.template };
     if (typeof parsed.ttlMs === 'number' && parsed.ttlMs > 0) cfg.ttlMs = parsed.ttlMs;
-    if (parsed.aliases) cfg.aliases = { ...cfg.aliases, ...parsed.aliases };
+    if (parsed.aliases) {
+      for (const [from, to] of Object.entries(parsed.aliases)) {
+        cfg.aliases[fold(from)] = fold(to);
+      }
+    }
     if (parsed.domainHints) {
       cfg.domainHints = parsed.domainHints.map((h) => ({ re: new RegExp(h.re, 'i'), domains: h.domains }));
     }
-    if (parsed.stopwords) cfg.stopwords = new Set(parsed.stopwords);
+    if (parsed.stopwords) cfg.stopwords = new Set(parsed.stopwords.map(fold));
   } catch (e) {
     console.error('entity_index-Setting ungueltig, nutze Defaults:', e);
   }
@@ -144,7 +148,7 @@ function parseLine(line: string): IndexEntry | null {
   const unit = parts[3] ?? '';
   const name = parts[4] ?? '';
   const extra = parts[5] ?? '';
-  if (!id || !id.includes('.')) return null;
+  if (!id) return null;
   const attributes: Record<string, string> = {};
   for (const pair of extra.split(';')) {
     const eq = pair.indexOf('=');
@@ -242,11 +246,12 @@ export function fmtEntry(e: IndexEntry): string {
 // Domain-Hints, Stopwords) kommt aus der Konfiguration, nicht aus dem Code.
 export function scoreEntries(entries: IndexEntry[], query: string, maxResults = 8): IndexEntry[] {
   const cfg = loadConfig();
+  const stopwords = new Set([...cfg.stopwords].map(fold));
   const terms = query
     .toLowerCase()
     .split(/\s+/)
     .map((t) => cfg.aliases[fold(t)] ?? fold(t))
-    .filter((t) => t.length >= 2 && !cfg.stopwords.has(t));
+    .filter((t) => t.length >= 2 && !stopwords.has(t));
   if (terms.length === 0) return [];
   const metricDomains = new Set<string>();
   for (const hint of cfg.domainHints) {

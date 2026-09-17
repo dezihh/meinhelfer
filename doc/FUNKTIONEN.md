@@ -73,7 +73,7 @@ Index-Tools, das Extraktions-Template steckt im arg, das der Server erwartet):
 ```
 
 - **Datenvertrag** (vom Tool geliefert): eine Zeile je Eintrag im
-  Format `id|name|state|unit|friendly_name|key=value;...`
+  Format `id|area|state|unit|name|key=value;...`
 - **1 MCP-Call pro TTL-Fenster**, Lookups/Scoring danach lokal (< 1 ms)
 - **Kein Systembezug im Code**: Der Default bindet Home Assistant
   (ha-mcp `ha_eval_template`); Music Assistant o. Ä. = anderes Setting,
