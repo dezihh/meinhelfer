@@ -12,7 +12,10 @@ from ask_sdk_core.api_client import DefaultApiClient
 from ask_sdk_core.dispatch_components import AbstractRequestHandler, AbstractExceptionHandler
 from ask_sdk_model.services.directive import SendDirectiveRequest, Header, SpeakDirective
 from ask_sdk_model.ui import SimpleCard
-from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
+from ask_sdk_model.interfaces.alexa.presentation.apl import (
+    ExecuteCommandsDirective,
+    RenderDocumentDirective,
+)
 
 # rohes Request-Event fuer APL-Erkennung (ask-sdk verliert Interface-Keys)
 _RAW_ENVELOPE = threading.local()
@@ -64,6 +67,13 @@ def strip_ssml(text):
 
 CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
 
+# Nach diesem Delay (ms) ab Dokument-Render beendet sich das APL-Dokument
+# selbst (Finish) und Alexa zeigt wieder ihren Standardbildschirm. Umgeht
+# das Geraete-Verhalten "Nach Session-Ende zeigt der Echo Show das Dokument
+# der VORHERIGEN Session wieder an" und erfuellt den Wunsch, die Anzeige
+# ohne "Alexa verlassen" loszuwerden.
+APL_EXIT_DELAY_MS = int(os.environ.get("apl_exit_delay_ms", "90000"))
+
 # APL-Layout. Datenbindung nach offiziellem Muster: der Parameter in
 # mainTemplate.parameters MUSS dem Datasource-Schluessel entsprechen
 # (datasources {"documentData": ...} -> ${documentData.text}).
@@ -76,6 +86,7 @@ APL_DOCUMENT = {
     "background": "#161C27",
     "mainTemplate": {
         "parameters": ["documentData"],
+        "onMount": [{"type": "Finish", "delay": APL_EXIT_DELAY_MS}],
         "items": [
             {
                 "type": "Container",
@@ -141,8 +152,29 @@ def supports_apl(handler_input):
         return False
 
 
+def _previous_apl_token(handler_input):
+    """Token des noch angezeigten APL-Dokuments einer FRUEHEREN Session
+    (context.Alexa.Presentation.APL.token). Nötig, um es beim naechsten
+    Request sauber per ExecuteCommands(Finish) zu beenden - sonst zeigt
+    der Echo Show nach Session-Ende wieder das alte Dokument an."""
+    event = getattr(_RAW_ENVELOPE, "value", None) or {}
+    try:
+        return ((event.get("context") or {}).get("Alexa.Presentation.APL") or {}).get("token")
+    except Exception:
+        return None
+
+
 def render_apl(handler_input, title, text):
-    """Rendert den Antworttext in einer manuell scrollbaren APL-Ansicht."""
+    """Rendert den Antworttext in einer manuell scrollbaren APL-Ansicht.
+    Ein noch angezeigtes Dokument einer frueheren Session wird vorher per
+    Finish beendet, damit der Echo Show beim Session-Ende nicht zum alten
+    Text zurueckspringt. Das neue Dokument terminiert sich per onMount
+    (Finish + Delay) selbst und gibt den Standardbildschirm frei."""
+    prev_token = _previous_apl_token(handler_input)
+    if prev_token:
+        handler_input.response_builder.add_directive(
+            ExecuteCommandsDirective(token=prev_token, commands=[{"type": "Finish"}])
+        )
     token = "mainhelfer-display-{}".format(int(time.time() * 1000))
     handler_input.response_builder.add_directive(
         RenderDocumentDirective(

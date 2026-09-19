@@ -91,7 +91,7 @@ jobs:
           fi
 
           # 3) Timeout + Env setzen (als volles Operations-JSON, sicher für Sonderzeichen im Token)
-          python3 -c 'import json,sys; t,u,g=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":"MeinHelfer","assistant_name":"Dein Helfer"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}"
+          python3 -c 'import json,sys; t,u,g=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":"MeinHelfer","assistant_name":"Dein Helfer","apl_exit_delay_ms":"90000"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}"
           for attempt in $(seq 1 6); do
             if aws lambda update-function-configuration --cli-input-json file:///tmp/cfg.json
             then
