@@ -62,7 +62,7 @@ type ToolRoute =
   | { kind: 'mcp'; client: McpContext['servers'][number]['client']; toolName: string }
   | { kind: 'function'; name: string };
 
-type ToolRouteMap = { specs: ToolSpec[]; routes: Map<string, ToolRoute> };
+type ToolRouteMap = { specs: ToolSpec[]; routes: Map<string, ToolRoute>; budgets: Map<string, number> };
 
 const LLM_BLOCKED_TOOLS = new Set(['googe_ai', 'gargedoor_open_script', '_433_gray4_off', '_433_gray4_on', 'XXXXXXXXXXXXXXhausstatus']);
 
@@ -106,6 +106,7 @@ function buildTools(
 ): ToolRouteMap {
   const routes = new Map<string, ToolRoute>();
   const specs: ToolSpec[] = [];
+  const budgets = new Map<string, number>();
   buildMcpTools(mcp, allowlist, routes, specs);
   // Funktionen (Stufe 2.5): registrierte Funktionen als dynamische LLM-Tools,
   // optional mit Parameter-Schema; Argumente landen als args im Template.
@@ -113,6 +114,7 @@ function buildTools(
     const toolName = `fn_${fn.name}`;
     if (allowlist && !allowlist.includes(fn.name) && !allowlist.includes(toolName)) continue;
     routes.set(toolName, { kind: 'function', name: fn.name });
+    if (fn.budget && fn.budget > 0) budgets.set(toolName, fn.budget);
     specs.push({
       type: 'function',
       function: {
@@ -125,7 +127,7 @@ function buildTools(
       },
     });
   }
-  return { specs, routes };
+  return { specs, routes, budgets };
 }
 
 function escapeXml(text: string): string {
@@ -255,7 +257,7 @@ async function runToolLoop(
   sessionId: string,
   allowlist: string[] | null = null
 ): Promise<AssistantResponse> {
-  const { specs, routes } = buildTools(mcp, allowlist);
+  const { specs, routes, budgets } = buildTools(mcp, allowlist);
   const history = sessionId ? priorTurns(sessionId) : [];
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
@@ -280,7 +282,7 @@ async function runToolLoop(
           const route = routes.get(call.function.name);
           if (!route) throw new Error(`unbekanntes Tool: ${call.function.name}`);
           const used = toolCalls[call.function.name] ?? 0;
-          const budget = toolBudgets[call.function.name];
+          const budget = budgets.get(call.function.name) ?? toolBudgets[call.function.name];
           if (budget !== undefined && used >= budget) {
             result = `Limit erreicht (${call.function.name}: max. ${budget} pro Frage). Antworte JETZT mit den vorhandenen Informationen.`;
             trace.push({
@@ -384,7 +386,7 @@ async function executeAction(
     trace.push({ ts: Date.now(), step: 'action.error', detail: { action: action.name, reason: 'keine Funktion zugewiesen' } });
     return { speech: 'Dieser Vorgang ist nicht richtig eingerichtet: Es ist keine Funktion zugewiesen.' };
   }
-  const rendered = await renderFunction(action.function_ref, mcp, trace);
+  const rendered = await renderFunction(action.function_ref, mcp, trace, action.functionArgs ?? {});
   if (action.mode === 'deterministic') return rendered;
   const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
   const messages: ChatMessage[] = [

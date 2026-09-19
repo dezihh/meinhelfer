@@ -138,7 +138,9 @@ for (const stmt of [
   'ALTER TABLE mcp_servers ADD COLUMN args TEXT',
   'ALTER TABLE mcp_servers ADD COLUMN env TEXT',
   'ALTER TABLE actions ADD COLUMN function_ref TEXT',
+  'ALTER TABLE actions ADD COLUMN function_args TEXT',
   'ALTER TABLE tpl_functions ADD COLUMN parameters TEXT',
+  'ALTER TABLE tpl_functions ADD COLUMN budget INTEGER',
 ]) {
   try {
     db.exec(stmt);
@@ -393,7 +395,19 @@ export function parseAction(row: ActionRow): ParsedAction {
   } catch {
     toolList = null;
   }
-  return { ...row, triggers, toolList };
+  let functionArgs: Record<string, unknown> | null = null;
+  try {
+    if (
+      row.function_args &&
+      typeof (JSON.parse(row.function_args) as unknown) === 'object' &&
+      !Array.isArray(JSON.parse(row.function_args) as unknown)
+    ) {
+      functionArgs = JSON.parse(row.function_args) as Record<string, unknown>;
+    }
+  } catch {
+    functionArgs = null;
+  }
+  return { ...row, triggers, toolList, functionArgs };
 }
 
 export function listActions(enabledOnly: boolean): ParsedAction[] {
@@ -411,8 +425,8 @@ export function getAction(id: number): ParsedAction | undefined {
 export function createAction(data: ActionInput): ParsedAction {
   const info = db
     .prepare(
-      `INSERT INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, tools, enabled)
-       VALUES (@name, @mode, @trigger_phrases, @fuzzy_threshold, @system_prompt, @template, @function_ref, @tools, @enabled)`
+      `INSERT INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, function_args, tools, enabled)
+       VALUES (@name, @mode, @trigger_phrases, @fuzzy_threshold, @system_prompt, @template, @function_ref, @function_args, @tools, @enabled)`
     )
     .run(data);
   const row = getAction(Number(info.lastInsertRowid));
@@ -424,7 +438,7 @@ export function updateAction(id: number, data: ActionInput): ParsedAction | unde
   db.prepare(
     `UPDATE actions SET name = @name, mode = @mode, trigger_phrases = @trigger_phrases,
      fuzzy_threshold = @fuzzy_threshold, system_prompt = @system_prompt, template = @template,
-     function_ref = @function_ref, tools = @tools, enabled = @enabled, updated_at = datetime('now')
+     function_ref = @function_ref, function_args = @function_args, tools = @tools, enabled = @enabled, updated_at = datetime('now')
      WHERE id = @id`
   ).run({ ...data, id });
   return getAction(id);
@@ -440,6 +454,7 @@ export interface ParsedFunction {
   description: string | null;
   template: string;
   parameters: unknown | null;
+  budget: number | null;
   enabled: boolean;
 }
 
@@ -448,6 +463,7 @@ export interface FunctionInput {
   description: string | null;
   template: string;
   parameters: string | null;
+  budget: number | null;
   enabled: number;
 }
 
@@ -457,6 +473,7 @@ interface FunctionRow {
   description: string | null;
   template: string;
   parameters: string | null;
+  budget: number | null;
   enabled: number;
 }
 
@@ -473,6 +490,7 @@ function parseFunction(row: FunctionRow): ParsedFunction {
     description: row.description,
     template: row.template,
     parameters,
+    budget: row.budget ?? null,
     enabled: !!row.enabled,
   };
 }
@@ -497,8 +515,8 @@ export function getFunctionByName(name: string): ParsedFunction | undefined {
 export function createFunction(data: FunctionInput): ParsedFunction {
   const info = db
     .prepare(
-      `INSERT INTO tpl_functions (name, description, template, parameters, enabled)
-       VALUES (@name, @description, @template, @parameters, @enabled)`
+      `INSERT INTO tpl_functions (name, description, template, parameters, budget, enabled)
+       VALUES (@name, @description, @template, @parameters, @budget, @enabled)`
     )
     .run(data);
   const row = getFunction(Number(info.lastInsertRowid));
@@ -509,7 +527,7 @@ export function createFunction(data: FunctionInput): ParsedFunction {
 export function updateFunction(id: number, data: FunctionInput): ParsedFunction | undefined {
   db.prepare(
     `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
-     parameters = @parameters, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
+     parameters = @parameters, budget = @budget, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
   ).run({ ...data, id });
   return getFunction(id);
 }
@@ -712,6 +730,7 @@ export interface ActionInput {
   system_prompt: string | null;
   template: string | null;
   function_ref: string | null;
+  function_args: string | null;
   tools: string | null;
   enabled: number;
 }

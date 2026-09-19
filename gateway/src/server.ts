@@ -55,8 +55,22 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
   if (mode !== 'deterministic' && mode !== 'llm' && mode !== 'hybrid') {
     throw new Error(`Ungültiger Modus: ${mode}`);
   }
-  const triggers = Array.isArray(body.trigger_phrases) ? body.trigger_phrases.map(String) : [];
-  const tools = Array.isArray(body.tools) ? body.tools.map(String) : null;
+  // Akzeptiert raw- (trigger_phrases/tools) UND geparste Felder (triggers/toolList),
+  // damit ein PUT mit dem Bootstrap-Body keine Trigger leert (Finding #12).
+  const triggers = Array.isArray(body.trigger_phrases)
+    ? body.trigger_phrases.map(String)
+    : Array.isArray(body.triggers)
+      ? body.triggers.map(String)
+      : [];
+  const tools = Array.isArray(body.tools)
+    ? body.tools.map(String)
+    : Array.isArray(body.toolList)
+      ? body.toolList.map(String)
+      : null;
+  const functionArgs =
+    body.function_args && typeof body.function_args === 'object' && !Array.isArray(body.function_args)
+      ? JSON.stringify(body.function_args)
+      : null;
   return {
     name: String(body.name ?? '').trim(),
     mode: mode as ActionMode,
@@ -65,6 +79,7 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
     system_prompt: body.system_prompt == null ? null : String(body.system_prompt),
     template: body.template == null ? null : String(body.template),
     function_ref: body.function_ref == null ? null : String(body.function_ref).trim() || null,
+    function_args: functionArgs,
     tools: tools && tools.length > 0 ? JSON.stringify(tools) : null,
     enabled: body.enabled === false ? 0 : 1,
   };
@@ -81,11 +96,17 @@ function normalizeFunctionInput(body: Record<string, unknown>): FunctionInput {
   if (body.parameters != null && typeof body.parameters === 'object') {
     parameters = JSON.stringify(body.parameters);
   }
+  let budget: number | null = null;
+  if (body.budget != null && Number.isFinite(Number(body.budget))) {
+    const b = Math.floor(Number(body.budget));
+    budget = b > 0 ? b : null;
+  }
   return {
     name,
     description: body.description == null ? null : String(body.description).trim() || null,
     template,
     parameters,
+    budget,
     enabled: body.enabled === false ? 0 : 1,
   };
 }
@@ -389,9 +410,14 @@ app.delete('/admin/api/functions/:id', requireAuth, (req, res) => {
 app.post('/admin/api/functions/preview', requireAuth, async (req, res) => {
   try {
     const template = String((req.body as { template?: unknown }).template ?? '');
+    const argsRaw = (req.body as { args?: unknown }).args;
+    const args =
+      argsRaw && typeof argsRaw === 'object' && !Array.isArray(argsRaw)
+        ? (argsRaw as Record<string, unknown>)
+        : {};
     const mcp = await getMcpContext();
     const trace: TraceEvent[] = [];
-    const rendered = await renderActionTemplate(template, mcp, trace);
+    const rendered = await renderActionTemplate(template, mcp, trace, args);
     res.json({ rendered, trace });
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });

@@ -20,6 +20,10 @@ interface LiteralCalls {
   // Alle in index.*-Aufrufen genutzten Index-Keys ('' = Default-Index)
   indexKeys: string[];
   calls: { tool: string; args: string | null }[];
+  // http('url') bzw. http('url', ttlMs) - ttl > 0 aktiviert den Antwort-Cache
+  httpCalls: { url: string; ttl: number }[];
+  // http(<nunjucks-Expression>) - URL wird aus args/now berechnet (Finding #1)
+  httpDyn: { expr: string; ttl: number }[];
   shells: string[];
   fns: string[];
   httpUrls: string[];
@@ -44,15 +48,36 @@ function extractLiterals(template: string): LiteralCalls {
   const calls: { tool: string; args: string | null }[] = [];
   const shells: string[] = [];
   const fns: string[] = [];
-  const httpUrls: string[] = [];
+  const httpCalls: { url: string; ttl: number }[] = [];
+  const httpDyn: { expr: string; ttl: number }[] = [];
   // mcp.call('tool') bzw. mcp.call('tool', {flaches JSON-Literal, eine Zeile})
   for (const m of template.matchAll(/mcp\.call\(\s*["']([^"']+)["']\s*(?:,\s*(\{[^\n]*?\}))?\s*\)/g)) {
     calls.push({ tool: m[1] as string, args: (m[2] as string | undefined) ?? null });
   }
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
   for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
-  for (const m of template.matchAll(/http\(\s*["']([^"']+)["']\s*\)/g)) httpUrls.push(m[1] as string);
-  return { usesIndex, states, indexKeys: [...indexKeys], calls, shells, fns, httpUrls };
+  // http(...): Inneres je Call extrahieren (eine Klammerebene toleriert),
+  // danach reines Literal (optional mit TTL) -> httpCalls; alles andere
+  // (Konkatenation mit args/now) -> dynamische Expression.
+  for (const m of template.matchAll(/http\(\s*((?:[^()]|\([^()]*\))*?)\s*\)/g)) {
+    const inner = (m[1] as string).trim();
+    if (!inner) continue;
+    const lm = /^["']([^"']*)["']\s*(?:,\s*(\d+)\s*)?$/.exec(inner);
+    if (lm) {
+      httpCalls.push({ url: lm[1] as string, ttl: lm[2] ? Number(lm[2]) : 0 });
+      continue;
+    }
+    let body = inner;
+    let ttl = 0;
+    const tm = /,\s*(\d+)\s*$/.exec(inner);
+    if (tm) {
+      ttl = Number(tm[1]);
+      body = inner.slice(0, tm.index).trim();
+    }
+    httpDyn.push({ expr: body, ttl });
+  }
+  const httpUrls = httpCalls.map((c) => c.url);
+  return { usesIndex, states, indexKeys: [...indexKeys], calls, httpCalls, httpDyn, shells, fns, httpUrls };
 }
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -60,6 +85,10 @@ function extractLiterals(template: string): LiteralCalls {
 // damit Templates direkt auf Felder zugreifen koennen.
 const HTTP_TIMEOUT_MS = 5000;
 const HTTP_BODY_CAP = 100_000;
+
+// Antwort-Cache fuer http-Calls mit TTL-Argument (http('url', ttlMs));
+// lebt im Prozess und pro URL. Ohne TTL-Argument wird nie gecacht.
+const HTTP_CACHE = new Map<string, { ts: number; ttl: number; data: unknown }>();
 
 async function fetchUrl(url: string, trace: TraceEvent[]): Promise<unknown | null> {
   const controller = new AbortController();
@@ -179,19 +208,55 @@ async function preheat(
   active: Set<string>,
   args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { usesIndex, states, indexKeys, calls, shells, fns, httpUrls } = extractLiterals(template);
+  const { usesIndex, states, indexKeys, calls, httpCalls, httpDyn, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
   const fnMap = new Map<string, string | null>();
   const httpMap = new Map<string, unknown | null>();
 
-  // HTTP-URLs parallel laden (dedupliziert)
+  // HTTP-Cache (Finding #7): nur aktiv, wenn der Call eine TTL > 0 mitgibt
+  // (http('url', 300000)). Cache lebt pro URL im Prozess, laeuft mit eigener TTL ab.
+  const fetchCached = async (url: string, ttl: number): Promise<unknown | null> => {
+    if (ttl > 0) {
+      const hit = HTTP_CACHE.get(url);
+      if (hit && Date.now() - hit.ts < hit.ttl) {
+        trace.push({ ts: Date.now(), step: 'template.http.cache', detail: { url } });
+        return hit.data;
+      }
+    }
+    const data = await fetchUrl(url, trace);
+    if (ttl > 0 && data !== null) HTTP_CACHE.set(url, { ts: Date.now(), ttl, data });
+    return data;
+  };
+
+  // HTTP-URLs parallel laden (dedupliziert); dynamische Expressionen werden
+  // zuerst mit args/now zu einer URL aufgeloest (Finding #1) und dann normal
+  // gecacht/geholt. Ausdruck und Ergebnis-URL stimmen zur Render-Zeit wieder
+  // ueberein, weil args innerhalb eines Renders konstant sind.
+  const nowCtx = {
+    hour: new Date().getHours(),
+    weekday: new Date().toLocaleDateString('de-DE', { weekday: 'long' }),
+    date: new Date().toLocaleDateString('de-DE'),
+    time: new Date().toTimeString().slice(0, 5),
+  };
+  const dynUrls = await Promise.all(
+    httpDyn.map(async (d) => {
+      try {
+        const url = env.renderString(`{{ ${d.expr} }}`, { args, now: nowCtx }).trim();
+        return /^https?:\/\//.test(url) ? { url, ttl: d.ttl } : null;
+      } catch (e) {
+        trace.push({ ts: Date.now(), step: 'template.http.expr.error', detail: { expr: d.expr, error: String(e).slice(0, 200) } });
+        return null;
+      }
+    })
+  );
+  const httpJobs: { url: string; ttl: number }[] = [...httpCalls, ...dynUrls.filter((d): d is { url: string; ttl: number } => d !== null)];
   await Promise.all(
-    httpUrls.map(async (url) => {
-      if (httpMap.has(url)) return;
-      httpMap.set(url, await fetchUrl(url, trace));
-      trace.push({ ts: Date.now(), step: 'template.http', detail: { url } });
+    httpJobs.map(async (job) => {
+      if (httpMap.has(job.url)) return;
+      httpMap.set(job.url, await fetchCached(job.url, job.ttl));
+      trace.push({ ts: Date.now(), step: 'template.http', detail: { url: job.url } });
     })
   );
 

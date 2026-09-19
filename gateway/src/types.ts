@@ -31,6 +31,7 @@ export interface ActionRow {
   system_prompt: string | null;
   template: string | null;
   function_ref: string | null;
+  function_args: string | null;
   tools: string | null;
   enabled: number;
 }
@@ -38,6 +39,7 @@ export interface ActionRow {
 export interface ParsedAction extends ActionRow {
   triggers: string[];
   toolList: string[] | null;
+  functionArgs: Record<string, unknown> | null;
 }
 
 export interface McpServerRow {
