@@ -2,7 +2,7 @@ import nunjucks from 'nunjucks';
 import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
 import { getIndexSnapshot, scoreEntries, fmtEntry, type IndexEntry } from './entityIndex.js';
-import { getFunctionByName } from '../db.js';
+import { getFunctionByName, getSettingNum } from '../db.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
 const env = new nunjucks.Environment(null, { autoescape: false });
@@ -91,11 +91,13 @@ const HTTP_BODY_CAP = 100_000;
 const HTTP_CACHE = new Map<string, { ts: number; ttl: number; data: unknown }>();
 
 async function fetchUrl(url: string, trace: TraceEvent[]): Promise<unknown | null> {
+  const timeoutMs = getSettingNum('http_timeout_ms', HTTP_TIMEOUT_MS);
+  const bodyCap = getSettingNum('http_body_cap', HTTP_BODY_CAP);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
-    const raw = (await res.text()).slice(0, HTTP_BODY_CAP);
+    const raw = (await res.text()).slice(0, bodyCap);
     if (!res.ok) {
       trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url, status: res.status, body: raw.slice(0, 200) } });
       return null;

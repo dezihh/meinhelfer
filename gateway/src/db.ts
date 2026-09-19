@@ -591,6 +591,15 @@ export function getSetting(key: string): string | undefined {
   return row?.value;
 }
 
+// Settings-Override mit Fallback: DB-Wert (Web-UI) gewinnt, Code/.env liefert
+// den Default. Leerer String zaehlt als "nicht gesetzt".
+export function getSettingNum(key: string, fallback: number): number {
+  const v = getSetting(key);
+  if (v == null || v.trim() === '') return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function setSetting(key: string, value: string): void {
   db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'

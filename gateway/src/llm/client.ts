@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { getSetting, getSettingNum } from '../db.js';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -38,7 +39,8 @@ export async function chatCompletion(
   modelOverride?: string,
   maxTokensOverride?: number
 ): Promise<ChatCompletionResult> {
-  const primaryModel = modelOverride ?? config.llm.model;
+  // Betriebs-Tuning via Web-UI-Settings; .env/Code liefert die Defaults
+  const primaryModel = modelOverride ?? (getSetting('llm_model')?.trim() || config.llm.model);
   const fallbackBase = modelOverride ? '' : config.llm.fallbackBaseUrl;
   const fallbackModel = modelOverride ? '' : config.llm.fallbackModel;
   const useFallback = Boolean(fallbackBase && fallbackModel);
@@ -83,7 +85,7 @@ export async function chatCompletion(
     // Primary hat bis fallbackAfterMs Zeit; danach (oder bei Fehler) uebernimmt
     // der lokale Fallback. Overall = harte Gesamt-Deadline, damit nie gehaengt
     // wird (weder bei Timerlossen noch bei beiden Modellen, die nicht antworten).
-    const fallbackAfter = config.llm.fallbackAfterMs;
+    const fallbackAfter = getSettingNum('llm_fallback_after_ms', config.llm.fallbackAfterMs);
     timers.push(
       setTimeout(
         () => fail('LLM: Gesamt-Deadline überschritten'),
@@ -124,15 +126,16 @@ async function callLlm(
   const body: Record<string, unknown> = {
     model,
     messages,
-    max_tokens: maxTokensOverride ?? config.llm.maxTokens,
+    max_tokens: maxTokensOverride ?? getSettingNum('llm_max_tokens', config.llm.maxTokens),
     temperature: 0.2,
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
     body.tool_choice = 'auto';
   }
-  if (config.llm.reasoningEffort) {
-    body.reasoning_effort = config.llm.reasoningEffort;
+  const reasoningEffort = getSetting('llm_reasoning_effort')?.trim() || config.llm.reasoningEffort;
+  if (reasoningEffort) {
+    body.reasoning_effort = reasoningEffort;
   }
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',

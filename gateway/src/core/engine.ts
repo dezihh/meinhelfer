@@ -5,6 +5,7 @@ import {
   listFunctions,
   getPrompt,
   getSetting,
+  getSettingNum,
   recentAgentTurns,
 } from '../db.js';
 import { chatCompletion, type ChatCompletionResult, type ChatMessage, type ToolSpec } from '../llm/client.js';
@@ -129,6 +130,8 @@ function buildTools(
   }
   return { specs, routes, budgets };
 }
+
+const toolDeadline = (): number => getSettingNum('tool_deadline_ms', config.toolDeadlineMs);
 
 function escapeXml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -264,7 +267,7 @@ async function runToolLoop(
     ...history,
     { role: 'user', content: queryText },
   ];
-  const overallDeadline = Date.now() + config.toolDeadlineMs * 2;
+  const overallDeadline = Date.now() + toolDeadline() * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
   const toolBudgets: Record<string, number> = { searxng_web_search: 1, web_url_read: 1, fn_find_entities: 2, fn_get_entity: 3, fn_hausstatus_gw: 1 };
   const toolCalls: Record<string, number> = {};
@@ -321,12 +324,12 @@ async function runToolLoop(
       messages.push({ role: 'tool', content: r.content, tool_call_id: r.id });
     }
   };
-  for (let i = 0; i < config.maxToolIterations; i++) {
+  for (let i = 0; i < getSettingNum('max_tool_iterations', config.maxToolIterations); i++) {
     if (i > 0 && Date.now() >= overallDeadline) {
       trace.push({ ts: Date.now(), step: 'tool.deadline' });
       return { speech: TimeoutAnswer };
     }
-    const remaining = Math.min(config.toolDeadlineMs, Math.max(overallDeadline - Date.now(), 5000));
+    const remaining = Math.min(toolDeadline(), Math.max(overallDeadline - Date.now(), 5000));
     let message: ChatMessage;
     try {
       const result = await chatCompletion(messages, specs.length > 0 ? specs : undefined, remaining);
