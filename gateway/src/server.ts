@@ -404,7 +404,11 @@ app.post('/admin/api/functions/preview', requireAuth, async (req, res) => {
 app.post('/admin/api/index/assist', requireAuth, async (req, res) => {
   try {
     const goal = String((req.body as { goal?: unknown }).goal ?? '');
-    res.json(await assistIndex(goal));
+    const indexKey = String((req.body as { indexKey?: unknown }).indexKey ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '');
+    res.json(await assistIndex(goal, indexKey));
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
   }
@@ -413,7 +417,11 @@ app.post('/admin/api/index/assist', requireAuth, async (req, res) => {
 app.post('/admin/api/index/apply', requireAuth, async (req, res) => {
   try {
     const draft = (req.body as { draft?: unknown }).draft as never;
-    res.json(await applyDraft(draft));
+    const indexKey = String((req.body as { indexKey?: unknown }).indexKey ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '');
+    res.json(await applyDraft(draft, indexKey));
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
   }

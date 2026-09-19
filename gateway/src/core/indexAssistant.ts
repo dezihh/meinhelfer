@@ -15,6 +15,10 @@ import { setSetting } from '../db.js';
 export interface IndexDraft {
   tool: string;
   args: Record<string, unknown>;
+  // Optional: nunjucks-Template (variable `data` = geparstes JSON des
+  // Tool-Results), das Pipe-Zeilen im Datenvertrag erzeugt. Fuer Server,
+  // deren Tools JSON liefern statt Template-Text (z. B. Music Assistant).
+  transform?: string;
   ttlMs?: number;
   aliases?: Record<string, string>;
   sampleQueries?: string[];
@@ -64,7 +68,11 @@ function toolCatalog(mcp: McpContext): string {
   return parts.join('\n\n');
 }
 
-export async function validateDraft(mcp: McpContext, draft: IndexDraft): Promise<DraftValidation> {
+export async function validateDraft(
+  mcp: McpContext,
+  draft: IndexDraft,
+  indexKey = ''
+): Promise<DraftValidation> {
   const errors: string[] = [];
   const fuzzy: { query: string; top: string | null }[] = [];
   let samples: string[] = [];
@@ -91,7 +99,7 @@ export async function validateDraft(mcp: McpContext, draft: IndexDraft): Promise
     } else {
       try {
         const result = await client.callTool(draft.tool, draft.args ?? {});
-        const { entries, error } = parseIndexResult(result);
+        const { entries, error } = parseIndexResult(result, draft.transform);
         if (error) {
           errors.push(`Index-Tool meldet Fehler: ${error}`);
         }
@@ -101,7 +109,7 @@ export async function validateDraft(mcp: McpContext, draft: IndexDraft): Promise
         }
         samples = entries.slice(0, 3).map(fmtEntry);
         for (const q of (draft.sampleQueries ?? []).slice(0, 3)) {
-          const hits = scoreEntries(entries, String(q ?? ''), 1);
+          const hits = scoreEntries(entries, String(q ?? ''), 1, indexKey);
           fuzzy.push({ query: q, top: hits[0] ? fmtEntry(hits[0]) : null });
         }
       } catch (e) {
@@ -122,6 +130,7 @@ Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):
 {
   "tool": "<exakter Toolname>",
   "args": { ... Argumente fuer tools/call ... },
+  "transform": "<optional: nunjucks-Template, das JSON in Pipe-Zeilen rendert>",
   "ttlMs": 60000,
   "aliases": { "mundartlichesWoerter": "imIndexVerwendetesWort", "...": "..." },
   "sampleQueries": ["<2-3 deutsche Suchanfragen eines Sprachassistenten>"]
@@ -133,6 +142,13 @@ Hinweise:
   und sinnvollen Attributen als sechste Spalte. Bei Template-Tools IMMER ein
   grosszuegiges Timeout-Argument mitgeben (z. B. timeout: 15), sonst bricht die
   Auswertung ueber grosse Instanzen mit success=false ab.
+- Liefern die Tools des Servers NUR strukturiertes JSON (Array oder Objekt,
+  z. B. Music Assistant) und gibt es kein Template-Tool, das Pipe-Text
+  erzeugen kann, dann setze "transform": ein nunjucks-Template, das das
+  geparste JSON unter der Variable data bekommt und EINE Zeile pro Eintrag
+  im Format id|area|state|unit|name|key=value;... rendert. Beispiel:
+  "{% for p in data %}{{ p.player_id }}|{{ p.group_name or '' }}|{{ p.state }}|{{ p.volume_level }}|{{ p.name }}|{% endfor %}"
+  Kein transform, wenn das Tool bereits Pipe-Text liefert.
 - Aliase abbilden Alltagsbegriffe auf Begriffe aus den Entity-Namen (z. B. draussen->aussen). Umlaute im Alias-Schluessel sind erlaubt.
 - Wähle als sampleQueries typische kurze Sprachbefehle, die der Index treffen sollte.`;
 
@@ -149,19 +165,23 @@ function extractJson(text: string): IndexDraft | null {
 
 export interface AssistResult {
   goal: string;
+  indexKey: string;
   draft: IndexDraft | null;
   validation: DraftValidation | null;
   iterations: number;
 }
 
-export async function assistIndex(goal: string): Promise<AssistResult> {
+export async function assistIndex(goal: string, indexKey = ''): Promise<AssistResult> {
   const mcp = await getMcpContext();
   const catalog = toolCatalog(mcp);
+  const ziel = `${goal || 'Entity-Index fuer die verbundenen Systeme einrichten.'}${
+    indexKey ? ` (Dieser Index wird unter dem Key "${indexKey}" gespeichert - richte ihn ausschliesslich fuer diese Quelle ein.)` : ''
+  }`;
   const messages: ChatMessage[] = [
     { role: 'system', content: ASSISTANT_SYSTEM_PROMPT },
     {
       role: 'user',
-      content: `Verfuegbare MCP-Tools:\n\n${catalog}\n\nZiel des Admins: ${goal || 'Entity-Index fuer die verbundenen Systeme einrichten.'}`,
+      content: `Verfuegbare MCP-Tools:\n\n${catalog}\n\nZiel des Admins: ${ziel}`,
     },
   ];
 
@@ -185,30 +205,31 @@ export async function assistIndex(goal: string): Promise<AssistResult> {
       continue;
     }
     draft = candidate;
-    validation = await validateDraft(mcp, draft);
-    if (validation.ok) return { goal, draft, validation, iterations: i };
+    validation = await validateDraft(mcp, draft, indexKey);
+    if (validation.ok) return { goal, indexKey, draft, validation, iterations: i };
     messages.push({ role: 'assistant', content: JSON.stringify(draft) });
     messages.push({
       role: 'user',
       content: `Validierung fehlgeschlagen:\n- ${validation.errors.join('\n- ')}\n\nKorrigiere das Draft (anteilige Ausgabe der letzten Probe: ${(validation.samples[0] ?? '(leer)').slice(0, 200)}) und antworte wieder NUR mit dem JSON-Objekt.`,
     });
   }
-  return { goal, draft, validation, iterations: MAX_ITERATIONS };
+  return { goal, indexKey, draft, validation, iterations: MAX_ITERATIONS };
 }
 
 // Nur nach Admin-Bestaetigung aufrufen: validiert erneut und speichert das
-// Draft als entity_index-Setting.
-export async function applyDraft(draft: IndexDraft): Promise<DraftValidation> {
+// Draft als entity_index-Setting (mit Index-Key: 'ma' -> "entity_index_ma").
+export async function applyDraft(draft: IndexDraft, indexKey = ''): Promise<DraftValidation> {
   const mcp = await getMcpContext();
-  const validation = await validateDraft(mcp, draft);
+  const validation = await validateDraft(mcp, draft, indexKey);
   if (!validation.ok) return validation;
   const setting = {
     tool: draft.tool,
     args: draft.args,
+    ...(typeof draft.transform === 'string' && draft.transform.trim() ? { transform: draft.transform } : {}),
     ...(typeof draft.ttlMs === 'number' && draft.ttlMs > 0 ? { ttlMs: draft.ttlMs } : {}),
     ...(draft.aliases && Object.keys(draft.aliases).length > 0 ? { aliases: draft.aliases } : {}),
   };
-  setSetting('entity_index', JSON.stringify(setting));
+  setSetting(indexKey ? `entity_index_${indexKey}` : 'entity_index', JSON.stringify(setting));
   const { invalidateIndex } = await import('./entityIndex.js');
   invalidateIndex();
   return validation;

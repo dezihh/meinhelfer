@@ -15,7 +15,10 @@ const SHELL_OUTPUT_CAP = 4000;
 
 interface LiteralCalls {
   usesIndex: boolean;
-  states: string[];
+  // index.state('id') bzw. index.state('id', 'indexKey')
+  states: { id: string; key: string }[];
+  // Alle in index.*-Aufrufen genutzten Index-Keys ('' = Default-Index)
+  indexKeys: string[];
   calls: { tool: string; args: string | null }[];
   shells: string[];
   fns: string[];
@@ -23,13 +26,25 @@ interface LiteralCalls {
 }
 
 function extractLiterals(template: string): LiteralCalls {
-  const usesIndex = /index\.(?:state|get|find)\s*\(/.test(template);
-  const states: string[] = [];
+  // 2. String-Arg eines index.*-Aufrufs = Index-Key ('' = Default-Index).
+  const indexKeys = new Set<string>();
+  for (const m of template.matchAll(
+    /index\.(?:state|get|find)\(\s*(?:"[^"]*"|'[^']*')(?:\s*,\s*["']([^"']+)["']\s*)?\)/g
+  )) {
+    indexKeys.add((m[1] as string | undefined) ?? '');
+  }
+  const states: { id: string; key: string }[] = [];
+  for (const m of template.matchAll(
+    /index\.state\(\s*["']([^"']+)["']\s*(?:,\s*["']([^"']+)["']\s*)?\)/g
+  )) {
+    states.push({ id: m[1] as string, key: (m[2] as string | undefined) ?? '' });
+    if ((m[2] as string | undefined) !== undefined) indexKeys.add(m[2] as string);
+  }
+  const usesIndex = indexKeys.size > 0;
   const calls: { tool: string; args: string | null }[] = [];
   const shells: string[] = [];
   const fns: string[] = [];
   const httpUrls: string[] = [];
-  for (const m of template.matchAll(/index\.state\(\s*["']([^"']+)["']\s*\)/g)) states.push(m[1] as string);
   // mcp.call('tool') bzw. mcp.call('tool', {flaches JSON-Literal, eine Zeile})
   for (const m of template.matchAll(/mcp\.call\(\s*["']([^"']+)["']\s*(?:,\s*(\{[^\n]*?\}))?\s*\)/g)) {
     calls.push({ tool: m[1] as string, args: (m[2] as string | undefined) ?? null });
@@ -37,7 +52,7 @@ function extractLiterals(template: string): LiteralCalls {
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
   for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
   for (const m of template.matchAll(/http\(\s*["']([^"']+)["']\s*\)/g)) httpUrls.push(m[1] as string);
-  return { usesIndex, states, calls, shells, fns, httpUrls };
+  return { usesIndex, states, indexKeys: [...indexKeys], calls, shells, fns, httpUrls };
 }
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -164,7 +179,7 @@ async function preheat(
   active: Set<string>,
   args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { usesIndex, states, calls, shells, fns, httpUrls } = extractLiterals(template);
+  const { usesIndex, states, indexKeys, calls, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
@@ -180,21 +195,29 @@ async function preheat(
     })
   );
 
-  // Entity-Index nur bei Bedarf vorwaermen - Basis fuer index.find/index.get/index.state.
-  let snapshot: IndexEntry[] = [];
+  // Entity-Index(e) nur bei Bedarf vorwaermen - Basis fuer index.find/index.get/index.state.
+  // Mehrere Keys parallel (Multi-Index: '' = Default, z. B. 'ma' = Music Assistant).
+  const snapshotFor = new Map<string, IndexEntry[]>();
   if (usesIndex) {
-    try {
-      snapshot = await getIndexSnapshot();
-    } catch (e) {
-      trace.push({ ts: Date.now(), step: 'template.index.error', detail: { error: String(e) } });
-    }
+    await Promise.all(
+      indexKeys.map(async (key) => {
+        try {
+          snapshotFor.set(key, await getIndexSnapshot(key));
+        } catch (e) {
+          trace.push({ ts: Date.now(), step: 'template.index.error', detail: { index: key, error: String(e) } });
+          snapshotFor.set(key, []);
+        }
+      })
+    );
   }
-  const indexFind = (query: string): string => {
+  const indexFind = (query: string, key = ''): string => {
+    const snapshot = snapshotFor.get(key) ?? [];
     if (snapshot.length === 0) return 'Entity-Index nicht verfuegbar';
-    const hits = scoreEntries(snapshot, String(query ?? ''), 8).map(fmtEntry);
+    const hits = scoreEntries(snapshot, String(query ?? ''), 8, key).map(fmtEntry);
     return hits.length > 0 ? hits.join('\n') : 'keine Treffer';
   };
-  const indexGet = (entityId: string): string => {
+  const indexGet = (entityId: string, key = ''): string => {
+    const snapshot = snapshotFor.get(key) ?? [];
     const found = snapshot.find((e) => e.id === entityId);
     return found ? fmtEntry(found) : `${entityId}: unbekannt`;
   };
@@ -247,16 +270,17 @@ async function preheat(
     }
   }
 
-  for (const entityId of states) {
-    if (stateMap.has(entityId)) continue;
+  for (const { id, key } of states) {
+    const mapKey = `${key}\u0000${id}`;
+    if (stateMap.has(mapKey)) continue;
     try {
-      const entity = snapshot.find((e) => e.id === entityId);
-      if (!entity) throw new Error(`Entity ${entityId} nicht gefunden`);
-      stateMap.set(entityId, entity.state);
-      trace.push({ ts: Date.now(), step: 'template.state', detail: { entityId } });
+      const entity = snapshotFor.get(key)?.find((e) => e.id === id);
+      if (!entity) throw new Error(`Entity ${id} nicht gefunden (Index ${key || 'default'})`);
+      stateMap.set(mapKey, entity.state);
+      trace.push({ ts: Date.now(), step: 'template.state', detail: { entityId: id, index: key } });
     } catch (e) {
-      trace.push({ ts: Date.now(), step: 'template.state.error', detail: { entityId, error: String(e) } });
-      stateMap.set(entityId, null);
+      trace.push({ ts: Date.now(), step: 'template.state.error', detail: { entityId: id, index: key, error: String(e) } });
+      stateMap.set(mapKey, null);
     }
   }
 
@@ -268,9 +292,10 @@ async function preheat(
   return {
     args,
     index: {
-      state: (entityId: string): string | null => stateMap.get(entityId) ?? null,
-      get: (entityId: string): string => indexGet(entityId),
-      find: (query: string): string => indexFind(String(query ?? '')),
+      // 2. Argument = Index-Key ('' = Default-Index, z. B. 'ma' = Music Assistant)
+      state: (entityId: string, key = ''): string | null => stateMap.get(`${key ?? ''}\u0000${entityId}`) ?? null,
+      get: (entityId: string, key = ''): string => indexGet(entityId, key ?? ''),
+      find: (query: string, key = ''): string => indexFind(String(query ?? ''), key ?? ''),
     },
     mcp: {
       // Bewusst Objekt (nicht Funktion): mcp.call(...) im Template wuerde

@@ -1,3 +1,4 @@
+import nunjucks from 'nunjucks';
 import { getSetting } from '../db.js';
 import { getMcpContext } from '../mcp/registry.js';
 
@@ -8,6 +9,15 @@ import { getMcpContext } from '../mcp/registry.js';
 // den Settings (JSON unter dem Schluessel "entity_index"). Die Defaults unten
 // binden Home Assistant (ha-mcp, ha_eval_template) - ein anderes System wird
 // ausschliesslich durch ein anderes Setting angebunden, nicht durch Code.
+//
+// Multi-Index: Neben dem Default-Index ("entity_index") koennen weitere
+// Quellen unter "entity_index_<key>" (z. B. "entity_index_ma") existieren.
+// Template-Bausteine waehlen sie per 2. Argument (index.find(query, 'ma')).
+
+// Eigene nunjucks-Env fuer transform-Templates (JSON -> Pipe-Zeilen).
+// Bewusst hier statt aus template.ts importiert: template.ts importiert
+// dieses Modul - ein Rueckimport waere ein Zirkel.
+const transformEnv = new nunjucks.Environment(null, { autoescape: false });
 
 export interface IndexEntry {
   id: string;
@@ -29,6 +39,11 @@ interface IndexConfig {
   // steckt in dem Argument, das der jeweilige Server erwartet (HA:
   // args.template). So bleibt die Bindung an JEDES System reine Konfiguration.
   args: Record<string, unknown>;
+  // Optional: nunjucks-Template, das ein JSON-Tool-Result (parsed als `data`,
+  // Array oder Objekt) in Pipe-Zeilen im Datenvertrag rendert. Fuer Server,
+  // deren Tools strukturiertes JSON liefern und keine Template-Engine haben
+  // (z. B. Music Assistant). Bei Template-Servern (HA) unnoetig.
+  transform?: string;
   ttlMs: number;
   aliases: Record<string, string>;
   domainHints: DomainHint[];
@@ -81,15 +96,17 @@ function defaultConfig(): IndexConfig {
   };
 }
 
-function loadConfig(): IndexConfig {
+function loadConfig(key = ''): IndexConfig {
   const cfg = defaultConfig();
-  const raw = getSetting('entity_index');
+  const settingName = key ? `entity_index_${key}` : 'entity_index';
+  const raw = getSetting(settingName);
   if (!raw) return cfg;
   try {
     const parsed = JSON.parse(raw) as {
       tool?: string;
       args?: Record<string, unknown>;
       template?: string; // Alt-Format (Kompatibilitaet)
+      transform?: string;
       ttlMs?: number;
       aliases?: Record<string, string>;
       domainHints?: { re: string; domains: string[] }[];
@@ -98,6 +115,7 @@ function loadConfig(): IndexConfig {
     if (parsed.tool) cfg.tool = parsed.tool;
     if (parsed.args && typeof parsed.args === 'object') cfg.args = parsed.args;
     else if (parsed.template) cfg.args = { template: parsed.template };
+    if (typeof parsed.transform === 'string' && parsed.transform.trim()) cfg.transform = parsed.transform;
     if (typeof parsed.ttlMs === 'number' && parsed.ttlMs > 0) cfg.ttlMs = parsed.ttlMs;
     if (parsed.aliases) {
       for (const [from, to] of Object.entries(parsed.aliases)) {
@@ -109,7 +127,7 @@ function loadConfig(): IndexConfig {
     }
     if (parsed.stopwords) cfg.stopwords = new Set(parsed.stopwords.map(fold));
   } catch (e) {
-    console.error('entity_index-Setting ungueltig, nutze Defaults:', e);
+    console.error(`${settingName}-Setting ungueltig, nutze Defaults:`, e);
   }
   return cfg;
 }
@@ -139,9 +157,10 @@ function unwrapToolText(result: unknown): string {
 
 function parseLine(line: string): IndexEntry | null {
   const parts = line.split('|');
-  if (parts.length < 6) return null;
-  // Leere Felder sind gueltig (z. B. Eintraege ohne relevante Attribute haben
-  // ein leeres extra-Feld) - nur voellig unvollstaendige Zeilen verwerfen.
+  // >= 5 Felder: extras (6. Spalte) sind laut Datenvertrag optional
+  // (z. B. MA-Players ohne Attribute) - nur voellig unvollstaendige Zeilen
+  // verwerfen.
+  if (parts.length < 5) return null;
   const id = parts[0];
   const area = parts[1] ?? '';
   const state = parts[2] ?? '';
@@ -161,15 +180,22 @@ function parseLine(line: string): IndexEntry | null {
   return { id, name, state, unit, area: area === 'None' ? '' : area, attributes };
 }
 
-let cache: { ts: number; entries: IndexEntry[] } | null = null;
+let cache = new Map<string, { ts: number; entries: IndexEntry[] }>();
 
 export function invalidateIndex(): void {
-  cache = null;
+  cache.clear();
 }
 
-export async function getIndexSnapshot(force = false): Promise<IndexEntry[]> {
-  const cfg = loadConfig();
-  if (!force && cache && Date.now() - cache.ts < cfg.ttlMs) return cache.entries;
+// Index-Key -> Settings-Name ('' -> "entity_index", 'ma' -> "entity_index_ma").
+function settingNameFor(indexKey: string): string {
+  return indexKey ? `entity_index_${indexKey}` : 'entity_index';
+}
+
+export async function getIndexSnapshot(indexKey = '', force = false): Promise<IndexEntry[]> {
+  const settingName = settingNameFor(indexKey);
+  const cfg = loadConfig(indexKey);
+  const cached = cache.get(settingName);
+  if (!force && cached && Date.now() - cached.ts < cfg.ttlMs) return cached.entries;
   const mcp = await getMcpContext();
   let result: unknown = null;
   for (const server of mcp.servers) {
@@ -181,20 +207,36 @@ export async function getIndexSnapshot(force = false): Promise<IndexEntry[]> {
   if (result === null) {
     throw new Error(`Index-Tool ${cfg.tool} nicht gefunden - MCP-Server aktiv?`);
   }
-  const { entries, error } = parseIndexResult(result);
+  const { entries, error } = parseIndexResult(result, cfg.transform);
   if (error) {
     throw new Error(`Index-Tool ${cfg.tool} fehlgeschlagen: ${error}`);
   }
   if (entries.length === 0) {
     throw new Error(`Index leer (${cfg.tool}): ${unwrapToolText(result).slice(0, 120)}`);
   }
-  cache = { ts: Date.now(), entries };
+  cache.set(settingName, { ts: Date.now(), entries });
   return entries;
+}
+
+// Transform-Templates: JSON-Tool-Result (Array oder Objekt) -> Pipe-Zeilen
+// im Datenvertrag. `data` ist das geparste JSON.
+function renderTransform(text: string, transform: string): string {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`transform erwartet JSON, Tool-Result beginnt mit: ${text.slice(0, 80)}`);
+  }
+  return transformEnv.renderString(transform, { data });
 }
 
 // Parst das Ergebnis eines Index-Tool-Calls. Liefert Eintraege plus optional
 // einen Tool-Fehler (JSON-Envelope mit success=false, z. B. bei Timeout).
-export function parseIndexResult(result: unknown): { entries: IndexEntry[]; error: string | null } {
+// Mit `transform` wird JSON-Output vorher in Pipe-Zeilen gerendert.
+export function parseIndexResult(
+  result: unknown,
+  transform?: string
+): { entries: IndexEntry[]; error: string | null } {
   const content = (result as { content?: { text?: unknown }[] })?.content;
   let text = String(result ?? '');
   if (Array.isArray(content)) {
@@ -202,6 +244,13 @@ export function parseIndexResult(result: unknown): { entries: IndexEntry[]; erro
       .map((c) => (c && typeof c === 'object' && typeof c.text === 'string' ? c.text : ''))
       .filter(Boolean)
       .join('\n');
+  }
+  if (transform && transform.trim()) {
+    try {
+      text = renderTransform(text, transform);
+    } catch (e) {
+      return { entries: [], error: String(e instanceof Error ? e.message : e).slice(0, 300) };
+    }
   }
   if (text.startsWith('{')) {
     try {
@@ -244,8 +293,13 @@ export function fmtEntry(e: IndexEntry): string {
 
 // Fuzzy-Scoring gegen den (gecachten) Index - Sprachwissen (Aliase,
 // Domain-Hints, Stopwords) kommt aus der Konfiguration, nicht aus dem Code.
-export function scoreEntries(entries: IndexEntry[], query: string, maxResults = 8): IndexEntry[] {
-  const cfg = loadConfig();
+export function scoreEntries(
+  entries: IndexEntry[],
+  query: string,
+  maxResults = 8,
+  indexKey = ''
+): IndexEntry[] {
+  const cfg = loadConfig(indexKey);
   const stopwords = new Set([...cfg.stopwords].map(fold));
   const terms = query
     .toLowerCase()
