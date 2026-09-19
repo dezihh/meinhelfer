@@ -85,26 +85,147 @@ const SETTINGS_FIELDS = [
     options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
     help: 'Schreibt ausführliche Schritte (Tool-Aufrufe, Router-Entscheidungen) ins Gateway-Log (docker logs). Für den Alltag aus lassen – spart Lautstärke und macht Logs lesbar.',
   },
+  {
+    key: 'llm_model',
+    label: 'LLM-Modell',
+    type: 'text',
+    help: 'Modell für alle LLM-Aufrufe (Agent, Hybrid-Formulierung, Index-Assistent). Leer = Default aus .env. Wirkt ab der nächsten Anfrage, kein Neustart. Muss Tool-/JSON-fähig sein, sonst scheitern Agent-Antworten.',
+  },
+  {
+    key: 'llm_max_tokens',
+    label: 'LLM max. Tokens',
+    type: 'number',
+    help: 'Deckel für die Antwortlänge des LLM in Tokens. Leer = Default aus .env. Zu klein schneidet lange Berichte ab, zu groß kostet ggf. Latenz.',
+  },
+  {
+    key: 'llm_reasoning_effort',
+    label: 'LLM Reasoning-Stufe',
+    type: 'text',
+    help: 'Nur für Reasoner-Modelle: low/medium/high. Leer = wie .env (meist ungesetzt). Bei Normalmodellen ohne Wirkung.',
+  },
+  {
+    key: 'llm_fallback_after_ms',
+    label: 'LLM Fallback-Schwelle (ms)',
+    type: 'number',
+    help: 'Wann der lokale Fallback übernimmt, wenn das Primärmodell nicht rechtzeitig antwortet. Leer = Default. Orientiert sich an Amazons dokumentiertem Antwortfenster (~8 s): Das gilt streng für unseren direkten HTTPS-Skill-Pfad; bei AWS-Lambda-Hosting wird empirisch länger gewartet (undokumentiert) – darauf sollte man sich nicht verlassen.',
+  },
+  {
+    key: 'tool_deadline_ms',
+    label: 'Agent-Tool-Deadline (ms)',
+    type: 'number',
+    help: 'Deadline pro Tool-Runde des Agenten; das Gesamtbudget ist etwa das Doppelte. Leer = Default. Muss zusammen mit der Fallback-Schwelle in Amazons dokumentiertes Antwortfenster (~8 s, HTTPS-Pfad) passen – der Warteton überbrückt die Wartezeit.',
+  },
+  {
+    key: 'max_tool_iterations',
+    label: 'Agent max. Tool-Runden',
+    type: 'number',
+    help: 'Wie viele Tool-Runden der Agent pro Frage maximal laufen lässt. Leer = Default. Jede Runde kostet LLM-Zeit; weniger = schnellere Antwort, aber evtl. unvollständige Recherche.',
+  },
+  {
+    key: 'alexa_progress_after_ms',
+    label: 'Alexa-Warteton ab (ms)',
+    type: 'number',
+    help: 'Ab wann das Gateway „Einen Moment, ich schaue das kurz nach." als Progressive Directive an Alexa sendet. Laut Doku verlängert das das Antwortfenster (~8 s) nicht, praktisch überbrückt es die Wartezeit akustisch. 0 = Warteton aus. Default 6500.',
+  },
+  {
+    key: 'http_timeout_ms',
+    label: 'http()-Timeout (ms)',
+    type: 'number',
+    help: 'Timeout für http()-Abrufe in Funktions-Templates. Leer = Default (5000). Kurz halten, damit Vorgänge rechtzeitig antworten; wirkt sofort.',
+  },
+  {
+    key: 'http_body_cap',
+    label: 'http()-Antwortgrenze (Zeichen)',
+    type: 'number',
+    help: 'Maximale Länge einer http()-Antwort, die ins Template/Trace geht. Leer = Default (100000). Schutz gegen riesige Antworten.',
+  },
+  {
+    key: 'entity_index',
+    label: 'Entitäts-Index (Haus)',
+    type: 'textarea',
+    help: 'Tabelle der Haus-Entitäten für den Agenten, eine Entität je Zeile: entity_id | Raum | Status | Einheit | Name | Extras (optional, Paare mit Semikolon, z. B. dimmable=true). Der Agent mappt damit gesprochene Namen auf Entitäten (Bausteine index.find/index.state ohne Index-Key). Wird typischerweise vom Index-Assistenten erzeugt; manuelle Änderungen wirken sofort. Zeilen mit weniger als 5 Spalten werden ignoriert.',
+  },
+  {
+    key: 'entity_index_ma',
+    label: 'Entitäts-Index (Music Assistant)',
+    type: 'textarea',
+    help: 'Derselbe Zeilentyp wie im Haus-Index, aber nur für Music-Assistant-Player (entity_id = Player-ID). Bausteine greifen mit dem Index-Key „ma" darauf zu (z. B. index.find(„lautsprecher küche", „ma")); ohne Index-Key gilt der Haus-Index. Wird vom Index-Assistenten mit Index-Key „ma" erzeugt.',
+  },
 ];
 
 function renderSettings() {
   const form = $('settings-form');
   form.innerHTML = '';
   const known = new Set(SETTINGS_FIELDS.map((f) => f.key));
+  // Bekannte Felder immer zeigen (auch ohne DB-Zeile): leer = Default.
   for (const field of SETTINGS_FIELDS) {
-    if (!(field.key in bootstrap.settings)) continue;
     form.append(buildSettingField(field));
   }
   for (const key of Object.keys(bootstrap.settings)) {
     if (!known.has(key)) form.append(buildSettingField({ key, label: key, type: 'text', help: '' }));
   }
-  form.onclick = (e) => {
-    const btn = e.target instanceof Element ? e.target.closest('button.help') : null;
-    if (!btn) return;
-    const fieldEl = btn.closest('.field');
-    const helpText = fieldEl?.querySelector('.field-help');
-    if (helpText) helpText.classList.toggle('hidden');
-  };
+}
+
+// Globales Hilfe-Overlay: klick auf einen "?..."-Button zeigt den Hilfetext
+// als schwebendes Popup am Button (statt Text unter der Zeile, der Layout
+// verschiebt). Quelle: data-help am Button, sonst das .field-help-Element
+// im selben Feld, sonst das title-Attribut.
+const helpPop = document.createElement('div');
+helpPop.className = 'help-pop hidden';
+helpPop.setAttribute('role', 'tooltip');
+document.body.append(helpPop);
+let helpAnchor = null;
+
+function hideHelpPop() {
+  helpPop.classList.add('hidden');
+  helpAnchor = null;
+}
+
+function showHelpPop(btn) {
+  const scope = btn.closest('.field') || btn.parentElement;
+  const text =
+    btn.getAttribute('data-help') ||
+    scope?.querySelector('.field-help')?.textContent ||
+    btn.getAttribute('title') ||
+    '';
+  if (!text.trim()) return;
+  helpPop.textContent = text.trim();
+  helpPop.classList.remove('hidden');
+  const r = btn.getBoundingClientRect();
+  const pw = helpPop.offsetWidth;
+  const ph = helpPop.offsetHeight;
+  const left = Math.min(Math.max(4, r.left), window.innerWidth - pw - 8);
+  let top = r.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = Math.max(4, r.top - ph - 6);
+  helpPop.style.left = `${Math.round(left)}px`;
+  helpPop.style.top = `${Math.round(top)}px`;
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target instanceof Element ? e.target.closest('button.help') : null;
+  if (btn) {
+    if (helpAnchor === btn && !helpPop.classList.contains('hidden')) {
+      hideHelpPop();
+    } else {
+      helpAnchor = btn;
+      showHelpPop(btn);
+    }
+    e.stopPropagation();
+    return;
+  }
+  if (!helpPop.contains(e.target)) hideHelpPop();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideHelpPop();
+});
+window.addEventListener('scroll', hideHelpPop, true);
+window.addEventListener('resize', hideHelpPop);
+
+// Native Browser-Tooltips (title) an Hilfe-Buttons abschalten: Text wandert
+// nach data-help, damit ausschliesslich das Overlay zeigt.
+for (const btn of document.querySelectorAll('button.help[title]')) {
+  btn.setAttribute('data-help', btn.getAttribute('title') ?? '');
+  btn.removeAttribute('title');
 }
 
 function buildSettingField(field) {
@@ -122,10 +243,11 @@ function buildSettingField(field) {
     help.className = 'help';
     help.textContent = '?';
     help.setAttribute('aria-label', `Hilfe zu ${field.label}`);
-    help.title = field.help;
+    help.dataset.help = field.help;
     head.append(help);
   }
   let control;
+  const placeholder = bootstrap.settingDefaults?.[field.key] ?? '';
   if (field.type === 'select') {
     control = document.createElement('select');
     const current = String(controlValue);
@@ -136,10 +258,21 @@ function buildSettingField(field) {
       if (value === current) opt.selected = true;
       control.append(opt);
     }
+  } else if (field.type === 'textarea') {
+    control = document.createElement('textarea');
+    control.rows = 8;
+    control.value = controlValue;
+    control.placeholder = placeholder ? `(leer = Default: ${placeholder})` : '';
+  } else if (field.type === 'number') {
+    control = document.createElement('input');
+    control.type = 'number';
+    control.value = controlValue;
+    control.placeholder = placeholder;
   } else {
     control = document.createElement('input');
     control.type = 'text';
     control.value = controlValue;
+    control.placeholder = placeholder ? `(leer = Default: ${placeholder})` : '';
   }
   control.dataset.key = field.key;
   wrap.append(head, control);
@@ -175,10 +308,6 @@ function renderPromptKeys() {
   };
   select.onchange();
   ta.addEventListener('input', growPromptTextarea);
-  const helpBtn = $('prompt-help-btn');
-  if (helpBtn) {
-    helpBtn.onclick = () => $('prompt-help').classList.toggle('hidden');
-  }
 }
 
 function renderActions() {

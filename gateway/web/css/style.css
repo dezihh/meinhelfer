@@ -159,6 +159,25 @@ td.actions { text-align: right; white-space: nowrap; }
   line-height: 1.4;
 }
 
+/* Hilfe-Overlay: schwebt beim betreffenden "?"-Button, statt den
+   Seiteninhalt nach unten zu verschieben. */
+.help-pop {
+  position: fixed;
+  z-index: 100;
+  max-width: 22rem;
+  background: var(--card);
+  border: 1px solid var(--text-muted);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.help-pop.hidden { display: none; }
+
 .monitor-input { display: flex; gap: 0.5rem; }
 .monitor-input input { flex: 1; }
 .monitor-input .btn { margin-top: 0; }

@@ -82,12 +82,12 @@
           <h2 id="action-editor-title">Vorgang bearbeiten</h2>
           <input type="hidden" id="action-id">
           <div class="field">
-            <div class="field-head"><label>Name</label><button type="button" class="help" title="Freier Name, dient der Übersicht in der Admin-Oberfläche. Der Nutzer spricht ihn nie." aria-label="Hilfe zu Name">?</button></div>
+            <div class="field-head"><label>Name</label><button type="button" class="help" data-help="Freier Name, dient der Übersicht in der Admin-Oberfläche. Der Nutzer spricht ihn nie." aria-label="Hilfe zu Name">?</button></div>
             <div class="field-help hidden">Frei wählbarer interner Name. Er taucht weder in Sprachantworten noch in Trigger-Erkennung auf.</div>
             <input id="action-name" type="text">
           </div>
           <div class="field">
-            <div class="field-head"><label>Modus</label><button type="button" class="help" title="deterministic = nur Template (schnell, kein LLM). llm = Agent mit optionalem eigenen Prompt. hybrid = Template liefert Daten, das LLM formuliert die Antwort." aria-label="Hilfe zu Modus">?</button></div>
+            <div class="field-head"><label>Modus</label><button type="button" class="help" data-help="deterministic = nur Template (schnell, kein LLM). llm = Agent mit optionalem eigenen Prompt. hybrid = Template liefert Daten, das LLM formuliert die Antwort." aria-label="Hilfe zu Modus">?</button></div>
             <div class="field-help hidden">
               deterministic: Die gewählte Funktion wird gerendert und ihre Ausgabe direkt als Antwort gesprochen — kein LLM-Aufruf, schnell und kostengünstig.
               llm: Der Agent beantwortet die Anfrage frei, optional mit eigenem System-Prompt und eingeschränkten Tools.
@@ -100,29 +100,29 @@
             </select>
           </div>
           <div class="field">
-            <div class="field-head"><label>Trigger-Phrasen (eine pro Zeile)</label><button type="button" class="help" title="Muster-Sätze, die diesen Vorgang auslösen. Eine Phrase je Zeile; erkannt wird auch sinngemäß (Fuzzy)." aria-label="Hilfe zu Trigger-Phrasen">?</button></div>
+            <div class="field-head"><label>Trigger-Phrasen (eine pro Zeile)</label><button type="button" class="help" data-help="Muster-Sätze, die diesen Vorgang auslösen. Eine Phrase je Zeile; erkannt wird auch sinngemäß (Fuzzy)." aria-label="Hilfe zu Trigger-Phrasen">?</button></div>
             <div class="field-help hidden">Je Zeile eine typische Nutzerfrage, z. B. „Wie ist der Hausstatus?". Der Router erkennt auch Abweichungen (siehe Fuzzy-Schwellwert). Ohne Treffer geht die Anfrage an den allgemeinen Agenten.</div>
             <textarea id="action-triggers" rows="4"></textarea>
           </div>
           <div class="field">
-            <div class="field-head"><label>Fuzzy-Schwellwert (0–1)</label><button type="button" class="help" title="Wie ähnlich muss die Frage einer Trigger-Phrase sein? Höher = strenger. Leer = globaler Wert." aria-label="Hilfe zu Fuzzy-Schwellwert">?</button></div>
+            <div class="field-head"><label>Fuzzy-Schwellwert (0–1)</label><button type="button" class="help" data-help="Wie ähnlich muss die Frage einer Trigger-Phrase sein? Höher = strenger. Leer = globaler Wert." aria-label="Hilfe zu Fuzzy-Schwellwert">?</button></div>
             <div class="field-help hidden">0–1, höher = strenger (z. B. 0.95 = fast wörtlich). Leer lassen = globaler Schwellwert aus den Grundeinstellungen. Typisch: 0.8–0.9.</div>
             <input id="action-threshold" type="text">
           </div>
           <div class="field">
-            <div class="field-head"><label>Eigenes System-Prompt (leer = Agent-Prompt)</label><button type="button" class="help" title="Ersetzt den globalen agent_system-Prompt in den LLM-Modi. {assistant_name} wird ersetzt." aria-label="Hilfe zu Eigenes System-Prompt">?</button></div>
+            <div class="field-head"><label>Eigenes System-Prompt (leer = Agent-Prompt)</label><button type="button" class="help" data-help="Ersetzt den globalen agent_system-Prompt in den LLM-Modi. {assistant_name} wird ersetzt." aria-label="Hilfe zu Eigenes System-Prompt">?</button></div>
             <div class="field-help hidden">Gilt nur für llm/hybrid. Leer lassen, um den globalen Agent-Prompt zu verwenden. Der Platzhalter {assistant_name} wird durch den Assistenten-Namen ersetzt. Das Tool-Inventory (agent_inventory) wird weiterhin angehängt.</div>
             <textarea id="action-system" rows="4"></textarea>
           </div>
           <div class="field" id="action-function-field">
-            <div class="field-head"><label>Daten aus Funktion</label><button type="button" class="help" title="Pflicht im deterministischen/hybriden Modus: wähle eine Funktion aus dem Funktionen-Tab." aria-label="Hilfe zu Daten aus Funktion">?</button></div>
+            <div class="field-head"><label>Daten aus Funktion</label><button type="button" class="help" data-help="Pflicht im deterministischen/hybriden Modus: wähle eine Funktion aus dem Funktionen-Tab." aria-label="Hilfe zu Daten aus Funktion">?</button></div>
             <div class="field-help hidden">Im deterministic/hybrid-Modus rendert dieser Vorgang die gewählte Funktion (ha.state, ha.call, shell + Jinja — pflegbar und testbar im Funktionen-Tab). Neue Funktionen dort anlegen, dann hier auswählen. Im reinen LLM-Modus nicht nötig.</div>
             <select id="action-function">
               <option value="">— Funktion wählen —</option>
             </select>
           </div>
           <div class="field">
-            <div class="field-head"><label>Erlaubte Tools (leer = alle erlaubt)</label><button type="button" class="help" title="Begrenzt die LLM-Modi (llm/hybrid) auf die angehakten Tools. Das Template (deterministic) ist davon nicht betroffen." aria-label="Hilfe zu Erlaubte Tools">?</button></div>
+            <div class="field-head"><label>Erlaubte Tools (leer = alle erlaubt)</label><button type="button" class="help" data-help="Begrenzt die LLM-Modi (llm/hybrid) auf die angehakten Tools. Das Template (deterministic) ist davon nicht betroffen." aria-label="Hilfe zu Erlaubte Tools">?</button></div>
             <div class="field-help hidden">Wirkt nur in den LLM-Modi: das Modell sieht dann ausschließlich die angehakten Facade-/MCP-Tools. Leer = alle erlaubt. Das Template im deterministic-Modus ruft Tools unabhängig davon über ha.call auf.</div>
             <details id="action-tools-picker">
               <summary>Tools auswählen</summary>
@@ -157,17 +157,17 @@
           <h2 id="fn-editor-title">Funktion bearbeiten</h2>
           <input type="hidden" id="fn-id">
           <div class="field">
-            <div class="field-head"><label>Name</label><button type="button" class="help" title="Kleingeschrieben, a-z 0-9 _ — Aufruf im Template als {{ fn('name') }}." aria-label="Hilfe zu Name">?</button></div>
+            <div class="field-head"><label>Name</label><button type="button" class="help" data-help="Kleingeschrieben, a-z 0-9 _ — Aufruf im Template als {{ fn('name') }}." aria-label="Hilfe zu Name">?</button></div>
             <div class="field-help hidden">Der Aufrufname der Funktion. Kleingeschrieben, 2-40 Zeichen, nur a-z, 0-9 und Unterstrich. Nutzung: {{ fn('name') }} in Vorgangs-Templates oder in anderen Funktionen.</div>
             <input id="fn-name" type="text">
           </div>
           <div class="field">
-            <div class="field-head"><label>Beschreibung</label><button type="button" class="help" title="Freitext für die Übersicht; ab Stufe 2 zusätzlich als Tool-Beschreibung für das LLM." aria-label="Hilfe zu Beschreibung">?</button></div>
+            <div class="field-head"><label>Beschreibung</label><button type="button" class="help" data-help="Freitext für die Übersicht; ab Stufe 2 zusätzlich als Tool-Beschreibung für das LLM." aria-label="Hilfe zu Beschreibung">?</button></div>
             <div class="field-help hidden">Freitext für die Übersicht. Ab Stufe 2 wird die Beschreibung dem LLM als Tool-Beschreibung der dynamischen Funktion angezeigt.</div>
             <input id="fn-description" type="text">
           </div>
           <div class="field">
-            <div class="field-head"><label>Template</label><button type="button" class="help" title="Wie Vorgangs-Templates: ha.state('entity'), ha.entities('domain'), ha.call('toolname'), shell('befehl') + Jinja. Der gerenderte Text ist das Ergebnis der Funktion." aria-label="Hilfe zu Template">?</button></div>
+            <div class="field-head"><label>Template</label><button type="button" class="help" data-help="Wie Vorgangs-Templates: ha.state('entity'), ha.entities('domain'), ha.call('toolname'), shell('befehl') + Jinja. Der gerenderte Text ist das Ergebnis der Funktion." aria-label="Hilfe zu Template">?</button></div>
             <div class="field-help hidden">
               Gleiches Repertoire wie Vorgangs-Templates:
               {{ ha.state('sensor.x') }} → Zustand einer Entität,

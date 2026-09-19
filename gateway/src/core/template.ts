@@ -83,8 +83,8 @@ function extractLiterals(template: string): LiteralCalls {
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
 // Absicherungen: Timeout + Groessencap; JSON wird automatisch geparst,
 // damit Templates direkt auf Felder zugreifen koennen.
-const HTTP_TIMEOUT_MS = 5000;
-const HTTP_BODY_CAP = 100_000;
+export const HTTP_TIMEOUT_MS = 5000;
+export const HTTP_BODY_CAP = 100_000;
 
 // Antwort-Cache fuer http-Calls mit TTL-Argument (http('url', ttlMs));
 // lebt im Prozess und pro URL. Ohne TTL-Argument wird nie gecacht.

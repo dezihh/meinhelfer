@@ -32,12 +32,13 @@ import {
   updateMcpServer,
   addLog,
   getSetting,
+  getSettingNum,
   type ActionInput,
   type FunctionInput,
   type McpServerInput,
 } from './db.js';
 import { getMcpContext } from './mcp/registry.js';
-import { renderActionTemplate } from './core/template.js';
+import { HTTP_BODY_CAP, HTTP_TIMEOUT_MS, renderActionTemplate } from './core/template.js';
 import { assistIndex, applyDraft } from './core/indexAssistant.js';
 
 const app = express();
@@ -283,14 +284,17 @@ app.post('/alexa', requireAuth, async (req, res) => {
 
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   if (body.request?.type === 'IntentRequest' && body.context?.System?.apiAccessToken && body.request.requestId) {
-    watchdog = setTimeout(
-      () =>
-        sendProgressiveDirective(
-          body.context!.System!.apiAccessToken!,
-          body.request!.requestId!
-        ),
-      6500
-    );
+    const progressAfter = getSettingNum('alexa_progress_after_ms', 6500);
+    if (progressAfter > 0) {
+      watchdog = setTimeout(
+        () =>
+          sendProgressiveDirective(
+            body.context!.System!.apiAccessToken!,
+            body.request!.requestId!
+          ),
+        progressAfter
+      );
+    }
   }
 
   try {
@@ -357,6 +361,19 @@ app.post('/admin/api/lambda-trace', requireAuth, handleLambdaTrace);
 app.get('/admin/api/bootstrap', requireAuth, (req, res) => {
   res.json({
     settings: getSettings(),
+    // Effektive Defaults (aus .env bzw. Code) fuer die Web-UI-Platzhalter:
+    // leeres Setting = dieser Wert gilt.
+    settingDefaults: {
+      llm_model: config.llm.model,
+      llm_max_tokens: String(config.llm.maxTokens),
+      llm_reasoning_effort: config.llm.reasoningEffort ?? '',
+      llm_fallback_after_ms: String(config.llm.fallbackAfterMs),
+      tool_deadline_ms: String(config.toolDeadlineMs),
+      max_tool_iterations: String(config.maxToolIterations),
+      http_timeout_ms: String(HTTP_TIMEOUT_MS),
+      http_body_cap: String(HTTP_BODY_CAP),
+      alexa_progress_after_ms: '6500',
+    },
     actions: listActions(false),
     functions: listFunctions(false),
     servers: listMcpServers(false),
