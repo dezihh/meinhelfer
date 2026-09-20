@@ -1,0 +1,68 @@
+// Session-State: In-Memory-History pro Session (mit TTL/Deckel statt
+// unbegrenztem Clear) + Chat-Modus-Flag. Rein injizierbar/testbar - die
+// Engine nutzt hier nur die exports; keine DB-Zugriffe.
+import type { ChatMessage } from '../llm/client.js';
+
+export const HISTORY_MAX_MESSAGES = 8;
+export const HISTORY_MAX_SESSIONS = 100;
+// Sessions altern nach 2 h Untaetigkeit (Leak-Schutz; vorher: size>100 => clear ALL).
+export const SESSION_TTL_MS = 2 * 60 * 60_000;
+
+interface SessionState {
+  messages: ChatMessage[];
+  lastSeen: number;
+  chatMode: boolean;
+}
+
+const sessions = new Map<string, SessionState>();
+
+export function resetSessionsForTests(): void {
+  sessions.clear();
+}
+
+function prune(now = Date.now()): void {
+  for (const [id, s] of sessions) {
+    if (now - s.lastSeen > SESSION_TTL_MS) sessions.delete(id);
+  }
+  // Hart-Deckel: aelteste Sessions zuerst werfen.
+  while (sessions.size > HISTORY_MAX_SESSIONS) {
+    let oldest: string | null = null;
+    let oldestTs = Infinity;
+    for (const [id, s] of sessions) {
+      if (s.lastSeen < oldestTs) {
+        oldestTs = s.lastSeen;
+        oldest = id;
+      }
+    }
+    if (!oldest) break;
+    sessions.delete(oldest);
+  }
+}
+
+export function priorTurns(sessionId: string): ChatMessage[] {
+  prune();
+  return sessions.get(sessionId)?.messages ?? [];
+}
+
+export function rememberTurn(sessionId: string, query: string, speech: string, now = Date.now()): void {
+  prune(now);
+  const s = sessions.get(sessionId) ?? { messages: [], lastSeen: now, chatMode: false };
+  s.lastSeen = now;
+  s.messages.push({ role: 'user', content: query });
+  s.messages.push({ role: 'assistant', content: speech });
+  s.messages = s.messages.slice(-HISTORY_MAX_MESSAGES);
+  sessions.set(sessionId, s);
+}
+
+export function isChatSession(sessionId: string): boolean {
+  prune();
+  return sessions.get(sessionId)?.chatMode === true;
+}
+
+export function setChatMode(sessionId: string, on: boolean, now = Date.now()): void {
+  prune(now);
+  const s = sessions.get(sessionId) ?? { messages: [], lastSeen: now, chatMode: false };
+  s.lastSeen = now;
+  s.chatMode = on;
+  sessions.set(sessionId, s);
+}

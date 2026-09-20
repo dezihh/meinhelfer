@@ -13,6 +13,7 @@ const env = new nunjucks.Environment(null, { autoescape: false });
 const SHELL_TIMEOUT_MS = 5000;
 const SHELL_OUTPUT_CAP = 4000;
 import { extractLiterals, type LiteralCalls } from './extract.js';
+import { httpCacheGet, httpCacheSet } from './httpCache.js';
 
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -20,10 +21,6 @@ import { extractLiterals, type LiteralCalls } from './extract.js';
 // damit Templates direkt auf Felder zugreifen koennen.
 export const HTTP_TIMEOUT_MS = 5000;
 export const HTTP_BODY_CAP = 100_000;
-
-// Antwort-Cache fuer http-Calls mit TTL-Argument (http('url', ttlMs));
-// lebt im Prozess und pro URL. Ohne TTL-Argument wird nie gecacht.
-const HTTP_CACHE = new Map<string, { ts: number; ttl: number; data: unknown }>();
 
 async function fetchUrl(url: string, trace: TraceEvent[]): Promise<unknown | null> {
   const timeoutMs = getSettingNum('http_timeout_ms', HTTP_TIMEOUT_MS);
@@ -156,14 +153,14 @@ async function preheat(
   // (http('url', 300000)). Cache lebt pro URL im Prozess, laeuft mit eigener TTL ab.
   const fetchCached = async (url: string, ttl: number): Promise<unknown | null> => {
     if (ttl > 0) {
-      const hit = HTTP_CACHE.get(url);
-      if (hit && Date.now() - hit.ts < hit.ttl) {
+      const hit = httpCacheGet(url);
+      if (hit !== null) {
         trace.push({ ts: Date.now(), step: 'template.http.cache', detail: { url } });
-        return hit.data;
+        return hit;
       }
     }
     const data = await fetchUrl(url, trace);
-    if (ttl > 0 && data !== null) HTTP_CACHE.set(url, { ts: Date.now(), ttl, data });
+    if (ttl > 0 && data !== null) httpCacheSet(url, data, ttl);
     return data;
   };
 

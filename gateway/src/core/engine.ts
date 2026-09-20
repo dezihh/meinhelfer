@@ -15,6 +15,7 @@ import { renderFunction } from './template.js';
 import { escapeXml, stripSsmlTags, withSsmlBreaks, withDisplay, parseAgentAnswer } from './response.js';
 import { buildTools, type ToolRoute } from './tools.js';
 import { traceUsage, sumUsageFromTrace } from './usage.js';
+import { priorTurns as sessionPriorTurns, rememberTurn as sessionRememberTurn, isChatSession as sessionIsChat, setChatMode } from './session.js';
 import type {
   AssistantResponse,
   EngineResult,
@@ -25,13 +26,9 @@ import type {
 
 const FallbackError = 'Entschuldigung, da ist etwas schiefgelaufen.';
 
-const sessionHistory = new Map<string, ChatMessage[]>();
-const HISTORY_MAX_MESSAGES = 8;
-const HISTORY_MAX_SESSIONS = 100;
-
 function priorTurns(sessionId: string): ChatMessage[] {
-  const inMem = sessionHistory.get(sessionId);
-  if (inMem && inMem.length > 0) return inMem;
+  const inMem = sessionPriorTurns(sessionId);
+  if (inMem.length > 0) return inMem;
   // DB-Recall als ALT markieren: Das LLM weiss, dass die Zeit fortgeschritten
   // ist, und kann selbst entscheiden, ob der Inhalt noch relevant ist.
   const turns = recentAgentTurns(2, 30 * 60_000);
@@ -57,11 +54,7 @@ function priorTurns(sessionId: string): ChatMessage[] {
 }
 
 function rememberTurn(sessionId: string, query: string, speech: string): void {
-  if (sessionHistory.size > HISTORY_MAX_SESSIONS) sessionHistory.clear();
-  const prev = sessionHistory.get(sessionId) ?? [];
-  prev.push({ role: 'user', content: query });
-  prev.push({ role: 'assistant', content: speech });
-  sessionHistory.set(sessionId, prev.slice(-HISTORY_MAX_MESSAGES));
+  sessionRememberTurn(sessionId, query, speech);
 }
 
 const toolDeadline = (): number => getSettingNum('tool_deadline_ms', config.toolDeadlineMs);
@@ -275,13 +268,11 @@ async function executeAction(
   return parseAgentAnswer(result.message.content ?? '', trace);
 }
 
-const CHAT_CHAT_SESSIONS = new Set<string>();
-
 const CHAT_ON_RE = /(chat[-\s]?modus|chatmodus|unterhaltung[-\s]?modus|gespraechs?[-\s]?modus|im gespraech bleiben)/i;
 const CHAT_OFF_RE = /(one[-\s]?shot|einzelmodus|alltag[-\s]?modus|beende.*chat|chat[-\s]?beenden|wechsle.*one[-\s]?shot)/i;
 
 export function isChatSession(sessionId: string): boolean {
-  return CHAT_CHAT_SESSIONS.has(sessionId);
+  return sessionIsChat(sessionId);
 }
 
 export async function processQuery(query: VoiceQuery): Promise<EngineResult> {
@@ -293,7 +284,7 @@ export async function processQuery(query: VoiceQuery): Promise<EngineResult> {
   // Chat-/OneShot-Modus-Wechsel: deterministisch, Session-Zustand
   const qLower = query.text.toLowerCase();
   if (CHAT_OFF_RE.test(qLower)) {
-    CHAT_CHAT_SESSIONS.delete(query.sessionId);
+    setChatMode(query.sessionId, false);
     trace.push({ ts: Date.now(), step: 'chat.off', detail: { sessionId: query.sessionId } });
     return {
       response: { speech: 'Okay, ich beantworte die nächsten Fragen wieder einzeln.', followUp: false },
@@ -303,7 +294,7 @@ export async function processQuery(query: VoiceQuery): Promise<EngineResult> {
     };
   }
   if (CHAT_ON_RE.test(qLower)) {
-    CHAT_CHAT_SESSIONS.add(query.sessionId);
+    setChatMode(query.sessionId, true);
     trace.push({ ts: Date.now(), step: 'chat.on', detail: { sessionId: query.sessionId } });
     return {
       response: {
@@ -354,7 +345,7 @@ export async function processQuery(query: VoiceQuery): Promise<EngineResult> {
   response = withSsmlBreaks(response);
   response = withDisplay(response);
 
-  if (CHAT_CHAT_SESSIONS.has(query.sessionId)) {
+  if (sessionIsChat(query.sessionId)) {
     response = { ...response, followUp: true, followupPrompt: 'Was möchtest du noch wissen?' };
   } else if (!response.followUp) {
     const mode = getSetting('session_followup') ?? '0';
