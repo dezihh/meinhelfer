@@ -20,6 +20,8 @@ interface LiteralCalls {
   // Alle in index.*-Aufrufen genutzten Index-Keys ('' = Default-Index)
   indexKeys: string[];
   calls: { tool: string; args: string | null }[];
+  // mcp.call('tool', {…args.x…}) - Args-Expression wird im preheat evaluiert
+  mcpCallDyn: { tool: string; expr: string }[];
   // http('url') bzw. http('url', ttlMs) - ttl > 0 aktiviert den Antwort-Cache
   httpCalls: { url: string; ttl: number }[];
   // http(<nunjucks-Expression>) - URL wird aus args/now berechnet (Finding #1)
@@ -46,13 +48,19 @@ function extractLiterals(template: string): LiteralCalls {
   }
   const usesIndex = indexKeys.size > 0;
   const calls: { tool: string; args: string | null }[] = [];
+  const mcpCallDyn: { tool: string; expr: string }[] = [];
   const shells: string[] = [];
   const fns: string[] = [];
   const httpCalls: { url: string; ttl: number }[] = [];
   const httpDyn: { expr: string; ttl: number }[] = [];
-  // mcp.call('tool') bzw. mcp.call('tool', {flaches JSON-Literal, eine Zeile})
-  for (const m of template.matchAll(/mcp\.call\(\s*["']([^"']+)["']\s*(?:,\s*(\{[^\n]*?\}))?\s*\)/g)) {
+  // mcp.call('tool') bzw. mcp.call('tool', {flaches JSON-Literal, eine Zeile});
+  // Literal-Args mit args./now. sind NICHT literal (die laufen als dynamisch).
+  for (const m of template.matchAll(/mcp\.call\(\s*["']([^"']+)["']\s*(?:,\s*(\{(?![^{}]*\b(?:args|now)\.)[^\n]*?\}))?\s*\)/g)) {
     calls.push({ tool: m[1] as string, args: (m[2] as string | undefined) ?? null });
+  }
+  // dynamische mcp.call-Args: {…args.x…} (keine verschachtelten Objekte)
+  for (const m of template.matchAll(/mcp\.call\(\s*["']([^"']+)["']\s*,\s*\{([^{}]*?(?:\bargs\.|\bnow\.)[^{}]*?)\}\s*\)/g)) {
+    mcpCallDyn.push({ tool: m[1] as string, expr: `{${m[2] as string}}` });
   }
   for (const m of template.matchAll(/shell\(\s*["']([^"']+)["']\s*\)/g)) shells.push(m[1] as string);
   for (const m of template.matchAll(/fn\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g)) fns.push(m[1] as string);
@@ -77,7 +85,7 @@ function extractLiterals(template: string): LiteralCalls {
     httpDyn.push({ expr: body, ttl });
   }
   const httpUrls = httpCalls.map((c) => c.url);
-  return { usesIndex, states, indexKeys: [...indexKeys], calls, httpCalls, httpDyn, shells, fns, httpUrls };
+  return { usesIndex, states, indexKeys: [...indexKeys], calls, mcpCallDyn, httpCalls, httpDyn, shells, fns, httpUrls };
 }
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -210,7 +218,7 @@ async function preheat(
   active: Set<string>,
   args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { usesIndex, states, indexKeys, calls, httpCalls, httpDyn, shells, fns, httpUrls } = extractLiterals(template);
+  const { usesIndex, states, indexKeys, calls, mcpCallDyn, httpCalls, httpDyn, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
@@ -333,6 +341,37 @@ async function preheat(
       trace.push({ ts: Date.now(), step: 'template.mcp', detail: { tool: call.tool, server: found.server.name } });
     } catch (e) {
       trace.push({ ts: Date.now(), step: 'template.mcp.error', detail: { tool: call.tool, error: String(e) } });
+      callMap.set(normKey, null);
+    }
+  }
+
+  // Dynamische mcp.call-Args (Finding #1-Parallele fuer mcp): die
+  // Args-Expression wird mit args/now zu einem JSON-Objekt evaluiert
+  // (nunjucks '| dump'), live gecallt und unter dem normalisierten Key
+  // gecacht - der Render lookup trifft denselben Key.
+  for (const dyn of mcpCallDyn) {
+    let parsedArgs: Record<string, unknown> | null = null;
+    try {
+      const json = env.renderString(`{{ (${dyn.expr}) | dump }}`, { args, now: nowCtx }).trim();
+      const parsed = JSON.parse(json) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        parsedArgs = parsed as Record<string, unknown>;
+      }
+    } catch (e) {
+      trace.push({ ts: Date.now(), step: 'template.mcp.expr.error', detail: { tool: dyn.tool, error: String(e).slice(0, 200) } });
+      continue;
+    }
+    if (!parsedArgs) continue;
+    const normKey = `${dyn.tool}|${JSON.stringify(parsedArgs)}`;
+    if (callMap.has(normKey)) continue;
+    try {
+      const found = findToolExact(mcp, dyn.tool);
+      if (!found) throw new Error(`Tool ${dyn.tool} auf keinem MCP-Server gefunden`);
+      const result = await found.server.client.callTool(found.toolName, parsedArgs);
+      callMap.set(normKey, extractText(result));
+      trace.push({ ts: Date.now(), step: 'template.mcp.dyn', detail: { tool: dyn.tool, server: found.server.name } });
+    } catch (e) {
+      trace.push({ ts: Date.now(), step: 'template.mcp.error', detail: { tool: dyn.tool, error: String(e) } });
       callMap.set(normKey, null);
     }
   }

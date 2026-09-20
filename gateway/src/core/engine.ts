@@ -263,6 +263,9 @@ async function runToolLoop(
   allowlist: string[] | null = null
 ): Promise<AssistantResponse> {
   const { specs, routes, budgets } = buildTools(mcp, allowlist);
+  // Tool-Runden mit eigenem (schnellen) Modell: Setting 'tool_model';
+  // leer = llm_model wie bisher.
+  const roundModel = getSetting('tool_model')?.trim() || undefined;
   const history = sessionId ? priorTurns(sessionId) : [];
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
@@ -352,23 +355,23 @@ async function runToolLoop(
     const remaining = Math.min(toolDeadline(), Math.max(overallDeadline - Date.now(), 5000));
     let message: ChatMessage;
     try {
-      const result = await chatCompletion(messages, specs.length > 0 ? specs : undefined, remaining);
+      const result = await chatCompletion(messages, specs.length > 0 ? specs : undefined, remaining, roundModel);
       message = result.message;
-      traceUsage(trace, config.llm.model, result);
+      traceUsage(trace, roundModel ?? config.llm.model, result);
     } catch (e) {
       if (!(String(e).includes('TimeoutError') || String(e).includes('abort'))) throw e;
       trace.push({ ts: Date.now(), step: 'llm.timeout', detail: { round: i } });
       if (i === 0) {
         try {
-          const retryResult = await chatCompletion(messages, specs.length > 0 ? specs : undefined, 7000);
-          traceUsage(trace, config.llm.model, retryResult);
+          const retryResult = await chatCompletion(messages, specs.length > 0 ? specs : undefined, 7000, roundModel);
+          traceUsage(trace, roundModel ?? config.llm.model, retryResult);
           const retry = retryResult.message;
           if (!retry.tool_calls || retry.tool_calls.length === 0) {
             return parseAgentAnswer(retry.content ?? '', trace);
           }
           await runTools(retry);
-          const finalResult = await chatCompletion(messages, undefined, 7000);
-          traceUsage(trace, config.llm.model, finalResult);
+          const finalResult = await chatCompletion(messages, undefined, 7000, roundModel);
+          traceUsage(trace, roundModel ?? config.llm.model, finalResult);
           const final = finalResult.message;
           return parseAgentAnswer(final.content ?? '', trace);
         } catch (e2) {
