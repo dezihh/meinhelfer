@@ -269,7 +269,25 @@ async function runToolLoop(
   ];
   const overallDeadline = Date.now() + toolDeadline() * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
+  // Budgets: DB-Setting 'tool_budgets' (JSON-Map name->budget, Web-UI) gewinnt,
+  // dann DB-Budgets der Funktionen, dann die Code-Defaults unten.
+  let customBudgets: Record<string, number> = {};
+  try {
+    const raw = getSetting('tool_budgets');
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (Number.isFinite(Number(v)) && Number(v) > 0) customBudgets[k] = Number(v);
+        }
+      }
+    }
+  } catch (e) {
+    trace.push({ ts: Date.now(), step: 'tool.budgets.parse_error', detail: String(e).slice(0, 80) });
+  }
   const toolBudgets: Record<string, number> = { searxng_web_search: 1, web_url_read: 1, fn_find_entities: 2, fn_get_entity: 3, fn_hausstatus_gw: 1 };
+  const budgetFor = (name: string): number | undefined =>
+    customBudgets[name] ?? budgets.get(name) ?? toolBudgets[name];
   const toolCalls: Record<string, number> = {};
   const runTools = async (message: ChatMessage): Promise<void> => {
     messages.push({
@@ -285,7 +303,7 @@ async function runToolLoop(
           const route = routes.get(call.function.name);
           if (!route) throw new Error(`unbekanntes Tool: ${call.function.name}`);
           const used = toolCalls[call.function.name] ?? 0;
-          const budget = budgets.get(call.function.name) ?? toolBudgets[call.function.name];
+          const budget = budgetFor(call.function.name);
           if (budget !== undefined && used >= budget) {
             result = `Limit erreicht (${call.function.name}: max. ${budget} pro Frage). Antworte JETZT mit den vorhandenen Informationen.`;
             trace.push({
