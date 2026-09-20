@@ -449,7 +449,7 @@ app.get('/admin/api/indexes', requireAuth, (req, res) => {
   res.json({ indexes });
 });
 
-app.put('/admin/api/indexes/:key', requireAuth, (req, res) => {
+app.put('/admin/api/indexes/:key', requireAuth, async (req, res) => {
   const key = String(req.params.key ?? '').toLowerCase();
   if (key && !/^[a-z0-9_]{1,30}$/.test(key)) return res.status(400).json({ error: 'Ungültiger Key (a-z 0-9 _, max. 30)' });
   let obj: Record<string, unknown>;
