@@ -100,7 +100,7 @@ const SETTINGS_FIELDS = [
     label: 'Agent-Tool-Allowlist',
     type: 'tools',
     span: true,
-    help: 'Angehakt = das Tool kommt als Spec in den Agenten-Prompt. Keins angehakt = der Agent läuft ohne Tool-Specs. Die Buttons „Alle anhaken/abwählen" setzen die Auswahl auf einmal; gespeichert wird immer die explizite Liste („keine" bei leerer Auswahl). Anders als bei Vorgängen gibt es hier kein „alle" über Nichts-Anhaken.',
+    help: 'Angehakt = das Tool kommt als Spec in den Agenten-Prompt. Keins angehakt = der Agent läuft ohne Tool-Specs. Die Buttons „Alle anhaken/abwählen" setzen die Auswahl auf einmal; gespeichert wird immer die explizite Liste („keine" bei leerer Auswahl).',
   },
   {
     key: 'tool_budgets',
