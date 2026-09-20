@@ -80,6 +80,27 @@ Index-Tools, das Extraktions-Template steckt im arg, das der Server erwartet):
   kein Code. Die generischen Lesetools heißen entsprechend neutral
   `fn_find_entities` / `fn_get_entity`.
 
+### Index-Quellen (Multi-Index, universal)
+
+Der Entity-Index ist eine Instanz eines universalen Konzepts: **benannte
+Snapshot-Indexe**. Beliebig viele Quellen — jede beschreibt Tool + Argumente +
+TTL + Aliase/Stopwords/Domain-Hints in einer Setting-Zeile:
+
+- `entity_index` = Standard-Key `''` (Haus); `entity_index_<key>` = benannte
+  Quelle (z. B. `entity_index_ma` für Music-Assistant-Player)
+- Templates greifen per 2. Argument zu: `index.find('lautsprecher küche', 'ma')`,
+  ohne Key gilt der Standard-Index
+- `fn_find_entities` / `fn_get_entity` akzeptieren optional `args.index`
+  (z. B. `{"query": "lautsprecher", "index": "ma"}`) — der Agent kann damit
+  jede benannte Quelle durchsuchen
+- **Verwaltung**: Tab „Index-Quellen" in der Admin-UI (links neben Vorgänge/
+  Funktionen): Liste (Key, Tool, TTL, Beschreibung), Editor mit JSON-Config,
+  Beschreibung und Probe-Abfrage mit Live-„Ausführen"; `desc` liegt als Feld
+  im Config-JSON (vom Loader ignoriert). Nur benannte Indexe löschbar.
+- Fällt der Index-Key erst zur Renderzeit aus `args` (z. B.
+  `index.find(args.query, args.index | default(''))`), werden **alle
+  konfigurierten Keys** vorgewärmt (Preheat-Erweiterung)
+
 ### Index-Assistent (LLM-gestütztes Einbinden, Phase 2)
 
 Neue Quelle anbinden, ohne Template selbst zu schreiben — zwei
@@ -382,7 +403,7 @@ die Session offen (`keep_open`), damit Detailfragen im Folgeturn laufen.
 | Ebene | Was liegt dort | Beispiele |
 |-------|----------------|-----------|
 | `.env` | Secrets + Start-Infra (nur was vor dem Prozessstart feststeht) | `AUTH_TOKEN`, `ALEXA_SKILL_ID`, `LLM_BASE_URL`/`LLM_API_KEY`, `LLM_MODEL` (Fallback-Default) |
-| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `tool_budgets`, `agent_tools`, `http_timeout_ms`, `http_body_cap`, `alexa_progress_after_ms`, `entity_index`/`entity_index_ma` |
+| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `tool_budgets`, `agent_tools`, `http_timeout_ms`, `http_body_cap`, `alexa_progress_after_ms`; Index-Quellen über den eigenen Tab (nicht mehr als Settings-Felder) |
 | DB-Tabellen | Inhalte | `actions` (Vorgänge), `tpl_functions` (Funktionen), `prompts` (`agent_system`, `agent_inventory`), `mcp_servers`, `logs` |
 
 Settings mit leerem Wert fallen auf `.env`-/Code-Default zurück

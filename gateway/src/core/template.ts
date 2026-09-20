@@ -1,7 +1,7 @@
 import nunjucks from 'nunjucks';
 import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
-import { getIndexSnapshot, scoreEntries, fmtEntry, type IndexEntry } from './entityIndex.js';
+import { getIndexSnapshot, scoreEntries, fmtEntry, listIndexKeys, type IndexEntry } from './entityIndex.js';
 import { getFunctionByName, getSettingNum } from '../db.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
@@ -19,6 +19,9 @@ interface LiteralCalls {
   states: { id: string; key: string }[];
   // Alle in index.*-Aufrufen genutzten Index-Keys ('' = Default-Index)
   indexKeys: string[];
+  // Index-Key faellt erst zur Renderzeit aus args (index.find(args.q, args.index))
+  // => alle konfigurierten Keys vorwaermen
+  indexAll: boolean;
   calls: { tool: string; args: string | null }[];
   // mcp.call('tool', {…args.x…}) - Args-Expression wird im preheat evaluiert
   mcpCallDyn: { tool: string; expr: string }[];
@@ -55,6 +58,9 @@ function extractLiterals(template: string): LiteralCalls {
     if ((m[2] as string | undefined) !== undefined) indexKeys.add(m[2] as string);
   }
   const usesIndex = indexKeys.size > 0;
+  // Dynamischer Index-Key als 2. Arg (index.find(args.q, args.index)): der Key
+  // steht erst zur Renderzeit fest -> alle konfigurierten Keys vorwaermen.
+  const indexAll = /index\.(?:state|get|find)\([^()]*,\s*args\./.test(template);
   const calls: { tool: string; args: string | null }[] = [];
   const mcpCallDyn: { tool: string; expr: string }[] = [];
   const shells: string[] = [];
@@ -93,7 +99,7 @@ function extractLiterals(template: string): LiteralCalls {
     httpDyn.push({ expr: body, ttl });
   }
   const httpUrls = httpCalls.map((c) => c.url);
-  return { usesIndex, states, indexKeys: [...indexKeys], calls, mcpCallDyn, httpCalls, httpDyn, shells, fns, httpUrls };
+  return { usesIndex, states, indexKeys: [...indexKeys], indexAll, calls, mcpCallDyn, httpCalls, httpDyn, shells, fns, httpUrls };
 }
 
 // HTTP-Baustein: generischer GET-Fetch fuer beliebige REST-Endpunkte.
@@ -226,7 +232,7 @@ async function preheat(
   active: Set<string>,
   args: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const { usesIndex, states, indexKeys, calls, mcpCallDyn, httpCalls, httpDyn, shells, fns, httpUrls } = extractLiterals(template);
+  const { usesIndex, states, indexKeys, indexAll, calls, mcpCallDyn, httpCalls, httpDyn, shells, fns, httpUrls } = extractLiterals(template);
   const stateMap = new Map<string, string | null>();
   const callMap = new Map<string, string | null>();
   const shellMap = new Map<string, string | null>();
@@ -280,10 +286,12 @@ async function preheat(
 
   // Entity-Index(e) nur bei Bedarf vorwaermen - Basis fuer index.find/index.get/index.state.
   // Mehrere Keys parallel (Multi-Index: '' = Default, z. B. 'ma' = Music Assistant).
+  // indexAll = Key faellt erst zur Renderzeit aus args -> alle konfigurierten Keys vorwaermen.
   const snapshotFor = new Map<string, IndexEntry[]>();
-  if (usesIndex) {
+  const preheatKeys = indexAll ? listIndexKeys() : indexKeys;
+  if (usesIndex || preheatKeys.length > 0) {
     await Promise.all(
-      indexKeys.map(async (key) => {
+      [...new Set(preheatKeys)].map(async (key) => {
         try {
           snapshotFor.set(key, await getIndexSnapshot(key));
         } catch (e) {

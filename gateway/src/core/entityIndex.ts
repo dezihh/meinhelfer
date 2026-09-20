@@ -1,5 +1,5 @@
 import nunjucks from 'nunjucks';
-import { getSetting } from '../db.js';
+import { getSetting, getSettings } from '../db.js';
 import { getMcpContext } from '../mcp/registry.js';
 
 // Generischer Entity-Index: quelle = 1 parametrierter MCP-Call (Settings),
@@ -184,6 +184,18 @@ let cache = new Map<string, { ts: number; entries: IndexEntry[] }>();
 
 export function invalidateIndex(): void {
   cache.clear();
+}
+
+// Alle konfigurierten Index-Keys ('' = Standard + benannte). Benutzt vom
+// Template-Preheat, wenn der Index-Key zur Renderzeit erst aus args faellt.
+export function listIndexKeys(): string[] {
+  const keys = [''];
+  for (const k of Object.keys(getSettings())) {
+    if (k.startsWith('entity_index_') && k.length > 'entity_index_'.length) {
+      keys.push(k.slice('entity_index_'.length));
+    }
+  }
+  return keys;
 }
 
 // Index-Key -> Settings-Name ('' -> "entity_index", 'ma' -> "entity_index_ma").
