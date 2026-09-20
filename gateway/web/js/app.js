@@ -100,7 +100,7 @@ const SETTINGS_FIELDS = [
     label: 'Agent-Tool-Allowlist',
     type: 'tools',
     span: true,
-    help: 'Modus "Alle Tools": keine Einschränkung (Backend: leere Liste = alle). Modus "Eigene Auswahl": angehakt = das Tool kommt als Spec in den Agenten-Prompt (Prompt-Diät). Anders als bei Vorgängen: dort bedeutet eine leere Auswahl "keine Tools".',
+    help: 'Angehakt = das Tool kommt als Spec in den Agenten-Prompt. Keins angehakt = der Agent läuft ohne Tool-Specs. Die Buttons „Alle anhaken/abwählen" setzen die Auswahl auf einmal; gespeichert wird immer die explizite Liste („keine" bei leerer Auswahl). Anders als bei Vorgängen gibt es hier kein „alle" über Nichts-Anhaken.',
   },
   {
     key: 'tool_budgets',
@@ -172,24 +172,12 @@ function renderSettings() {
   void loadSettingToolPickers();
 }
 
-function settingToolsMode(key) {
-  return $(`settings-tools-mode-${key}`)?.value ?? 'alle';
-}
-
-function toggleSettingToolsMode(key, pickedCount) {
-  const mode = settingToolsMode(key);
-  const picker = $(`settings-tools-${key}`);
+function updateSettingToolsSummary(key, pickedCount, totalCount) {
   const sum = $(`settings-tools-summary-${key}`);
-  if (picker) picker.classList.toggle('hidden', mode !== 'auswahl');
-  if (sum) {
-    if (mode === 'alle') {
-      sum.textContent = 'Keine Einschränkung — der Agent sieht alle Tools der Registry (Backend: leere Liste = alle).';
-    } else if (pickedCount !== undefined) {
-      sum.textContent = pickedCount
-        ? `Ausgewählt (${pickedCount}) — nur diese Tools bekommt der Agent als Spec.`
-        : 'Keins angehakt = KEINE Tools — der Agent läuft ohne Tool-Specs.';
-    }
-  }
+  if (!sum) return;
+  sum.textContent = pickedCount
+    ? `Ausgewählt (${pickedCount} von ${totalCount}) — nur diese Tools bekommt der Agent als Spec.`
+    : 'Keins angehakt = KEINE Tools — der Agent läuft ohne Tool-Specs.';
 }
 
 async function loadSettingToolPickers() {
@@ -197,15 +185,19 @@ async function loadSettingToolPickers() {
     const listId = `settings-tools-${f.key}`;
     const list = $(listId);
     if (!list) continue;
-    const current = String(bootstrap.settings[f.key] ?? '');
+    const current = String(bootstrap.settings[f.key] ?? '').trim();
     const sync = () => {
       const ctrl = document.querySelector(`#settings-form [data-key="${f.key}"]`);
       const picked = toolsFromList(listId);
       if (ctrl) ctrl.value = picked.join(', ');
-      toggleSettingToolsMode(f.key, picked.length);
+      updateSettingToolsSummary(f.key, picked.length, list.querySelectorAll('input[type=checkbox]').length);
     };
-    const names = current.split(',').map((x) => x.trim()).filter(Boolean);
-    await loadToolPicker(names, listId, sync);
+    if (current.toLowerCase() === 'alle') {
+      await loadToolPicker([], listId, sync);
+      list.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = true; });
+    } else {
+      await loadToolPicker(current.split(',').map((x) => x.trim()).filter(Boolean), listId, sync);
+    }
     sync();
   }
 }
@@ -298,12 +290,6 @@ function buildSettingField(field) {
     control.type = 'text';
     control.value = String(controlValue);
     control.style.display = 'none';
-    const mode = document.createElement('select');
-    mode.id = `settings-tools-mode-${field.key}`;
-    mode.innerHTML = '<option value="alle">Alle Tools (keine Einschränkung)</option><option value="auswahl">Eigene Auswahl</option>';
-    const cur = String(controlValue).trim().toLowerCase();
-    mode.value = !cur || cur === 'alle' ? 'alle' : 'auswahl';
-    mode.addEventListener('change', () => toggleSettingToolsMode(field.key));
     const summary = document.createElement('div');
     summary.className = 'field-help';
     summary.id = `settings-tools-summary-${field.key}`;
@@ -312,8 +298,7 @@ function buildSettingField(field) {
     picker.className = 'tool-group';
     picker.style.marginTop = '0.4rem';
     picker.dataset.sync = field.key;
-    wrap.append(head, mode, control, summary, picker);
-    wrap.dataset.mode = mode.value;
+    wrap.append(head, control, summary, picker);
     return wrap;
   }
   if (field.type === 'select') {
@@ -412,6 +397,22 @@ function syncActionToolsInput() {
 
 async function loadToolPicker(selected, listId = 'action-tools-list', syncFn = syncActionToolsInput) {
   const list = $(listId);
+  list.innerHTML = '';
+  const bar = document.createElement('div');
+  bar.className = 'toolbar';
+  bar.style.gap = '0.4rem';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'btn small';
+  allBtn.textContent = 'Alle anhaken';
+  allBtn.onclick = () => { list.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = true; }); syncFn(); };
+  const noneBtn = document.createElement('button');
+  noneBtn.type = 'button';
+  noneBtn.className = 'btn small';
+  noneBtn.textContent = 'Alle abwählen';
+  noneBtn.onclick = () => { list.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = false; }); syncFn(); };
+  bar.append(allBtn, noneBtn);
+  list.append(bar);
   const sel = new Set(selected ?? []);
   function group(label, names) {
     if (!names.length) return;
@@ -870,12 +871,8 @@ function init() {
       const ctrl = $('settings-form').querySelector(`[data-key="${f.key}"]`);
       if (!ctrl) continue;
       if (f.type === 'tools') {
-        if (settingToolsMode(f.key) === 'alle') {
-          settings[f.key] = 'alle';
-        } else {
-          const picked = toolsFromList(`settings-tools-${f.key}`);
-          settings[f.key] = picked.length ? picked.join(', ') : 'keine';
-        }
+        const picked = toolsFromList(`settings-tools-${f.key}`);
+        settings[f.key] = picked.length ? picked.join(', ') : 'keine';
         continue;
       }
       settings[f.key] = ctrl.value;
