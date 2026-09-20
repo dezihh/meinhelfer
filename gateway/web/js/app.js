@@ -439,7 +439,7 @@ let indexesCache = [];
 
 function parseIndexConfig(raw) {
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+  return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -472,7 +472,7 @@ async function renderIndexes() {
 function openIndexEditor(key) {
   const ix = indexesCache.find((x) => x.key === key) ?? null;
   const cfg = ix ? (parseIndexConfig(ix.config) ?? {}) : { tool: '', args: {}, ttlMs: 60000 };
-  const { desc, ...rest } = cfg as Record<string, unknown>;
+  const { desc, ...rest } = cfg;
   $('idx-editor').classList.remove('hidden');
   $('idx-preview-out').classList.add('hidden');
   $('idx-editor-title').textContent = ix ? (ix.key ? `Index-Quelle: ${ix.key}` : 'Index-Quelle: Standard') : 'Neue Index-Quelle';
@@ -484,9 +484,9 @@ function openIndexEditor(key) {
 }
 
 function indexPayload() {
-  let cfg: Record<string, unknown> = {};
+  let cfg = {};
   try {
-    cfg = JSON.parse($('idx-config').value) as Record<string, unknown>;
+    cfg = JSON.parse($('idx-config'.value));
   } catch {
     throw new Error('Config ist kein gültiges JSON');
   }
@@ -543,7 +543,6 @@ async function previewIndex() {
   } catch (e) {
     out.textContent = `Fehler: ${e.message}`;
   }
-}
 }
 
 function openActionEditor(id) {
