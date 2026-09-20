@@ -74,11 +74,8 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
   const triggers = parseMaybeJsonArray(body.trigger_phrases)
     ?? parseMaybeJsonArray(body.triggers)
     ?? [];
-  const tools = Array.isArray(body.tools)
-    ? body.tools.map(String)
-    : Array.isArray(body.toolList)
-      ? body.toolList.map(String)
-      : null;
+  const tools = parseMaybeJsonArray(body.tools)
+    ?? parseMaybeJsonArray(body.toolList);
   const functionArgs =
     body.function_args && typeof body.function_args === 'object' && !Array.isArray(body.function_args)
       ? JSON.stringify(body.function_args)
@@ -92,7 +89,9 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
     template: body.template == null ? null : String(body.template),
     function_ref: body.function_ref == null ? null : String(body.function_ref).trim() || null,
     function_args: functionArgs,
-    tools: tools && tools.length > 0 ? JSON.stringify(tools) : null,
+    // Explizit leeres Array '[]' = bewusst OHNE Tools (z. B. Hilfe-Action);
+    // null (Feld fehlt) = unveraendert/alle Tools.
+    tools: tools ? JSON.stringify(tools) : null,
     enabled: body.enabled === false ? 0 : 1,
   };
 }
