@@ -39,6 +39,14 @@ function extractLiterals(template: string): LiteralCalls {
   )) {
     indexKeys.add((m[1] as string | undefined) ?? '');
   }
+  // Dynamische Args (z. B. index.find(args.query) in fn-Templates): sonst
+  // bleibt usesIndex false und der Agent-Pfad rendert ohne vorgewaermten
+  // Index ("Entity-Index nicht verfuegbar"). Key aus 2. Literal-Arg.
+  for (const m of template.matchAll(
+    /index\.(?:state|get|find)\(\s*args\.[a-zA-Z0-9_]+\s*(?:,\s*["']([^"']+)["'])?\s*\)/g
+  )) {
+    indexKeys.add((m[1] as string | undefined) ?? '');
+  }
   const states: { id: string; key: string }[] = [];
   for (const m of template.matchAll(
     /index\.state\(\s*["']([^"']+)["']\s*(?:,\s*["']([^"']+)["']\s*)?\)/g
