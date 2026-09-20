@@ -127,7 +127,7 @@ const SETTINGS_FIELDS = [
     key: 'session_keywords',
     label: 'Session-Keywords',
     type: 'text',
-    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Enthält die gerade gestellte Frage eines dieser Wörter, bekommt DIESE Antwort ein Follow-up und das Mikro bleibt danach offen; die nächste Frage entscheidet erneut (Keyword oder LLM-Vorschlag). Der Schalter dafür steht im Feld „Nachfrage (Mikro offen halten)" direkt darüber — dort „Bei Session-Keyword" oder „Beides" wählen.',
+    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Enthält die gerade gestellte Frage eines dieser Wörter, bekommt DIESE Antwort ein Follow-up und das Mikro bleibt danach offen; die nächste Frage entscheidet erneut (Keyword oder LLM-Vorschlag). Der Schalter dafür steht in den GRUNDEINSTELLUNGEN im Feld „Nachfrage (Mikro offen halten)" direkt darüber — dort „Bei Session-Keyword" oder „Beides" wählen.',
   },
   {
     key: 'alexa_progress_after_ms',
