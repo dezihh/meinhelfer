@@ -377,7 +377,6 @@ app.get('/admin/api/bootstrap', requireAuth, (req, res) => {
       llm_model: config.llm.model,
       llm_max_tokens: String(config.llm.maxTokens),
       llm_reasoning_effort: config.llm.reasoningEffort ?? '',
-      llm_fallback_after_ms: String(config.llm.fallbackAfterMs),
       tool_deadline_ms: String(config.toolDeadlineMs),
       max_tool_iterations: String(config.maxToolIterations),
       http_timeout_ms: String(HTTP_TIMEOUT_MS),

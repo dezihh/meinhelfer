@@ -104,12 +104,6 @@ const SETTINGS_FIELDS = [
     help: 'Nur für Reasoner-Modelle: low/medium/high. Leer = wie .env (meist ungesetzt). Bei Normalmodellen ohne Wirkung.',
   },
   {
-    key: 'llm_fallback_after_ms',
-    label: 'LLM Fallback-Schwelle (ms)',
-    type: 'number',
-    help: 'Wann der lokale Fallback übernimmt, wenn das Primärmodell nicht rechtzeitig antwortet. Leer = Default. Orientiert sich an Amazons dokumentiertem Antwortfenster (~8 s): Das gilt streng für unseren direkten HTTPS-Skill-Pfad; bei AWS-Lambda-Hosting wird empirisch länger gewartet (undokumentiert) – darauf sollte man sich nicht verlassen.',
-  },
-  {
     key: 'tool_deadline_ms',
     label: 'Agent-Tool-Deadline (ms)',
     type: 'number',
