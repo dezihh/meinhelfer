@@ -98,7 +98,7 @@ const SETTINGS_FIELDS = [
   {
     key: 'agent_tools',
     label: 'Agent-Tool-Allowlist',
-    type: 'textarea',
+    type: 'tools',
     span: true,
     help: 'Komma-Liste der Tools, die der Agent als Tool-Specs bekommt (Prompt-Diät: weniger Specs = kleinerer Prompt, schnellere fokussierte Runden). Leer = alle Tools der MCP-Registry.',
   },
@@ -168,6 +168,23 @@ function renderSettings() {
   for (const key of Object.keys(bootstrap.settings)) {
     if (key === 'entity_index' || key.startsWith('entity_index_')) continue;
     if (!known.has(key)) form.append(buildSettingField({ key, label: key, type: 'text', help: '' }));
+  }
+  void loadSettingToolPickers();
+}
+
+async function loadSettingToolPickers() {
+  for (const f of SETTINGS_FIELDS.filter((x) => x.type === 'tools')) {
+    const listId = `settings-tools-${f.key}`;
+    const list = $(listId);
+    if (!list) continue;
+    const current = String(bootstrap.settings[f.key] ?? '');
+    const sync = () => {
+      const ctrl = document.querySelector(`#settings-form [data-key="${f.key}"]`);
+      if (ctrl) ctrl.value = toolsFromList(listId).join(', ');
+    };
+    const names = current.split(',').map((x) => x.trim()).filter(Boolean);
+    await loadToolPicker(names, listId, sync);
+    sync();
   }
 }
 
@@ -254,6 +271,18 @@ function buildSettingField(field) {
   }
   let control;
   const placeholder = bootstrap.settingDefaults?.[field.key] ?? '';
+  if (field.type === 'tools') {
+    control = document.createElement('input');
+    control.type = 'text';
+    control.value = String(controlValue);
+    const picker = document.createElement('div');
+    picker.id = `settings-tools-${field.key}`;
+    picker.className = 'tool-group';
+    picker.style.marginTop = '0.4rem';
+    picker.dataset.sync = field.key;
+    wrap.append(head, control, picker);
+    return wrap;
+  }
   if (field.type === 'select') {
     control = document.createElement('select');
     const current = String(controlValue);
@@ -332,13 +361,17 @@ function renderActions() {
   }
 }
 
-function syncActionToolsInput() {
-  const checks = document.querySelectorAll('#action-tools-list input[type=checkbox]:checked');
-  $('action-tools').value = Array.from(checks).map((c) => c.value).join('\n');
+function toolsFromList(listId) {
+  const checks = document.querySelectorAll(`#${listId} input[type=checkbox]:checked`);
+  return Array.from(checks).map((c) => c.value);
 }
 
-async function loadToolPicker(selected) {
-  const list = $('action-tools-list');
+function syncActionToolsInput() {
+  $('action-tools').value = toolsFromList('action-tools-list').join('\n');
+}
+
+async function loadToolPicker(selected, listId = 'action-tools-list', syncFn = syncActionToolsInput) {
+  const list = $(listId);
   const sel = new Set(selected ?? []);
   function group(label, names) {
     if (!names.length) return;
@@ -354,7 +387,7 @@ async function loadToolPicker(selected) {
       cb.type = 'checkbox';
       cb.value = name;
       cb.checked = sel.has(name);
-      cb.addEventListener('change', syncActionToolsInput);
+      cb.addEventListener('change', syncFn);
       lab.append(cb, ' ', name);
       det.append(lab);
     }
