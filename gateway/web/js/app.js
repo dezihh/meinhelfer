@@ -127,7 +127,7 @@ const SETTINGS_FIELDS = [
     key: 'session_keywords',
     label: 'Session-Keywords',
     type: 'text',
-    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Wirkt nur, wenn die Nachfrage auf „Bei Session-Keyword" oder „Beides" steht.',
+    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Enthält eine Frage eines dieser Wörter, bleibt das Mikro offen („Was kann ich noch für Sie tun?"). Der Schalter dafür steht im Feld „Nachfrage (Mikro offen halten)" direkt darüber — dort „Bei Session-Keyword" oder „Beides" wählen.',
   },
   {
     key: 'alexa_progress_after_ms',
