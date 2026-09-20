@@ -12,6 +12,9 @@ import { chatCompletion, type ChatCompletionResult, type ChatMessage, type ToolS
 import { getMcpContext, type McpContext } from '../mcp/registry.js';
 import { routeAction, type RouteMatch } from './router.js';
 import { renderFunction } from './template.js';
+import { escapeXml, stripSsmlTags, withSsmlBreaks, withDisplay, parseAgentAnswer } from './response.js';
+import { buildTools, type ToolRoute } from './tools.js';
+import { traceUsage, sumUsageFromTrace } from './usage.js';
 import type {
   AssistantResponse,
   EngineResult,
@@ -61,149 +64,7 @@ function rememberTurn(sessionId: string, query: string, speech: string): void {
   sessionHistory.set(sessionId, prev.slice(-HISTORY_MAX_MESSAGES));
 }
 
-type ToolRoute =
-  | { kind: 'mcp'; client: McpContext['servers'][number]['client']; toolName: string }
-  | { kind: 'function'; name: string };
-
-type ToolRouteMap = { specs: ToolSpec[]; routes: Map<string, ToolRoute>; budgets: Map<string, number> };
-
-const LLM_BLOCKED_TOOLS = new Set(['googe_ai', 'gargedoor_open_script', '_433_gray4_off', '_433_gray4_on', 'XXXXXXXXXXXXXXhausstatus']);
-
-function sanitizeToolName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_-]/g, '_');
-}
-
-function buildMcpTools(
-  mcp: McpContext,
-  allowlist: string[] | null,
-  routes: Map<string, ToolRoute>,
-  specs: ToolSpec[]
-): void {
-  const used = new Set(routes.keys());
-  for (const server of mcp.servers) {
-    for (const def of server.tools) {
-      if (LLM_BLOCKED_TOOLS.has(def.name)) continue;
-      let name = sanitizeToolName(def.name);
-      if (routes.has(def.name) || used.has(name)) {
-        name = `${sanitizeToolName(server.name)}__${sanitizeToolName(def.name)}`;
-      }
-      if (used.has(name)) continue;
-      if (allowlist && !allowlist.includes(def.name) && !allowlist.includes(name)) continue;
-      used.add(name);
-      routes.set(name, { kind: 'mcp', client: server.client, toolName: def.name });
-      specs.push({
-        type: 'function',
-        function: {
-          name,
-          description: (def.description ?? '').slice(0, 160),
-          parameters: def.inputSchema ?? { type: 'object' },
-        },
-      });
-    }
-  }
-}
-
-function buildTools(
-  mcp: McpContext,
-  allowlist: string[] | null
-): ToolRouteMap {
-  const routes = new Map<string, ToolRoute>();
-  const specs: ToolSpec[] = [];
-  const budgets = new Map<string, number>();
-  buildMcpTools(mcp, allowlist, routes, specs);
-  // Funktionen (Stufe 2.5): registrierte Funktionen als dynamische LLM-Tools,
-  // optional mit Parameter-Schema; Argumente landen als args im Template.
-  for (const fn of listFunctions(true)) {
-    const toolName = `fn_${fn.name}`;
-    if (allowlist && !allowlist.includes(fn.name) && !allowlist.includes(toolName)) continue;
-    routes.set(toolName, { kind: 'function', name: fn.name });
-    if (fn.budget && fn.budget > 0) budgets.set(toolName, fn.budget);
-    specs.push({
-      type: 'function',
-      function: {
-        name: toolName,
-        description: (fn.description ?? `Funktion ${fn.name}`).slice(0, 300),
-        parameters:
-          fn.parameters && typeof fn.parameters === 'object'
-            ? (fn.parameters as ToolSpec['function']['parameters'])
-            : { type: 'object', properties: {} },
-      },
-    });
-  }
-  return { specs, routes, budgets };
-}
-
 const toolDeadline = (): number => getSettingNum('tool_deadline_ms', config.toolDeadlineMs);
-
-function escapeXml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function stripSsmlTags(text: string): string {
-  return text
-    .replace(/<speak>|<\/speak>/gi, '')
-    .replace(/<break[^>]*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function withSsmlBreaks(resp: AssistantResponse): AssistantResponse {
-  if (resp.ssml) return resp;
-  const s = resp.speech.trim();
-  let parts = s
-    .split(/\n\s*\n|\n(?=\s*(?:[-*•]|\d+[.)])\s)/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  if (parts.length < 2 && s.length >= 160) {
-    const sentences = s.split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ„"])/);
-    if (sentences.length >= 2) {
-      parts = [];
-      for (let i = 0; i < sentences.length; i += 2) {
-        parts.push(sentences.slice(i, i + 2).join(' ').trim());
-      }
-    }
-  }
-  if (parts.length < 2 || s.length < 150) return resp;
-  const speech = `<speak>${parts
-    .map((p) => escapeXml(p).replace(/\s*\n\s*/g, ' '))
-    .join('<break time="300ms"/>')}</speak>`;
-  return { ...resp, speech, ssml: true };
-}
-
-function withDisplay(resp: AssistantResponse): AssistantResponse {
-  const text = resp.display?.text ?? (resp.ssml ? stripSsmlTags(resp.speech) : resp.speech);
-  const title = getSetting('display_title') ?? 'MeinHelfer';
-  return { ...resp, display: { ...resp.display, title, text } };
-}
-
-function parseAgentAnswer(content: string, trace: TraceEvent[]): AssistantResponse {
-  const filtered = content
-    .replace(/<\|?tool_call>[\s\S]*?(?:<tool_call\|>|<\|end_of_turn\|>|$)/gi, '')
-    .replace(/<\|[^>]*\|>/g, '')
-    .trim();
-  if (filtered !== content.trim()) {
-    trace.push({ ts: Date.now(), step: 'agent.leak_filtered', detail: { lenBefore: content.length, lenAfter: filtered.length } });
-  }
-  const text = filtered.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
-  if (text.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(text) as { needs_clarification?: boolean; speech?: string; keep_open?: boolean };
-      if (typeof parsed.speech === 'string' && parsed.speech.trim().length > 0) {
-        return { speech: parsed.speech, followUp: parsed.needs_clarification === true, keepOpen: parsed.keep_open === true };
-      }
-      trace.push({ ts: Date.now(), step: 'agent.empty_speech' });
-      return { speech: 'Entschuldigung, dazu habe ich gerade nichts gefunden.' };
-    } catch {
-      trace.push({ ts: Date.now(), step: 'agent.json_parse_error' });
-    }
-  }
-  if (text.length === 0) {
-    trace.push({ ts: Date.now(), step: 'agent.empty_content' });
-    return { speech: 'Entschuldigung, dazu habe ich gerade nichts gefunden.' };
-  }
-  return { speech: text };
-}
 
 function assistantName(): string {
   return getSetting('assistant_name') ?? 'Smart Pilot';
@@ -220,37 +81,6 @@ function agentSystemPrompt(): string {
   const inv = promptWithName('agent_inventory');
   if (!inv) return sys;
   return `${sys}\n\n## Tool-Inventory (Nachschlagewerk)\n${inv}`;
-}
-
-function traceUsage(trace: TraceEvent[], model: string, result: ChatCompletionResult): void {
-  if (!result.usage) return;
-  trace.push({
-    ts: Date.now(),
-    step: 'llm.usage',
-    detail: {
-      model: result.usage.model ?? model,
-      prompt_tokens: result.usage.prompt_tokens,
-      completion_tokens: result.usage.completion_tokens,
-      total_tokens: result.usage.total_tokens,
-      cached: result.usage.cached,
-      via_fallback: result.usage.via_fallback,
-    },
-  });
-}
-
-function sumUsageFromTrace(trace: TraceEvent[]): { promptTokens?: number; completionTokens?: number; model?: string } {
-  const sums: Record<string, number> = {};
-  let model: string | undefined;
-  for (const e of trace) {
-    if (e.step !== 'llm.usage') continue;
-    const d = e.detail as Record<string, number | string | boolean | undefined>;
-    const prompt = typeof d.prompt_tokens === 'number' ? d.prompt_tokens : 0;
-    const comp = typeof d.completion_tokens === 'number' ? d.completion_tokens : 0;
-    sums.prompt = (sums.prompt ?? 0) + prompt;
-    sums.completion = (sums.completion ?? 0) + comp;
-    if (!model && typeof d.model === 'string') model = d.model;
-  }
-  return { promptTokens: sums.prompt, completionTokens: sums.completion, model };
 }
 
 async function runToolLoop(

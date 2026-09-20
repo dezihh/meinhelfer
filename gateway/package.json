@@ -12,7 +12,8 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "typecheck": "tsc --noEmit",
-    "smoke": "node scripts/smoke-test.mjs"
+    "smoke": "node scripts/smoke-test.mjs",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1",

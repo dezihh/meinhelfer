@@ -38,6 +38,7 @@ import {
   type FunctionInput,
   type McpServerInput,
 } from './db.js';
+import { normalizeActionInput, normalizeFunctionInput } from './core/normalize.js';
 import { getMcpContext } from './mcp/registry.js';
 import { HTTP_BODY_CAP, HTTP_TIMEOUT_MS, renderActionTemplate } from './core/template.js';
 import { assistIndex, applyDraft } from './core/indexAssistant.js';
@@ -51,77 +52,6 @@ app.use(
     },
   })
 );
-
-function normalizeActionInput(body: Record<string, unknown>): ActionInput {
-  const mode = String(body.mode ?? '');
-  if (mode !== 'deterministic' && mode !== 'llm' && mode !== 'hybrid') {
-    throw new Error(`Ungültiger Modus: ${mode}`);
-  }
-  // Akzeptiert raw- (trigger_phrases/tools) UND geparste Felder (triggers/toolList),
-  // damit ein PUT mit dem Bootstrap-Body keine Trigger leert (Finding #12).
-  // Auch JSON-Strings von der GET-API werden geparst.
-  const parseMaybeJsonArray = (v: unknown): unknown[] | null => {
-    if (Array.isArray(v)) return v.map(String);
-    if (typeof v === 'string') {
-      try {
-        const parsed = JSON.parse(v) as unknown;
-        if (Array.isArray(parsed)) return parsed.map(String);
-      } catch {
-        /* kein JSON - ignorieren */
-      }
-    }
-    return null;
-  };
-  const triggers = parseMaybeJsonArray(body.trigger_phrases)
-    ?? parseMaybeJsonArray(body.triggers)
-    ?? [];
-  const tools = parseMaybeJsonArray(body.tools)
-    ?? parseMaybeJsonArray(body.toolList);
-  const functionArgs =
-    body.function_args && typeof body.function_args === 'object' && !Array.isArray(body.function_args)
-      ? JSON.stringify(body.function_args)
-      : null;
-  return {
-    name: String(body.name ?? '').trim(),
-    mode: mode as ActionMode,
-    trigger_phrases: JSON.stringify(triggers),
-    fuzzy_threshold: body.fuzzy_threshold == null ? null : Number(body.fuzzy_threshold),
-    system_prompt: body.system_prompt == null ? null : String(body.system_prompt),
-    template: body.template == null ? null : String(body.template),
-    function_ref: body.function_ref == null ? null : String(body.function_ref).trim() || null,
-    function_args: functionArgs,
-    // Explizit leeres Array '[]' = bewusst OHNE Tools (z. B. Hilfe-Action);
-    // null (Feld fehlt) = unveraendert/alle Tools.
-    tools: tools ? JSON.stringify(tools) : null,
-    enabled: body.enabled === false ? 0 : 1,
-  };
-}
-
-function normalizeFunctionInput(body: Record<string, unknown>): FunctionInput {
-  const name = String(body.name ?? '').trim();
-  if (!/^[a-z0-9_]{2,40}$/.test(name)) {
-    throw new Error('Name: 2-40 Zeichen, nur a-z, 0-9, _');
-  }
-  const template = String(body.template ?? '').trim();
-  if (!template) throw new Error('Template fehlt');
-  let parameters: string | null = null;
-  if (body.parameters != null && typeof body.parameters === 'object') {
-    parameters = JSON.stringify(body.parameters);
-  }
-  let budget: number | null = null;
-  if (body.budget != null && Number.isFinite(Number(body.budget))) {
-    const b = Math.floor(Number(body.budget));
-    budget = b > 0 ? b : null;
-  }
-  return {
-    name,
-    description: body.description == null ? null : String(body.description).trim() || null,
-    template,
-    parameters,
-    budget,
-    enabled: body.enabled === false ? 0 : 1,
-  };
-}
 
 function normalizeServerInput(body: Record<string, unknown>): McpServerInput {
   const name = String(body.name ?? '').trim();
