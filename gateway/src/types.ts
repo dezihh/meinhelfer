@@ -38,7 +38,7 @@ export interface ActionRow {
 
 export interface ParsedAction extends ActionRow {
   triggers: string[];
-  toolList: string[] | null;
+  toolList: string[];
   functionArgs: Record<string, unknown> | null;
 }
 

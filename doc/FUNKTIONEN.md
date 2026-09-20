@@ -234,11 +234,10 @@ Das LLM sieht pro Frage:
 1. **MCP-Tools laut Allowlist**: das Setting `agent_tools` (Komma-Liste,
    Admin-UI als Checkbox-Picker) schränkt die Tools ein und halbiert damit
    Prompt-Größe und Rundenzeit (gemessen ~58k → ~10k Token); leer/fehlend =
-   alle rohen MCP-Tools (Junk-Einträge über Blockliste gefiltert). Achtung
-   Leer-Semantik: beim **Agenten** heißt nichts angehakt/leer „alle Tools"
-   (er braucht Werkzeuge) — bei einem **Vorgang** dagegen heißt eine leere
-   Auswahl „keine Tool-Specs" (`tools = []`), „alle" geht dort nur über die
-   API (`tools = null`).
+   alle rohen MCP-Tools (Junk-Einträge über Blockliste gefiltert). Einheitliche Checkbox-Semantik (Agent **und** Vorgänge): angehakt =
+   Spec, keins angehakt = keine Specs; gespeichert wird immer die
+   explizite Liste (`keine` bei leerer Auswahl). Ein Backend-Fallback
+   „nicht gesetzt = alle` existiert nur für Altbestände/Fresh-Installs.
 2. **Alle aktiven Funktionen** als `fn_<name>` — parameterisierte mit ihrem
    Schema, parameterlose ohne Argumente.
 

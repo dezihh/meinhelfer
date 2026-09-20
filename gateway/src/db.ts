@@ -389,11 +389,14 @@ export function parseAction(row: ActionRow): ParsedAction {
   } catch {
     triggers = [];
   }
-  let toolList: string[] | null = null;
+  // Normierte Tool-Liste: fehlt die Spalte, gilt "keine" (leere Auswahl).
+  // "Alle" gibt es als Spezialfall nicht mehr - eine Liste mit allen Tools
+  // wird explizit geschrieben (Select-All in der UI).
+  let toolList: string[] = [];
   try {
-    toolList = row.tools ? (JSON.parse(row.tools) as unknown[]).map(String) : null;
+    toolList = row.tools ? (JSON.parse(row.tools) as unknown[]).map(String) : [];
   } catch {
-    toolList = null;
+    toolList = [];
   }
   let functionArgs: Record<string, unknown> | null = null;
   try {
