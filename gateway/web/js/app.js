@@ -100,7 +100,7 @@ const SETTINGS_FIELDS = [
     label: 'Agent-Tool-Allowlist',
     type: 'tools',
     span: true,
-    help: 'Komma-Liste der Tools, die der Agent als Tool-Specs bekommt (Prompt-Diät: weniger Specs = kleinerer Prompt, schnellere fokussierte Runden). Leer = alle Tools der MCP-Registry.',
+    help: 'Angehakt = der Agent bekommt das Tool als Spec (Prompt-Diät: weniger Specs = kleinerer Prompt, schnellere fokussierte Runden). NICHTS angehakt = ALLE Tools (leere Liste ≈ alle — der Agent braucht Werkzeuge; anders als bei Vorgängen, wo eine leere Auswahl „keine Tools“ bedeutet).',
   },
   {
     key: 'tool_budgets',
@@ -376,7 +376,14 @@ function toolsFromList(listId) {
 }
 
 function syncActionToolsInput() {
-  $('action-tools').value = toolsFromList('action-tools-list').join('\n');
+  const picked = toolsFromList('action-tools-list');
+  $('action-tools').value = picked.join('\n');
+  const sum = $('action-tools-summary');
+  if (sum) {
+    sum.textContent = picked.length
+      ? `Ausgewählt (${picked.length}) — diese Tools dürfen die LLM-Modi des Vorgangs nutzen.`
+      : 'Nichts angehakt = KEINE Tool-Specs (Vorgang läuft ohne Tools, z. B. reine Formulierung).';
+  }
 }
 
 async function loadToolPicker(selected, listId = 'action-tools-list', syncFn = syncActionToolsInput) {

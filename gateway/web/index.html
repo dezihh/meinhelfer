@@ -123,12 +123,13 @@
             </select>
           </div>
           <div class="field">
-            <div class="field-head"><label>Erlaubte Tools (leer = alle erlaubt)</label><button type="button" class="help" data-help="Begrenzt die LLM-Modi (llm/hybrid) auf die angehakten Tools. Das Template (deterministic) ist davon nicht betroffen." aria-label="Hilfe zu Erlaubte Tools">?</button></div>
-            <div class="field-help hidden">Wirkt nur in den LLM-Modi: das Modell sieht dann ausschließlich die angehakten Facade-/MCP-Tools. Leer = alle erlaubt. Das Template im deterministic-Modus ruft Tools unabhängig davon über ha.call auf.</div>
+            <div class="field-head"><label>Erlaubte Tools</label><button type="button" class="help" data-help="Angehakt = in den LLM-Modi (llm/hybrid) erlaubt. Nichts angehakt = keine Tool-Specs (z. B. reine Formulierung). Alle Tools nur via API (tools=null). Das Template im deterministic-Modus ruft Tools unabhängig davon über ha.call auf." aria-label="Hilfe zu Erlaubte Tools">?</button></div>
+            <div class="field-help hidden">Angehakt = in den LLM-Modi (llm/hybrid) erlaubt; das Modell sieht dann ausschließlich diese Tools. Nichts angehakt = KEINE Tools (Vorgang läuft ohne Tool-Specs, z. B. reine Formulierung) — anders als beim Agenten-Setting, wo eine leere Liste alle Tools erlaubt. Alle für einen Vorgang geht nur über die API (tools=null), die UI schreibt immer eine Liste. Das Template im deterministic-Modus ruft Tools unabhängig davon über ha.call auf.</div>
             <details id="action-tools-picker">
               <summary>Tools auswählen</summary>
               <div id="action-tools-list"></div>
             </details>
+            <div id="action-tools-summary" class="field-help"></div>
             <input type="hidden" id="action-tools">
           </div>
           <label class="check"><input id="action-enabled" type="checkbox" checked> Aktiv</label>
