@@ -127,6 +127,8 @@ td.actions { text-align: right; white-space: nowrap; }
 
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; }
 
+.form-grid .span-full { grid-column: 1 / -1; }
+
 .field-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 
 .field-head h2 { margin: 0; }

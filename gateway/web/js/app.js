@@ -99,12 +99,14 @@ const SETTINGS_FIELDS = [
     key: 'agent_tools',
     label: 'Agent-Tool-Allowlist',
     type: 'textarea',
+    span: true,
     help: 'Komma-Liste der Tools, die der Agent als Tool-Specs bekommt (Prompt-Diät: weniger Specs = kleinerer Prompt, schnellere fokussierte Runden). Leer = alle Tools der MCP-Registry.',
   },
   {
     key: 'tool_budgets',
     label: 'Tool-Budgets (JSON)',
     type: 'textarea',
+    span: true,
     help: 'JSON-Map mit Call-Budgets pro MCP-Tool im Agent-Loop, z. B. {"web_url_read":3}. Erschöpft → Budget-Fehler ans Modell (verhindert Such-Shopping). Leer = unbegrenzt.',
   },
   {
@@ -234,6 +236,7 @@ for (const btn of document.querySelectorAll('button.help[title]')) {
 function buildSettingField(field) {
   const wrap = document.createElement('div');
   wrap.className = 'field';
+  if (field.span) wrap.classList.add('span-full');
   const head = document.createElement('div');
   head.className = 'field-head';
   const label = document.createElement('label');
