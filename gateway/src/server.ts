@@ -58,11 +58,22 @@ function normalizeActionInput(body: Record<string, unknown>): ActionInput {
   }
   // Akzeptiert raw- (trigger_phrases/tools) UND geparste Felder (triggers/toolList),
   // damit ein PUT mit dem Bootstrap-Body keine Trigger leert (Finding #12).
-  const triggers = Array.isArray(body.trigger_phrases)
-    ? body.trigger_phrases.map(String)
-    : Array.isArray(body.triggers)
-      ? body.triggers.map(String)
-      : [];
+  // Auch JSON-Strings von der GET-API werden geparst.
+  const parseMaybeJsonArray = (v: unknown): unknown[] | null => {
+    if (Array.isArray(v)) return v.map(String);
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v) as unknown;
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch {
+        /* kein JSON - ignorieren */
+      }
+    }
+    return null;
+  };
+  const triggers = parseMaybeJsonArray(body.trigger_phrases)
+    ?? parseMaybeJsonArray(body.triggers)
+    ?? [];
   const tools = Array.isArray(body.tools)
     ? body.tools.map(String)
     : Array.isArray(body.toolList)
