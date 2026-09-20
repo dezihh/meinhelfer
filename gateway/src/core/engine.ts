@@ -45,8 +45,10 @@ function priorTurns(sessionId: string): ChatMessage[] {
     });
   }
   for (const t of turns) {
-    out.push({ role: 'user', content: t.query });
-    out.push({ role: 'assistant', content: t.response });
+    // Trim: SSML-Berichte als Klartext, begrenzt - der Recall soll
+    // Kontext liefern, nicht den Prompt sprengen (Prompt-Größe = Rundenzeit).
+    out.push({ role: 'user', content: t.query.slice(0, 300) });
+    out.push({ role: 'assistant', content: stripSsmlTags(t.response).slice(0, 600) });
   }
   return out;
 }
@@ -387,7 +389,15 @@ async function runToolLoop(
 
 async function runAgent(query: VoiceQuery, mcp: McpContext, trace: TraceEvent[]): Promise<AssistantResponse> {
   const system = agentSystemPrompt();
-  const response = await runToolLoop(system, query.text, null, mcp, trace, query.sessionId);
+  // Schema-Diät: Setting 'agent_tools' (Komma-Liste) schraenkt die dem Agenten
+  // bekannten Tools ein und halbiert damit Prompt-Größe und Rundenzeit.
+  // Leer/fehlend = alle Tools (Rueckwaerts-kompatibel).
+  const agentToolsRaw = getSetting('agent_tools');
+  const allowlist =
+    agentToolsRaw && agentToolsRaw.trim().length > 0
+      ? agentToolsRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : null;
+  const response = await runToolLoop(system, query.text, null, mcp, trace, query.sessionId, allowlist);
   rememberTurn(query.sessionId, query.text, response.speech);
   return response;
 }
