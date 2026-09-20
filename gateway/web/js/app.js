@@ -60,6 +60,54 @@ const SETTINGS_FIELDS = [
     help: 'Überschrift des APL-Displays auf Echo-Show-Geräten. Wirkt ab der nächsten Anfrage, kein Neustart nötig.',
   },
   {
+    key: 'llm_model',
+    label: 'LLM-Modell',
+    type: 'text',
+    help: 'Modell für alle LLM-Aufrufe (Agent, Hybrid-Formulierung, Index-Assistent). Leer = Default aus .env. Wirkt ab der nächsten Anfrage, kein Neustart. Muss Tool-/JSON-fähig sein, sonst scheitern Agent-Antworten.',
+  },
+  {
+    key: 'tool_model',
+    label: 'Tool-Modell (optional)',
+    type: 'text',
+    help: 'Eigenes Modell nur für die Tool-Runden des Agenten; die Formulierung läuft auf LLM-Modell. Leer = überall dasselbe Modell. Nützlich als gestufte A/B-Schleuse beim Modellwechsel: erst Tool-Runden auf dem Kandidaten testen, dann ganz umstellen. Muss Tool-fähig sein.',
+  },
+  {
+    key: 'llm_max_tokens',
+    label: 'LLM max. Tokens',
+    type: 'number',
+    help: 'Deckel für die Antwortlänge des LLM in Tokens. Leer = Default aus .env. Reasoner-Modelle brauchen >= 800, sonst leere Antworten. Zu klein schneidet lange Berichte ab.',
+  },
+  {
+    key: 'llm_reasoning_effort',
+    label: 'LLM Reasoning-Stufe',
+    type: 'text',
+    help: 'Nur für Reasoner-Modelle: low/medium/high. Leer = wie .env (meist ungesetzt). Bei Normalmodellen ohne Wirkung.',
+  },
+  {
+    key: 'max_tool_iterations',
+    label: 'Agent max. Tool-Runden',
+    type: 'number',
+    help: 'Wie viele Tool-Runden der Agent pro Frage maximal laufen lässt. Leer = Default (4). Jede Runde kostet LLM-Zeit; die letzte Runde formuliert zwingend (kein Budget-Tod).',
+  },
+  {
+    key: 'tool_deadline_ms',
+    label: 'Agent-Tool-Deadline (ms)',
+    type: 'number',
+    help: 'Deadline pro Tool-Runde des Agenten; das Gesamtbudget ist etwa das Doppelte. Leer = Default (12000). Muss in Amazons Antwortfenster (~8 s, HTTPS-Pfad) passen – der Warteton überbrückt die Wartezeit.',
+  },
+  {
+    key: 'agent_tools',
+    label: 'Agent-Tool-Allowlist',
+    type: 'textarea',
+    help: 'Komma-Liste der Tools, die der Agent als Tool-Specs bekommt (Prompt-Diät: weniger Specs = kleinerer Prompt, schnellere fokussierte Runden). Leer = alle Tools der MCP-Registry.',
+  },
+  {
+    key: 'tool_budgets',
+    label: 'Tool-Budgets (JSON)',
+    type: 'textarea',
+    help: 'JSON-Map mit Call-Budgets pro MCP-Tool im Agent-Loop, z. B. {"web_url_read":3}. Erschöpft → Budget-Fehler ans Modell (verhindert Such-Shopping). Leer = unbegrenzt.',
+  },
+  {
     key: 'fuzzy_global',
     label: 'Fuzzy-Trigger global',
     type: 'select',
@@ -80,43 +128,6 @@ const SETTINGS_FIELDS = [
     help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Wirkt nur, wenn die Nachfrage auf „Bei Session-Keyword" oder „Beides" steht.',
   },
   {
-    key: 'debug_logging',
-    label: 'Debug-Logging',
-    type: 'select',
-    options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
-    help: 'Schreibt ausführliche Schritte (Tool-Aufrufe, Router-Entscheidungen) ins Gateway-Log (docker logs). Für den Alltag aus lassen – spart Lautstärke und macht Logs lesbar.',
-  },
-  {
-    key: 'llm_model',
-    label: 'LLM-Modell',
-    type: 'text',
-    help: 'Modell für alle LLM-Aufrufe (Agent, Hybrid-Formulierung, Index-Assistent). Leer = Default aus .env. Wirkt ab der nächsten Anfrage, kein Neustart. Muss Tool-/JSON-fähig sein, sonst scheitern Agent-Antworten.',
-  },
-  {
-    key: 'llm_max_tokens',
-    label: 'LLM max. Tokens',
-    type: 'number',
-    help: 'Deckel für die Antwortlänge des LLM in Tokens. Leer = Default aus .env. Zu klein schneidet lange Berichte ab, zu groß kostet ggf. Latenz.',
-  },
-  {
-    key: 'llm_reasoning_effort',
-    label: 'LLM Reasoning-Stufe',
-    type: 'text',
-    help: 'Nur für Reasoner-Modelle: low/medium/high. Leer = wie .env (meist ungesetzt). Bei Normalmodellen ohne Wirkung.',
-  },
-  {
-    key: 'tool_deadline_ms',
-    label: 'Agent-Tool-Deadline (ms)',
-    type: 'number',
-    help: 'Deadline pro Tool-Runde des Agenten; das Gesamtbudget ist etwa das Doppelte. Leer = Default. Muss zusammen mit der Fallback-Schwelle in Amazons dokumentiertes Antwortfenster (~8 s, HTTPS-Pfad) passen – der Warteton überbrückt die Wartezeit.',
-  },
-  {
-    key: 'max_tool_iterations',
-    label: 'Agent max. Tool-Runden',
-    type: 'number',
-    help: 'Wie viele Tool-Runden der Agent pro Frage maximal laufen lässt. Leer = Default. Jede Runde kostet LLM-Zeit; weniger = schnellere Antwort, aber evtl. unvollständige Recherche.',
-  },
-  {
     key: 'alexa_progress_after_ms',
     label: 'Alexa-Warteton ab (ms)',
     type: 'number',
@@ -134,7 +145,15 @@ const SETTINGS_FIELDS = [
     type: 'number',
     help: 'Maximale Länge einer http()-Antwort, die ins Template/Trace geht. Leer = Default (100000). Schutz gegen riesige Antworten.',
   },
+  {
+    key: 'debug_logging',
+    label: 'Debug-Logging',
+    type: 'select',
+    options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
+    help: 'Schreibt ausführliche Schritte (Tool-Aufrufe, Router-Entscheidungen) ins Gateway-Log (docker logs). Für den Alltag aus lassen – spart Lautstärke und macht Logs lesbar.',
+  },
 ];
+
 
 function renderSettings() {
   const form = $('settings-form');
@@ -145,6 +164,7 @@ function renderSettings() {
     form.append(buildSettingField(field));
   }
   for (const key of Object.keys(bootstrap.settings)) {
+    if (key === 'entity_index' || key.startsWith('entity_index_')) continue;
     if (!known.has(key)) form.append(buildSettingField({ key, label: key, type: 'text', help: '' }));
   }
 }
