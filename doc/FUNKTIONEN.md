@@ -47,7 +47,7 @@ und zeigt Ergebnis + Trace-Schritte — ohne zu speichern.
 | `index.state('id')` | Zustand eines Eintrags als String | aus dem gecachten Index |
 | `index.get('id')` | Zustand + Attribute eines konkreten Eintrags | aus dem selben Index |
 | `shell('befehl')` | Shell im Gateway-Container | Timeout 5 s, Output auf 4000 Zeichen begrenzt |
-| `http('url')` | GET-Request auf eine URL | Timeout 5 s, 100 KB; JSON wird geparst → direkter Feldzugriff |
+| `http('url')` / `http('url', ttlMs)` | GET-Request auf eine URL; zweites Argument = TTL-Cache in ms | Timeout 5 s (Setting `http_timeout_ms`), 100 KB (`http_body_cap`); JSON wird geparst → direkter Feldzugriff |
 | `fn('name')` | Andere Funktion einbetten | Verschachtelung bis Tiefe 3, Zyklus-Schutz |
 | `args` | Argumente eines LLM-Tool-Aufrufs | nur bei parameterisierten Funktionen (siehe unten) |
 | `now` | `now.hour`, `now.weekday`, `now.date`, `now.time` | Gateway-Zeit |
@@ -108,12 +108,39 @@ direkt im Toolloop.
 
 - Args als **flaches JSON-Literal in einer Zeile**; identische Aufrufe
   (Tool + Args) werden dedupliziert; Ergebnis als Text
-- Dynamische Argumente (z. B. `args.query`) gehen nicht ins Preheat — dafür
-  gibt es die `index.*`-Helfer bzw. den Agenten-Toolloop
+- **Dynamische Argumente**: Objekt-Argumente dürfen `args.`/`now.` enthalten
+  — der Ausdruck wird zu einem JSON-Objekt ausgewertet und live gecallt
+  (Trace `template.mcp.dyn`):
+
+```jinja
+{{ mcp.call('searxng_web_search', {'query': args.query, 'num_results': 5}) }}
+{{ mcp.call('web_url_read', {'url': 'https://' ~ args.url ~ '/rss', 'maxLength': 6000}) }}
+```
+
+  Filter direkt im Objekt-Literal funktionieren (`args.lang | default('de')`);
+  Template-lokale `set`-Variablen sind im Auswertungskontext **nicht**
+  sichtbar (der Eval-Kontext enthält nur `args`/`now`) — Defaults also
+  direkt im Literal selbst auswerten.
 
 Alle Bausteine werden **vor** dem Rendern parallel aufgelöst („preheat") und
 dedupliziert — zwei gleiche Aufrufe = ein Request. Helfer geben **Text**
 zurück, keine Objekte (verhindert `[object Object]` in Antworten).
+
+### HTTP: TTL-Cache und dynamische URLs
+
+- **TTL-Cache** (zweites Argument in ms): `http('https://www.tagesschau.de/rss', 60000)`
+  hält das Ergebnis 60 s pro URL im Prozess (Trace `template.http.cache`).
+  Ohne TTL = frischer Call pro Render; mit TTL = ein Call pro TTL-Fenster.
+- **Dynamische URLs**: Der URL-Ausdruck darf `args`/`now` konkatenieren —
+  er wird zuerst aufgelöst, das Ergebnis wird normal gefetcht/gecached:
+
+```jinja
+{{ http('https://query1.finance.yahoo.com/v8/finance/chart/' ~ args.ticker, 60000) }}
+```
+
+- **Grenze**: JSON über `http_body_cap` (Default 100 KB) kann nicht geparst
+  werden — `http()` liefert dann den Rohtext als String (kein Feldzugriff);
+  bei großen APIs lieber einen schlanken Endpunkt/Feed wählen.
 
 ### Beispiele (anonymisiert)
 
@@ -151,8 +178,12 @@ Beispiel „find_entities" (ersetzt den früheren statischen Such-Helper):
 - Agent ruft: `fn_find_entities {"query": "garage temperatur"}`
 
 Damit lassen sich beliebige eigene Tools bauen — z. B. eine Datei- oder
-Mediensuche über einen eigenen HTTP-Endpunkt (URL wörtlich im Template,
-Filterung per Jinja; dynamische URLs stattdessen über `shell('curl …')`).
+Mediensuche über einen eigenen HTTP-Endpunkt (URL mit `args`-Konkatenation,
+Filterung per Jinja).
+
+**Pitfall**: Ohne Parameter-Schema ruft das Modell das Tool gern mit
+**leeren Argumenten** (`{}`) — argumentierte Tools brauchen ein Schema mit
+`required`-Feldern. Parameterlose Tools bekommen `{"type":"object","properties":{}}`.
 
 ## Vorgänge (Admin-Tab „Vorgänge")
 
@@ -165,22 +196,53 @@ Filterung per Jinja; dynamische URLs stattdessen über `shell('curl …')`).
   diesem Vorgang sieht — leer = alle (Funktionen erscheinen als `fn_*`).
 - **Trigger-Phrasen** + Fuzzy-Schwellwert bestimmen das Routing; ohne
   Treffer geht die Frage an den Agenten.
+- **`function_args`** (Vorgangsfeld): feste Argumente für die zugewiesene
+  Funktion (z. B. `{"road": "A24"}` beim Stau-Report) — das Template liest
+  sie als `args`; ein Schema in der Funktion beschreibt, welche Argumente
+  es gibt.
+- **Action-PUT ist Full-Replace**: Ein PUT ohne Feld wipt dieses Feld
+  (System-Prompt, Trigger, Tools) — beim Editieren immer den vollständigen
+  Body mitschicken. Trigger-Phrasen werden als Array oder JSON-String
+  akzeptiert; `tools: []` heißt bewusst **ohne Tools** (z. B. Hilfe-Action),
+  fehlendes Feld = unverändert.
 
 ## Werkzeuge des Agenten
 
 Das LLM sieht pro Frage:
 
-1. **Alle rohen MCP-Tools** der aktivierten Server (Junk-Einträge sind über
-   eine Blockliste gefiltert; Namenskollisionen erhalten das Präfix des
-   Servers, z. B. `SearXNG__web_url_read`).
+1. **MCP-Tools laut Allowlist**: das Setting `agent_tools` (Komma-Liste)
+   schränkt die Tools ein und halbiert damit Prompt-Größe und Rundenzeit
+   (gemessen ~58k → ~10k Token); leer/fehlend = alle rohen MCP-Tools
+   (Junk-Einträge über Blockliste gefiltert).
 2. **Alle aktiven Funktionen** als `fn_<name>` — parameterisierte mit ihrem
    Schema, parameterlose ohne Argumente.
 
-Budgets pro Frage verhindern Schleifen: z. B. Websuche 1×, `fn_find_entities` 2×,
-`fn_get_entity` 3×, Hausstatus-Bericht 1×.
+Budgets pro Frage verhindern Schleifen:
 
-Die beiden Prompts (`agent_system`, `agent_inventory`, im Admin-UI
-editierbar) lehren das Modell die Nutzung; `{assistant_name}` wird ersetzt.
+- **MCP-Tools**: Setting `tool_budgets` (JSON), z. B.
+  `{"searxng_web_search":3,"brave_web_search":2,"web_url_read":3}`
+- **Funktionen**: Spalte `budget` in der Funktionen-Registry
+- Erschöpft = `tool.budget_hit` im Trace, das Tool liefert einen
+  Budget-Fehler ans Modell statt still weiterzulaufen
+
+Weitere Laufzeit-Schrauben (Settings, Admin-UI):
+
+| Setting | Wirkung |
+|---------|---------|
+| `llm_model` | Primärmodell (Reasoner beachten: `llm_max_tokens` ≥ 800, sonst leeres `content`) |
+| `tool_model` | Modell nur für Tool-Runden (leer = überall dasselbe) |
+| `llm_max_tokens` | Output-Budget pro Call |
+| `max_tool_iterations` | Runden gesamt; die **letzte Runde** bekommt eine „formuliere jetzt"-Anweisung (Formulierungs-Garantie) |
+| `tool_deadline_ms` | Deadline für den Agent-Loop |
+| `http_timeout_ms` / `http_body_cap` | Grenzen des http()-Bausteins |
+| `alexa_progress_after_ms` | Warteton-Grenze beim Alexa-Einstieg |
+
+Die Prompts (`agent_system`, `agent_inventory`) werden zu
+`## Tool-Inventory` zusammengeführt und lehren das Modell die Nutzung;
+`{assistant_name}` wird ersetzt. **Auch Action-Prompts (mode `llm`) können
+`{agent_inventory}` enthalten** — die Engine fügt das live gepflegte
+Nachschlagewerk ein (Muster der Hilfe-Action: System-Prompt als Regel +
+Inventory als Datenquelle, `tools: []`, Single Source of Truth).
 
 ## Praxis-Rezepte
 
@@ -266,14 +328,75 @@ API-Key; pro Position ein wörtlicher http()-Block, Formatierung per Makro.
 {{ pos('SAP', d_sap, 40) }}
 ```
 
-Dynamische Ticker-Abfragen („wie steht eigentlich Apple?") gehen noch nicht —
-`http()`-URLs sind wörtlich; Ad-hoc-Abfragen wären eine Erweiterung
-(URL-Template mit `args`).
+Dynamische Ticker-Abfragen funktionieren mit `args`-Konkatenation im
+`http()`-URL-Ausdruck (siehe „HTTP: TTL-Cache und dynamische URLs") —
+z. B. einer Funktion mit Schema `ticker`:
+
+```jinja
+{%- set d = http('https://query1.finance.yahoo.com/v8/finance/chart/' ~ args.ticker, 60000) -%}
+```
+
+**Recherche in einem Aufruf (Funktion „recherche", live aktiv):**
+Websuche (Brave) + optionaler Feed-Lese in einem Tool-Call; der Agent
+formuliert daraus. Budget 2 (Feed-Discovery-Schritt inbegriffen).
+
+```jinja
+{%- set s = mcp.call('brave_web_search', {'query': args.query, 'count': 5}) -%}{{ s }}
+{%- if args.url -%}
+--- FEED-PROBE ---
+{{ mcp.call('web_url_read', {'url': 'https://' ~ args.url ~ '/rss', 'maxLength': 6000}) }}
+{%- endif %}
+```
+
+- Parameter: `query` (required, konkrete Suchphrase) und `url` (optional,
+  Domain ohne https:// — löst den deterministischen `/rss`-Probe-Lese aus)
+- Der an das Ergebnis angehängte Hinweis lehrt die Lese-Leiter (Treffer →
+  ein `web_url_read` → Feed-Suche) und verbietet Erfindung/Rückfragen
+- Für Quellen mit Bot-Schutz (z. B. CNN) oder JS-Rendering (z. B. chefkoch)
+  bleibt nur, was die Suchtreffer/Snippets hergeben — dann sagt der Agent
+  ehrlich „nicht lesbar" statt zu erfinden
+
+**Music-Assistant-Player in einem Call (Funktion „ma_players", live aktiv):**
+Ein `players_list_players`-Call, im Template auf
+`player_id | name | state | vol=` kompakt gesplittet; der Agent steuert
+danach Playback-Tools mit der richtigen `player_id`:
+
+```jinja
+{%- set raw = mcp.call('players_list_players') -%}
+{%- set parts = raw.split('{"player_id":"') -%}
+{%- for p in parts -%}
+{%- if not loop.first and p.split('"available":')[1].split(',')[0] == 'true' -%}
+{{ p.split('"')[0] }} | {{ p.split('"name":"')[1].split('"')[0] }} | {{ p.split('"state":"')[1].split('"')[0] }} | vol={{ p.split('"volume_level":')[1].split(',')[0] }}
+{% endif -%}{%- endfor -%}
+```
+
+**Hilfe-Action (Hybrid-Muster, live aktiv):**
+Vorgang „hilfe", mode `llm`, Trigger `hilfe`/`was kannst du`, `tools: []`
+(keine Tools). Der System-Prompt enthält `{agent_inventory}` — die Engine
+fügt das live gepflegte Nachschlagewerk ein. Die Hilfe ist damit immer so
+aktuell wie das Inventory (Single Source of Truth), kostet ~1 s und hält
+die Session offen (`keep_open`), damit Detailfragen im Folgeturn laufen.
+
+## Konfiguration: drei Ebenen
+
+| Ebene | Was liegt dort | Beispiele |
+|-------|----------------|-----------|
+| `.env` | Secrets + Start-Infra (nur was vor dem Prozessstart feststeht) | `AUTH_TOKEN`, `ALEXA_SKILL_ID`, `LLM_BASE_URL`/`LLM_API_KEY`, `LLM_MODEL` (Fallback-Default) |
+| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `tool_budgets`, `agent_tools`, `http_timeout_ms`, `http_body_cap`, `alexa_progress_after_ms`, `entity_index`/`entity_index_ma` |
+| DB-Tabellen | Inhalte | `actions` (Vorgänge), `tpl_functions` (Funktionen), `prompts` (`agent_system`, `agent_inventory`), `mcp_servers`, `logs` |
+
+Settings mit leerem Wert fallen auf `.env`-/Code-Default zurück
+(`getSettingNum`/`getSetting`-Fallback-Kette).
 
 ## Grenzen & Fallstricke
 
-- `http()`-URLs müssen **wörtlich** im Template stehen (Vorladen);
-  dynamische URLs über `shell('curl …')`.
+- `http()`-URLs: wörtlich **oder** `args`/`now`-Konkatenation (Preheat wertet
+  den Ausdruck vorgängig aus); Template-lokale `set`-Variablen sind im
+  Auswertungskontext von `http()` und `mcp.call()` **nicht sichtbar** —
+  dynamische Werte immer über `args` transportieren.
+- `mcp.call`/`http` mit TTL: JSON über dem Body-Cap wird nicht geparst
+  (`http()` → Rohtext-String); große APIs (z. B. Tagesschau-API > 600 KB)
+  brauchen einen schlanken Endpunkt oder Feed.
 - Helfer liefern Text — für Rohdaten in Variablen den Snapshot über
   `index.find`/`index.get`-Ergebnisse parsen oder `| dump` nutzen.
 - `shell` und `http` sind Admin-only editierbar und laufen im Gateway-Container;
@@ -281,3 +404,16 @@ Dynamische Ticker-Abfragen („wie steht eigentlich Apple?") gehen noch nicht �
 - Hauswerte-Scoring (Aliase wie „warm" → Temperatur, Raum-Matching) lebt in
   `index.find` — für gesprochene Fragen deutlich treffsicherer als reines
   Substring-Matching.
+- **Reasoner-Modelle** (gpt-oss-*, deepseek-v4-flash): Output-Budget unter
+  ~400 Token wird vom Denken aufgefressen → leeres `content`; daher
+  `llm_max_tokens` ≥ 800. Ein `usage.model` weicht gern vom angefragten
+  Namen ab (LiteLLM-Mapping-Artefakt) — Latenz/Verhalten sind die Wahrheit.
+- **Prompt-Caching** wirkt auf identische Requests (auch Agent-Runden,
+  <100 ms) — wiederholte Test-Queries mit identischem Text liefern gefälscht
+  schnelle/kurze Messwerte; Sessions und Formulierungen variieren.
+- **Quellen-Schutz**: Bot-Schutz (CNN: auch RSS-SSL-Kill) und
+  JS-Rendering (chefkoch: Feeds 403/404) machen Quellen für
+  `web_url_read` unlesbar; Feeds (`<domain>/rss`) decken den Rest. Die
+  SearXNG-Instanz hat aktuell nur `google cse` als Engine — Portal-Metas
+  bei generischen Queries sind die Folge (Mehrwert durch eigene
+  News-Engines in der SearXNG-Config).
