@@ -170,6 +170,10 @@ async function callLlm(
         cached:
           (data.usage.cache_read_input_tokens !== undefined && data.usage.cache_read_input_tokens > 0) ||
           (data.usage.cached_tokens !== undefined && data.usage.cached_tokens > 0),
+        // Echtes Serviertes Modell aus der Antwort (Proxy-echo), nicht der
+        // .env-Default - sonst zeigt der Trace deepseek-v4-pro, obwohl
+        // gpt-oss-120b o. ae. aktiv ist.
+        model: (data as { model?: string }).model,
       }
     : undefined;
   return {
