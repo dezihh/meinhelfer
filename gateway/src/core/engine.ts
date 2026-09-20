@@ -347,10 +347,19 @@ async function runToolLoop(
       messages.push({ role: 'tool', content: r.content, tool_call_id: r.id });
     }
   };
-  for (let i = 0; i < getSettingNum('max_tool_iterations', config.maxToolIterations); i++) {
+  const maxIter = getSettingNum('max_tool_iterations', config.maxToolIterations);
+  for (let i = 0; i < maxIter; i++) {
     if (i > 0 && Date.now() >= overallDeadline) {
       trace.push({ ts: Date.now(), step: 'tool.deadline' });
       return { speech: TimeoutAnswer };
+    }
+    // Letzte Runde: Formulierung erzwingen (sonst kaufte das Modell das Budget
+    // voll und die Schleife endete ohne Antwort).
+    if (i === maxIter - 1) {
+      messages.push({
+        role: 'system',
+        content: 'Letzte Runde: formuliere JETZT die finale Antwort aus den bisherigen Tool-Ergebnissen - keine weiteren Tool-Aufrufe.',
+      });
     }
     const remaining = Math.min(toolDeadline(), Math.max(overallDeadline - Date.now(), 5000));
     let message: ChatMessage;
