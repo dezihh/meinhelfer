@@ -180,7 +180,12 @@ async function loadSettingToolPickers() {
     const current = String(bootstrap.settings[f.key] ?? '');
     const sync = () => {
       const ctrl = document.querySelector(`#settings-form [data-key="${f.key}"]`);
-      if (ctrl) ctrl.value = toolsFromList(listId).join(', ');
+      const picked = toolsFromList(listId);
+      if (ctrl) ctrl.value = picked.join(', ');
+      const sum = $(`settings-tools-summary-${f.key}`);
+      if (sum) sum.textContent = picked.length
+        ? `Ausgewählt (${picked.length}): ${picked.join(', ')}` + ' — leerer Haken links = alle Tools.'
+        : 'Alle Tools (keine Auswahl).';
     };
     const names = current.split(',').map((x) => x.trim()).filter(Boolean);
     await loadToolPicker(names, listId, sync);
@@ -275,12 +280,16 @@ function buildSettingField(field) {
     control = document.createElement('input');
     control.type = 'text';
     control.value = String(controlValue);
+    control.style.display = 'none';
+    const summary = document.createElement('div');
+    summary.className = 'field-help';
+    summary.id = `settings-tools-summary-${field.key}`;
     const picker = document.createElement('div');
     picker.id = `settings-tools-${field.key}`;
     picker.className = 'tool-group';
     picker.style.marginTop = '0.4rem';
     picker.dataset.sync = field.key;
-    wrap.append(head, control, picker);
+    wrap.append(head, control, summary, picker);
     return wrap;
   }
   if (field.type === 'select') {
