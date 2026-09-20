@@ -100,7 +100,7 @@ const SETTINGS_FIELDS = [
     label: 'Agent-Tool-Allowlist',
     type: 'tools',
     span: true,
-    help: 'Angehakt = der Agent bekommt das Tool als Spec (Prompt-Diät: weniger Specs = kleinerer Prompt, schnellere fokussierte Runden). NICHTS angehakt = ALLE Tools (leere Liste ≈ alle — der Agent braucht Werkzeuge; anders als bei Vorgängen, wo eine leere Auswahl „keine Tools“ bedeutet).',
+    help: 'Modus "Alle Tools": keine Einschränkung (Backend: leere Liste = alle). Modus "Eigene Auswahl": angehakt = das Tool kommt als Spec in den Agenten-Prompt (Prompt-Diät). Anders als bei Vorgängen: dort bedeutet eine leere Auswahl "keine Tools".',
   },
   {
     key: 'tool_budgets',
@@ -172,6 +172,26 @@ function renderSettings() {
   void loadSettingToolPickers();
 }
 
+function settingToolsMode(key) {
+  return $(`settings-tools-mode-${key}`)?.value ?? 'alle';
+}
+
+function toggleSettingToolsMode(key, pickedCount) {
+  const mode = settingToolsMode(key);
+  const picker = $(`settings-tools-${key}`);
+  const sum = $(`settings-tools-summary-${key}`);
+  if (picker) picker.classList.toggle('hidden', mode !== 'auswahl');
+  if (sum) {
+    if (mode === 'alle') {
+      sum.textContent = 'Keine Einschränkung — der Agent sieht alle Tools der Registry (Backend: leere Liste = alle).';
+    } else if (pickedCount !== undefined) {
+      sum.textContent = pickedCount
+        ? `Ausgewählt (${pickedCount}) — nur diese Tools bekommt der Agent als Spec.`
+        : 'Eigene Auswahl: mindestens 1 Tool anhaken (oder Modus „Alle Tools").';
+    }
+  }
+}
+
 async function loadSettingToolPickers() {
   for (const f of SETTINGS_FIELDS.filter((x) => x.type === 'tools')) {
     const listId = `settings-tools-${f.key}`;
@@ -182,10 +202,7 @@ async function loadSettingToolPickers() {
       const ctrl = document.querySelector(`#settings-form [data-key="${f.key}"]`);
       const picked = toolsFromList(listId);
       if (ctrl) ctrl.value = picked.join(', ');
-      const sum = $(`settings-tools-summary-${f.key}`);
-      if (sum) sum.textContent = picked.length
-        ? `Ausgewählt (${picked.length}): ${picked.join(', ')}` + ' — leerer Haken links = alle Tools.'
-        : 'Alle Tools (keine Auswahl).';
+      toggleSettingToolsMode(f.key, picked.length);
     };
     const names = current.split(',').map((x) => x.trim()).filter(Boolean);
     await loadToolPicker(names, listId, sync);
@@ -281,6 +298,11 @@ function buildSettingField(field) {
     control.type = 'text';
     control.value = String(controlValue);
     control.style.display = 'none';
+    const mode = document.createElement('select');
+    mode.id = `settings-tools-mode-${field.key}`;
+    mode.innerHTML = '<option value="alle">Alle Tools (keine Einschränkung)</option><option value="auswahl">Eigene Auswahl</option>';
+    mode.value = String(controlValue).trim() ? 'auswahl' : 'alle';
+    mode.addEventListener('change', () => toggleSettingToolsMode(field.key));
     const summary = document.createElement('div');
     summary.className = 'field-help';
     summary.id = `settings-tools-summary-${field.key}`;
@@ -289,7 +311,8 @@ function buildSettingField(field) {
     picker.className = 'tool-group';
     picker.style.marginTop = '0.4rem';
     picker.dataset.sync = field.key;
-    wrap.append(head, control, summary, picker);
+    wrap.append(head, mode, control, summary, picker);
+    wrap.dataset.mode = mode.value;
     return wrap;
   }
   if (field.type === 'select') {
@@ -842,7 +865,22 @@ function init() {
   };
   $('settings-save').onclick = async () => {
     const settings = {};
-    $('settings-form').querySelectorAll('input[data-key], select[data-key]').forEach((i) => (settings[i.dataset.key] = i.value));
+    for (const f of SETTINGS_FIELDS) {
+      const ctrl = $('settings-form').querySelector(`[data-key="${f.key}"]`);
+      if (!ctrl) continue;
+      if (f.type === 'tools') {
+        if (settingToolsMode(f.key) === 'auswahl' && toolsFromList(`settings-tools-${f.key}`).length === 0) {
+          alert(`Agent-Tool-Allowlist: im Modus "Eigene Auswahl" muss mindestens 1 Tool angehakt sein (oder Modus "Alle Tools" wählen).`);
+          return;
+        }
+        settings[f.key] = ctrl.value;
+        continue;
+      }
+      settings[f.key] = ctrl.value;
+    }
+    $('settings-form').querySelectorAll('input[data-key], select[data-key]').forEach((i) => {
+      if (settings[i.dataset.key] === undefined) settings[i.dataset.key] = i.value;
+    });
     await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
     await loadBootstrap();
   };
