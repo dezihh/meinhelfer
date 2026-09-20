@@ -293,8 +293,9 @@ async function preheat(
   };
   const indexGet = (entityId: string, key = ''): string => {
     const snapshot = snapshotFor.get(key) ?? [];
+    if (snapshot.length === 0) return 'Entity-Index nicht verfuegbar';
     const found = snapshot.find((e) => e.id === entityId);
-    return found ? fmtEntry(found) : `${entityId}: unbekannt`;
+    return found ? fmtEntry(found) : `${entityId}: nicht im Index (ID ungueltig) - nutze fn_find_entities mit dem Namen, statt IDs zu raten`;
   };
 
   for (const name of fns) {
