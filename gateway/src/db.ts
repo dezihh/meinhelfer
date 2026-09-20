@@ -584,6 +584,10 @@ export function getSettings(): Record<string, string> {
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
+export function deleteSetting(key: string): void {
+  db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+}
+
 export function getSetting(key: string): string | undefined {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }

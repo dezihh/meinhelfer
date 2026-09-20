@@ -31,6 +31,7 @@ async function loadBootstrap() {
     renderPromptKeys();
     renderActions();
     renderFunctions();
+    renderIndexes();
     renderServers();
   } catch (e) {
     alert(`Bootstrap fehlgeschlagen: ${e.message}`);
@@ -40,7 +41,7 @@ async function loadBootstrap() {
 function showTab(name) {
   document.querySelectorAll('.sidebar nav a').forEach((a) => a.classList.toggle('active', a.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
-  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', mcp: 'MCP-Registry', logs: 'Logs' };
+  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', indexes: 'Index-Quellen', mcp: 'MCP-Registry', logs: 'Logs' };
   $('tab-title').textContent = titles[name] ?? '';
   if (name === 'logs') loadLogs();
 }
@@ -132,18 +133,6 @@ const SETTINGS_FIELDS = [
     label: 'http()-Antwortgrenze (Zeichen)',
     type: 'number',
     help: 'Maximale Länge einer http()-Antwort, die ins Template/Trace geht. Leer = Default (100000). Schutz gegen riesige Antworten.',
-  },
-  {
-    key: 'entity_index',
-    label: 'Entitäts-Index (Haus)',
-    type: 'textarea',
-    help: 'Tabelle der Haus-Entitäten für den Agenten, eine Entität je Zeile: entity_id | Raum | Status | Einheit | Name | Extras (optional, Paare mit Semikolon, z. B. dimmable=true). Der Agent mappt damit gesprochene Namen auf Entitäten (Bausteine index.find/index.state ohne Index-Key). Wird typischerweise vom Index-Assistenten erzeugt; manuelle Änderungen wirken sofort. Zeilen mit weniger als 5 Spalten werden ignoriert.',
-  },
-  {
-    key: 'entity_index_ma',
-    label: 'Entitäts-Index (Music Assistant)',
-    type: 'textarea',
-    help: 'Derselbe Zeilentyp wie im Haus-Index, aber nur für Music-Assistant-Player (entity_id = Player-ID). Bausteine greifen mit dem Index-Key „ma" darauf zu (z. B. index.find(„lautsprecher küche", „ma")); ohne Index-Key gilt der Haus-Index. Wird vom Index-Assistenten mit Index-Key „ma" erzeugt.',
   },
 ];
 
@@ -440,10 +429,121 @@ function fillFunctionSelect(selected) {
   for (const f of bootstrap.functions ?? []) {
     const opt = document.createElement('option');
     opt.value = f.name;
-    opt.textContent = `${f.name}${f.enabled ? '' : ' (inaktiv)'}${f.description ? ' — ' + f.description.slice(0, 60) : ''}`;
+    opt.textContent = f.name;
     if (f.name === selected) opt.selected = true;
     sel.append(opt);
   }
+}
+
+let indexesCache = [];
+
+function parseIndexConfig(raw) {
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function renderIndexes() {
+  const tbody = $('indexes-table').querySelector('tbody');
+  tbody.innerHTML = '';
+  try {
+    const d = await api('/indexes');
+    indexesCache = d.indexes ?? [];
+  } catch {
+    indexesCache = [];
+  }
+  for (const ix of indexesCache) {
+    const cfg = parseIndexConfig(ix.config) ?? {};
+    const desc = typeof cfg.desc === 'string' ? cfg.desc : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><code>${ix.key ? esc(ix.key) : '(Standard)'}</code></td>
+      <td>${esc(String(cfg.tool ?? ''))}</td>
+      <td>${esc(String(cfg.ttlMs ?? ''))}</td>
+      <td>${esc(desc)}</td>
+      <td class="actions"><button class="btn small">Bearbeiten</button></td>`;
+    tr.querySelector('button').onclick = () => openIndexEditor(ix.key);
+    tbody.append(tr);
+  }
+}
+
+function openIndexEditor(key) {
+  const ix = indexesCache.find((x) => x.key === key) ?? null;
+  const cfg = ix ? (parseIndexConfig(ix.config) ?? {}) : { tool: '', args: {}, ttlMs: 60000 };
+  const { desc, ...rest } = cfg as Record<string, unknown>;
+  $('idx-editor').classList.remove('hidden');
+  $('idx-preview-out').classList.add('hidden');
+  $('idx-editor-title').textContent = ix ? (ix.key ? `Index-Quelle: ${ix.key}` : 'Index-Quelle: Standard') : 'Neue Index-Quelle';
+  $('idx-key').value = ix?.key ?? '';
+  $('idx-key').disabled = false;
+  $('idx-desc').value = typeof desc === 'string' ? desc : '';
+  $('idx-config').value = JSON.stringify(rest, null, 2);
+  $('idx-probe').value = '';
+}
+
+function indexPayload() {
+  let cfg: Record<string, unknown> = {};
+  try {
+    cfg = JSON.parse($('idx-config').value) as Record<string, unknown>;
+  } catch {
+    throw new Error('Config ist kein gültiges JSON');
+  }
+  if (!cfg.tool || !String(cfg.tool).trim()) throw new Error('Config braucht ein "tool"');
+  cfg.desc = $('idx-desc').value.trim();
+  return cfg;
+}
+
+async function saveIndexUi() {
+  try {
+    const cfg = indexPayload();
+    const key = $('idx-key').value.trim().toLowerCase();
+    if (key && !/^[a-z0-9_]{1,30}$/.test(key)) throw new Error('Key: a-z 0-9 _, max. 30');
+    await api(`/indexes/${key}`, { method: 'PUT', body: JSON.stringify({ config: JSON.stringify(cfg) }) });
+    $('idx-editor').classList.add('hidden');
+    await renderIndexes();
+  } catch (e) {
+    alert(`Speichern fehlgeschlagen: ${e.message}`);
+  }
+}
+
+async function deleteIndexUi() {
+  const key = $('idx-key').value.trim().toLowerCase();
+  if (!key) {
+    alert('Der Standard-Index kann nicht gelöscht werden — leere das Config-JSON statt dessen (per Speichern) oder lösche über die Settings-API.');
+    return;
+  }
+  if (!confirm(`Index-Quelle "${key}" löschen?`)) return;
+  try {
+    await api(`/indexes/${key}`, { method: 'DELETE' });
+    $('idx-editor').classList.add('hidden');
+    await renderIndexes();
+  } catch (e) {
+    alert(`Löschen fehlgeschlagen: ${e.message}`);
+  }
+}
+
+async function previewIndex() {
+  const out = $('idx-preview-out');
+  out.classList.remove('hidden');
+  out.textContent = 'Rendere …';
+  const probe = ($('idx-probe').value || '').replace(/['\\]/g, '').trim();
+  const key = $('idx-key').value.trim().toLowerCase();
+  const tpl = key
+    ? `{{ index.find('${probe}', '${key}') }}`
+    : `{{ index.find('${probe}') }}`;
+  try {
+    const d = await api('/functions/preview', {
+      method: 'POST',
+      body: JSON.stringify({ template: tpl }),
+    });
+    const steps = (d.trace ?? []).map((t) => `${t.step}${t.detail ? ' ' + JSON.stringify(t.detail).slice(0, 60) : ''}`).join(' → ');
+    out.textContent = `${d.rendered?.speech ?? ''}\n\n[trace] ${steps || '(keine Datenabrufe)'}`;
+  } catch (e) {
+    out.textContent = `Fehler: ${e.message}`;
+  }
+}
 }
 
 function openActionEditor(id) {
@@ -692,6 +792,18 @@ $('fn-save').onclick = saveFunction;
 $('fn-delete').onclick = deleteFunctionUi;
 $('fn-preview').onclick = previewFunction;
 $('fn-editor').onclick = (e) => {
+  if (!(e.target instanceof Element)) return;
+  const btn = e.target.closest('button.help');
+  if (!btn) return;
+  const fieldEl = btn.closest('.field');
+  const helpText = fieldEl?.querySelector('.field-help');
+  if (helpText) helpText.classList.toggle('hidden');
+};
+$('idx-new').onclick = () => openIndexEditor(null);
+$('idx-save').onclick = saveIndexUi;
+$('idx-delete').onclick = deleteIndexUi;
+$('idx-preview').onclick = previewIndex;
+$('idx-editor').onclick = (e) => {
   if (!(e.target instanceof Element)) return;
   const btn = e.target.closest('button.help');
   if (!btn) return;

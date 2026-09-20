@@ -14,6 +14,7 @@ import {
   deleteAction,
   deleteFunction,
   deleteMcpServer,
+  deleteSetting,
   getAction,
   getFunction,
   getMcpServer,
@@ -429,6 +430,53 @@ app.put('/admin/api/functions/:id', requireAuth, (req, res) => {
 
 app.delete('/admin/api/functions/:id', requireAuth, (req, res) => {
   deleteFunction(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+// Index-Quellen: universale benannte Snapshot-Indexe (entity_index = Default,
+// entity_index_<key> = benannt). Der Desc-Feldwert lebt im Config-JSON
+// ("desc") und wird vom Index-Loader ignoriert.
+app.get('/admin/api/indexes', requireAuth, (req, res) => {
+  const settings = getSettings();
+  const indexes: { key: string; config: string }[] = [];
+  for (const [key, value] of Object.entries(settings)) {
+    if (key === 'entity_index') {
+      indexes.push({ key: '', config: value });
+    } else if (key.startsWith('entity_index_')) {
+      indexes.push({ key: key.slice('entity_index_'.length), config: value });
+    }
+  }
+  res.json({ indexes });
+});
+
+app.put('/admin/api/indexes/:key', requireAuth, (req, res) => {
+  const key = String(req.params.key ?? '').toLowerCase();
+  if (key && !/^[a-z0-9_]{1,30}$/.test(key)) return res.status(400).json({ error: 'Ungültiger Key (a-z 0-9 _, max. 30)' });
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(String(req.body.config ?? '')) as Record<string, unknown>;
+  } catch {
+    return res.status(400).json({ error: 'Config ist kein gültiges JSON' });
+  }
+  if (!obj || typeof obj !== 'object' || typeof obj.tool !== 'string' || !(obj.tool as string).trim()) {
+    return res.status(400).json({ error: 'Config braucht ein "tool"' });
+  }
+  setSetting(key ? `entity_index_${key}` : 'entity_index', JSON.stringify(obj));
+  const { invalidateIndex } = await import('./core/entityIndex.js');
+  invalidateIndex();
+  res.json({ ok: true, key });
+});
+
+app.delete('/admin/api/indexes/:key', requireAuth, (req, res) => {
+  const key = String(req.params.key ?? '').toLowerCase();
+  if (!key || !/^[a-z0-9_]{1,30}$/.test(key)) {
+    return res.status(400).json({ error: 'Nur benannte Indexe löschbar (Default-Index leeren statt löschen)' });
+  }
+  deleteSetting(`entity_index_${key}`);
+  void (async () => {
+    const { invalidateIndex } = await import('./core/entityIndex.js');
+    invalidateIndex();
+  })().catch(() => {});
   res.json({ ok: true });
 });
 

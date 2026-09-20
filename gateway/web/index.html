@@ -14,8 +14,9 @@
         <a data-tab="settings" class="active">Grundeinstellungen</a>
         <a data-tab="monitor">Monitor / Test</a>
         <a data-tab="actions">Vorgänge</a>
-        <a data-tab="functions">Funktionen</a>
-        <a data-tab="mcp">MCP-Registry</a>
+<a data-tab="functions">Funktionen</a>
+<a data-tab="indexes">Index-Quellen</a>
+<a data-tab="mcp">MCP-Registry</a>
         <a data-tab="logs">Logs</a>
       </nav>
     </aside>
@@ -185,6 +186,56 @@
             <button id="fn-delete" class="btn danger">Löschen</button>
           </div>
           <div id="fn-preview-out" class="test-answer hidden"></div>
+        </div>
+      </section>
+
+      <section id="tab-indexes" class="tab">
+        <div class="card">
+          <div class="toolbar">
+            <h2>Index-Quellen</h2>
+            <button id="idx-new" class="btn primary">Neu</button>
+          </div>
+          <p class="field-help" style="margin-bottom: 0.6rem;">
+            Benannte Snapshot-Indexe: Ein MCP-Tool liefert pro TTL-Fenster eine Liste, Suche/Scoring laufen lokal im RAM.
+            Universell einsetzbar (HA-Entitäten, Music-Assistant-Player, künftige Quellen) — Templates greifen mit
+            <code>index.find('suche', 'key')</code> zu, ohne Key gilt der Standard-Index.
+          </p>
+          <table id="indexes-table">
+            <thead><tr><th>Key</th><th>Tool</th><th>TTL</th><th>Beschreibung</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card hidden" id="idx-editor">
+          <h2 id="idx-editor-title">Index-Quelle bearbeiten</h2>
+          <div class="field">
+            <div class="field-head"><label>Key</label><button type="button" class="help" data-help="Leer = Standard-Index (Haus). Benannt: a-z 0-9 _, greift via index.find('…', 'key'). Beispiels-Key: ma." aria-label="Hilfe zu Key">?</button></div>
+            <div class="field-help hidden">Leer = der Standard-Index (bislang Haus). Benannte Keys werden im Template als zweites Argument angesprochen: index.find('suche', 'key') — z. B. index.find('lautsprecher küche', 'ma').</div>
+            <input id="idx-key" type="text" placeholder="(Standard)">
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Beschreibung</label><button type="button" class="help" data-help="Freitext für die Übersicht; landet im Config-JSON als desc (vom Index-Loader ignoriert)." aria-label="Hilfe zu Beschreibung">?</button></div>
+            <div class="field-help hidden">Freitext für die Tabellen-Übersicht. Wird als „desc"-Feld im Config-JSON gespeichert und vom Index-Loader ignoriert.</div>
+            <input id="idx-desc" type="text">
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Config (JSON)</label><button type="button" class="help" data-help="tool + args (Extraktions-Template oder transform), ttlMs, aliases, domainHints, stopwords. Frei erweiterbar — der Loader liest nur bekannte Felder." aria-label="Hilfe zu Config">?</button></div>
+            <div class="field-help hidden">
+              JSON mit: tool (MCP-Toolname), args (freies Argument-Objekt — beim HA-Tool steckt das Extraktions-Template im Argument), optional transform (nunjucks, JSON → Pipe-Zeilen),
+              ttlMs (Cache-Fenster), aliases, domainHints ([{re, domains}]), stopwords. Ein weiteres benanntes System = eine weitere Zeile, kein Code.
+            </div>
+            <textarea id="idx-config" rows="10"></textarea>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Probe-Abfrage</label><button type="button" class="help" data-help="index.find mit dieser Suchphrase rendern — Ergebnis + Trace unter dem Editor." aria-label="Hilfe zu Probe-Abfrage">?</button></div>
+            <div class="field-help hidden">Rendert index.find('<Probe>'[, '<Key>']) live: Ergebnis + Trace-Schritte erscheinen unter dem Editor (steht der Index gerade kalt, dauert der erste Call den TTL-Fetch lang).</div>
+            <input id="idx-probe" type="text" placeholder="z. B. Stehlampe Wohnzimmer">
+          </div>
+          <div class="toolbar">
+            <button id="idx-preview" class="btn" title="index.find mit der Probe-Abfrage live rendern">Ausführen</button>
+            <button id="idx-save" class="btn primary">Speichern</button>
+            <button id="idx-delete" class="btn danger">Löschen</button>
+          </div>
+          <div id="idx-preview-out" class="test-answer hidden"></div>
         </div>
       </section>
 
