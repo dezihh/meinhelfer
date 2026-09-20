@@ -187,7 +187,7 @@ function toggleSettingToolsMode(key, pickedCount) {
     } else if (pickedCount !== undefined) {
       sum.textContent = pickedCount
         ? `Ausgewählt (${pickedCount}) — nur diese Tools bekommt der Agent als Spec.`
-        : 'Eigene Auswahl: mindestens 1 Tool anhaken (oder Modus „Alle Tools").';
+        : 'Keins angehakt = KEINE Tools — der Agent läuft ohne Tool-Specs.';
     }
   }
 }
@@ -301,7 +301,8 @@ function buildSettingField(field) {
     const mode = document.createElement('select');
     mode.id = `settings-tools-mode-${field.key}`;
     mode.innerHTML = '<option value="alle">Alle Tools (keine Einschränkung)</option><option value="auswahl">Eigene Auswahl</option>';
-    mode.value = String(controlValue).trim() ? 'auswahl' : 'alle';
+    const cur = String(controlValue).trim().toLowerCase();
+    mode.value = !cur || cur === 'alle' ? 'alle' : 'auswahl';
     mode.addEventListener('change', () => toggleSettingToolsMode(field.key));
     const summary = document.createElement('div');
     summary.className = 'field-help';
@@ -869,11 +870,12 @@ function init() {
       const ctrl = $('settings-form').querySelector(`[data-key="${f.key}"]`);
       if (!ctrl) continue;
       if (f.type === 'tools') {
-        if (settingToolsMode(f.key) === 'auswahl' && toolsFromList(`settings-tools-${f.key}`).length === 0) {
-          alert(`Agent-Tool-Allowlist: im Modus "Eigene Auswahl" muss mindestens 1 Tool angehakt sein (oder Modus "Alle Tools" wählen).`);
-          return;
+        if (settingToolsMode(f.key) === 'alle') {
+          settings[f.key] = 'alle';
+        } else {
+          const picked = toolsFromList(`settings-tools-${f.key}`);
+          settings[f.key] = picked.length ? picked.join(', ') : 'keine';
         }
-        settings[f.key] = ctrl.value;
         continue;
       }
       settings[f.key] = ctrl.value;
