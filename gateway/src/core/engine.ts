@@ -421,7 +421,8 @@ async function executeAction(
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
   if (action.mode === 'llm') {
-    const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
+    const system = (action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt())
+      .replace('{agent_inventory}', promptWithName('agent_inventory') ?? '');
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
   // deterministic/hybrid: Daten kommen ausschliesslich aus einer Funktion
