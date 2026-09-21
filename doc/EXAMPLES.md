@@ -82,7 +82,8 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 ### 2.1 Home Assistant (`ha-mcp`, Streamable HTTP)
 
 - **Was es ist**: der offizielle MCP-Server des Home-Assistant-Ökosystems
-  (`ghcr.io/homeassistant-ai/ha-mcp`), als Container im HTTP-Modus
+  ([github.com/homeassistant-ai/ha-mcp](https://github.com/homeassistant-ai/ha-mcp),
+  Image `ghcr.io/homeassistant-ai/ha-mcp`), als Container im HTTP-Modus
   (`ha-mcp-web`). Das Gateway verbindet sich per Streamable HTTP — kein
   stdio, kein HA-Supervisor-Endpoint.
 - **Anlage (Server-Seite, docker-compose )**:
@@ -150,6 +151,16 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   Aliase + Domain-Hints) aus der Gesamtliste wählt, gibt es kein
   Wartungs-Einzel-Listing. `current_temperature` ist ausdrücklich im Extra
   (Klima), weil der Agent daraus sofort antwortet.
+- **Aliases (Wort → Technikbegriff)**: die Map übersetzt das gesprochene
+  deutsche Wort in den englischen Begriff, der in den Extraktionszeilen
+  vorkommt — Domain aus der entity_id (`light`, `switch`, `climate`,
+  `cover`, `media_player`), `device_class` im Extra-Feld (`window`, `door`,
+  `motion`, `humidity`, `battery`, `camera`) oder Slug/Area
+  (`aussen`, `innen`, `upstairs`, `downstairs`). Ohne den Alias findet der
+  Score oft nichts: „Fernseher" taucht in `media_player.*`-Zeilen meist gar
+  nicht auf. Die Paare innerhalb einer JSON-Zeile teilen sich nur den
+  Zeilenumbruch — sie sind unabhängige Übersetzungen; `fenster` → `window`
+  hat nichts mit `fernseher` → `media_player` zu tun.
 - **Basis-Entities der Grundinstallation**: `sun.sun`, `weather.home`,
   `zone.home` sind mit jeder HA-Basisinstallation vorhanden und landen
   automatisch in dem Gesamt-Listing — die deterministischen Beispiele
