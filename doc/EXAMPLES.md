@@ -125,7 +125,8 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
     Fall, WELCHER Server gemeint ist.
   - **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe Fall 5.1), Aktiv ✓.
 - **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index. Die
-  produktive Konfiguration (1:1 übernehmbar):
+  Konfiguration, die in der Referenz-Installation produktiv läuft — der
+  Nachbauer kann sie unverändert übernehmen (keine Platzhalter):
   ```json
   {
     "tool": "ha_eval_template",
@@ -136,13 +137,26 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
     },
     "ttlMs": 60000,
     "aliases": {
-      "licht": "light", "lampe": "light", "steckdose": "switch",
-      "temperatur": "temperature", "heizung": "climate", "klimaanlage": "climate",
-      "fenster": "window", "tür": "door", "fernseher": "media_player",
-      "musik": "media_player", "rolladen": "cover", "garage": "cover",
-      "kamera": "camera", "bewegung": "motion",
-      "luftfeuchtigkeit": "humidity", "batterie": "battery",
-      "draußen": "aussen", "drinnen": "innen", "oben": "upstairs", "unten": "downstairs"
+      "licht": "light",
+      "lampe": "light",
+      "steckdose": "switch",
+      "temperatur": "temperature",
+      "heizung": "climate",
+      "klimaanlage": "climate",
+      "fenster": "window",
+      "tür": "door",
+      "fernseher": "media_player",
+      "musik": "media_player",
+      "rolladen": "cover",
+      "garage": "cover",
+      "kamera": "camera",
+      "bewegung": "motion",
+      "luftfeuchtigkeit": "humidity",
+      "batterie": "battery",
+      "draußen": "aussen",
+      "drinnen": "innen",
+      "oben": "upstairs",
+      "unten": "downstairs"
     }
   }
   ```
