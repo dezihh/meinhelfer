@@ -42,8 +42,11 @@ steht und fällt das an:
   die Lambda-Schicht Alexa-hosted, greift Amazons Antwortfenster (ca. 8 s,
   der Warteton überbrückt es praktisch); eigene Varianten entbinden davon —
   Details hängen vom Hosting ab und sollten einmal real verifiziert werden.
-  Auch ohne harte Grenze: Modelle mit schnellem Time-to-First-Token fühlen
-  sich bei Sprachdialogen deutlich besser an.
+  Eine AWS-gehostete Lambda-Implementation sollte der reinen
+  Alexa-hosted-Variante bevorzugt werden — AWS handhabt Latenzen
+  grundsätzlich großzügiger (Real-Messung zum Antwortfenster steht noch
+  aus). Auch ohne harte Grenze: Modelle mit schnellem
+  Time-to-First-Token fühlen sich bei Sprachdialogen deutlich besser an.
 - **Reasoning-Trade-off.** Reasoner verstehen kombinierte Anfragen und
   Kaskaden besser, brauchen aber Decode-Zeit und längere Antworten
   (`llm_max_tokens` ≥ 800, sonst leere Antworten).
