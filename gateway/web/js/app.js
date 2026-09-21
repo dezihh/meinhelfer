@@ -458,7 +458,7 @@ function renderFunctions() {
   for (const f of bootstrap.functions ?? []) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><code>{{ fn('${esc(f.name)}') }}</code></td>
+      <td><code title="Einbettung in Templates: {{ fn('${esc(f.name)}') }}">${esc(f.name)}</code></td>
       <td>${esc(f.description)}</td>
       <td>${f.enabled ? '✔' : '✖'}</td>
       <td class="actions"><button class="btn small">Bearbeiten</button></td>`;
