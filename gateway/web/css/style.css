@@ -85,7 +85,7 @@ header h1 { font-size: 1.4rem; font-weight: 600; }
 label { display: block; color: var(--text-muted); font-size: 0.85rem; margin: 0.75rem 0 0.25rem; }
 label.check { display: flex; align-items: center; gap: 0.5rem; color: var(--text); margin-top: 1rem; }
 
-input[type="text"], input[type="password"], textarea, select {
+input[type="text"], input[type="password"], input[type="number"], textarea, select {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);

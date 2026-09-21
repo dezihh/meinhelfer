@@ -119,10 +119,11 @@ const SETTINGS_FIELDS = [
     help: 'Nach der Antwort bleibt das Mikro offen und es folgt „Was kann ich noch für Sie tun?". „LLM-vorgeschlagen": das Modell meldet eine Rückfrage als sinnvoll (z. B. nach Berichten). „Bei Session-Keyword": sobald die Frage eines der Keywords unten enthält. „Nie": Session schließt immer. In einer laufenden Chat-Session bleibt das Mikro ohnehin offen.',
   },
   {
-    key: 'session_keywords',
-    label: 'Session-Keywords',
-    type: 'text',
-    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Enthält die gerade gestellte Frage eines dieser Wörter, bekommt DIESE Antwort ein Follow-up und das Mikro bleibt danach offen; die nächste Frage entscheidet erneut (Keyword oder LLM-Vorschlag). Der Schalter dafür steht in den GRUNDEINSTELLUNGEN im Feld „Nachfrage (Mikro offen halten)" direkt darüber — dort „Bei Session-Keyword" oder „Beides" wählen.',
+    key: 'debug_logging',
+    label: 'Debug-Logging',
+    type: 'select',
+    options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
+    help: 'Schreibt ausführliche Schritte (Tool-Aufrufe, Router-Entscheidungen) ins Gateway-Log (docker logs). Für den Alltag aus lassen – spart Lautstärke und macht Logs lesbar.',
   },
   {
     key: 'memory_turns',
@@ -155,11 +156,12 @@ const SETTINGS_FIELDS = [
     help: 'Maximale Länge einer http()-Antwort, die ins Template/Trace geht. Leer = Default (100000). Schutz gegen riesige Antworten.',
   },
   {
-    key: 'debug_logging',
-    label: 'Debug-Logging',
-    type: 'select',
-    options: [['0', 'Aus (Betrieb)'], ['1', 'An (Fehlersuche)']],
-    help: 'Schreibt ausführliche Schritte (Tool-Aufrufe, Router-Entscheidungen) ins Gateway-Log (docker logs). Für den Alltag aus lassen – spart Lautstärke und macht Logs lesbar.',
+    key: 'session_keywords',
+    label: 'Session-Keywords',
+    type: 'textarea',
+    span: true,
+    rows: 3,
+    help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Enthält die gerade gestellte Frage eines dieser Wörter, bekommt DIESE Antwort ein Follow-up und das Mikro bleibt danach offen; die nächste Frage entscheidet erneut (Keyword oder LLM-Vorschlag). Der Schalter dafür steht in den GRUNDEINSTELLUNGEN im Feld „Nachfrage (Mikro offen halten)" weiter oben — dort „Bei Session-Keyword" oder „Beides" wählen.',
   },
 ];
 
@@ -320,7 +322,7 @@ function buildSettingField(field) {
     }
   } else if (field.type === 'textarea') {
     control = document.createElement('textarea');
-    control.rows = 8;
+    control.rows = field.rows ?? 8;
     control.value = controlValue;
     control.placeholder = placeholder ? `(leer = Default: ${placeholder})` : '';
   } else if (field.type === 'number') {
