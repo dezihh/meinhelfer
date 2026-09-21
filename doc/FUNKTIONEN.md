@@ -406,7 +406,7 @@ die Session offen (`keep_open`), damit Detailfragen im Folgeturn laufen.
 | Ebene | Was liegt dort | Beispiele |
 |-------|----------------|-----------|
 | `.env` | Secrets + Start-Infra (nur was vor dem Prozessstart feststeht) | `AUTH_TOKEN`, `ALEXA_SKILL_ID`, `LLM_BASE_URL`/`LLM_API_KEY`, `LLM_MODEL` (Fallback-Default) |
-| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `tool_budgets`, `agent_tools`, `http_timeout_ms`, `http_body_cap`, `alexa_progress_after_ms`; Index-Quellen über den eigenen Tab (nicht mehr als Settings-Felder) |
+| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `agent_tools`, `http_timeout_ms`, `http_body_cap`, `alexa_progress_after_ms` (Budgets steuern die `budget`-Spalte der Funktionen); Index-Quellen über den eigenen Tab (nicht mehr als Settings-Felder) |
 | DB-Tabellen | Inhalte | `actions` (Vorgänge), `tpl_functions` (Funktionen), `prompts` (`agent_system`, `agent_inventory`), `mcp_servers`, `logs` |
 
 Settings mit leerem Wert fallen auf `.env`-/Code-Default zurück
