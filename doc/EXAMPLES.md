@@ -213,10 +213,15 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   - URL: `http://<ma-host>:8095/mcp/v1` — hinter Reverse-Proxy mit TLS:
     `https://<ma-host>/mcp/v1`
   - Auth-Token: das Token aus Schritt 2 (Bearer)
-  - **Agent-Inventory-Prompt**: die Wiedergabe-Kaskade (Artist →
-    Album/Track → Player), die bekannten Falscherkennungen und der
-    Werkzeug-Fluss (siehe unten), Aktiv ✓
-  - **Test**: **Tools abfragen** — die drei Werkzeuge erscheinen in der
+  - Agent-Inventory-Prompt: die Wiedergabe-Kaskade und die
+    Falscherkennungs-Regel:
+    ```
+    Musikwiedergabe: "Spiele Musik von <Kuenstler>" -> library_search_artists, dann playback_play_media mit dem Artist-URI (MA fuellt 25 Titel). Existiert eine PLAYLIST oder ein ALBUM passend zum Wunsch, diese bevorzugen (wird vollstaendig gespielt). Nach dem letzten Queue-Titel endet die Wiedergabe - Repeat/Queue-Verlaengerung ist ueber MA-MCP nicht moeglich; darauf nur hinweisen, wenn der User fragt.
+
+    Falscherkennungen: Alexa hoert Kuenstler-/Titelnamen manchmal falsch; in der Frage steht das WOERTLICH Erkannte. BEVOR du library_search_* aufrufst: (1) Bekannte Verwechslungen pruefen: alles aehnlich klingende wie 'AC DC', 'ACDC', 'Eis kier' hat die Schraegstrich-Variante 'AC/DC' (Band). Weitere Eintraege bei Bedarf ergaenzen. (2) Passt keine Verwechslung: PLAUSIBLE SCHREIBWEISEN derselben Aussprache probieren (Worttrennung auf/ab, Bindestrich statt Leerzeichen, Umlaut statt ae/oe/ue, 2-3 Varianten), bevor du 'nicht gefunden' antwortest. Nenne im Echo die Schreibweise, die zum Treffer fuehrte.
+    ```
+  - Aktiv ✓
+  - Test: **Tools abfragen** — die drei Werkzeuge erscheinen in der
     Liste darunter.
 - **Werkzeuge (exakt drei)**: das Plugin kapselt den ganzen MA-Befehlskatalog
   in `search_tools` (Katalog durchsuchen, z. B. „album tracks"),
