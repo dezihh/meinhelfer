@@ -114,7 +114,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   nutzt es selbst, um HA zu bedienen. Es gehört NUR hierher, nicht in das
   Gateway-Feld.)
   
-- **Einrichtung des Home Assistant MCP in Mein Helfere (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+- **Einrichtung des Home Assistant MCP in Mein Helfer (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
   - Name: `Home Assistant MCP`
   - Transport: `http`
   - URL: `http://<ha-host>:8086/mcp`
