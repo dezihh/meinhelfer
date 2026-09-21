@@ -1,0 +1,275 @@
+import { test, before, after, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { processQuery, isChatSession } from '../src/core/engine.js';
+import { initDb, closeDb, getDb } from '../src/db/schema.js';
+import { createFunction } from '../src/db/functions.js';
+import { createAction } from '../src/db/actions.js';
+import { setSetting, deleteSetting } from '../src/db/settings.js';
+import { resetSessionsForTests } from '../src/core/session.js';
+import type { TraceEvent } from '../src/types.js';
+
+const originalFetch = globalThis.fetch;
+let llmCalls = 0;
+let llmScript: ((i: number) => unknown)[] = [];
+
+function stubFetchEngine(): void {
+  globalThis.fetch = (async (url: string | URL) => {
+    if (!String(url).includes('chat/completions')) {
+      return { ok: false, status: 404, text: async () => '', json: async () => ({}) } as unknown as Response;
+    }
+    const i = llmCalls++;
+    const data = llmScript[i] ?? { choices: [{ message: { role: 'assistant', content: 'leer' } }] };
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(data),
+      json: async () => data,
+    } as unknown as Response;
+  }) as typeof fetch;
+}
+
+function content(txt: string): unknown {
+  return { choices: [{ message: { role: 'assistant', content: txt } }], usage: { prompt_tokens: 3, completion_tokens: 2 } };
+}
+
+function toolCalls(calls: { name: string; args: string }[]): unknown {
+  return {
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: calls.map((c, idx) => ({
+            id: `call_${idx}`,
+            type: 'function',
+            function: { name: c.name, arguments: c.args },
+          })),
+        },
+      },
+    ],
+    usage: { prompt_tokens: 5, completion_tokens: 1 },
+  };
+}
+
+async function q(text: string, sessionId: string): Promise<Awaited<ReturnType<typeof processQuery>>> {
+  return processQuery({ text, sessionId, source: 'test' });
+}
+
+function findStep(trace: TraceEvent[], step: string): TraceEvent | undefined {
+  return trace.find((t) => t.step === step);
+}
+
+before(() => {
+  closeDb();
+  initDb('/tmp/opencode/test-engine.db');
+  resetSessionsForTests();
+  const db = getDb();
+  db.exec('DELETE FROM actions; DELETE FROM tpl_functions; DELETE FROM logs; DELETE FROM settings;');
+  createFunction({
+    name: 'test_echo',
+    description: 'Echo-Testfunktion',
+    template: 'Echo: {{ args.x }}',
+    parameters: '{"type":"object","properties":{"x":{"type":"string"}}}',
+    budget: null,
+    enabled: 1,
+  });
+  createFunction({
+    name: 'test_fn_det',
+    description: null,
+    template: 'Deterministisch: {{ args.wert }}',
+    parameters: null,
+    budget: null,
+    enabled: 1,
+  });
+});
+
+beforeEach(() => {
+  llmCalls = 0;
+  llmScript = [];
+  stubFetchEngine();
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+after(() => {
+  globalThis.fetch = originalFetch;
+  closeDb();
+  initDb('/tmp/opencode/test-engine.db');
+  getDb().exec(
+    "DELETE FROM actions WHERE name LIKE 'test%'; DELETE FROM tpl_functions WHERE name LIKE 'test%'; DELETE FROM logs; DELETE FROM settings;"
+  );
+  closeDb();
+});
+
+test('Chat-Modus an: deterministischer Schalter, Session offen', async () => {
+  const r = await q('chat-modus an', 'chat-on');
+  assert.equal(r.route, 'chat');
+  assert.equal(r.response.followUp, true);
+  assert.equal(isChatSession('chat-on'), true);
+});
+
+test('Chat-Modus aus: Session wird geschlossen', async () => {
+  await q('chat-modus an', 'chat-off');
+  const r = await q('beende chat', 'chat-off');
+  assert.equal(r.route, 'chat');
+  assert.equal(r.response.followUp, false);
+  assert.equal(isChatSession('chat-off'), false);
+  assert.equal(llmCalls, 0, 'Modus-Wechsel ohne LLM-Aufruf');
+});
+
+test('offene Frage -> Agent-Route mit LLM-Antwort', async () => {
+  llmScript = [content('Hier ist die Antwort.')];
+  const r = await q('erzaehl mir etwas ueber bayern', 'agent1');
+  assert.equal(r.route, 'agent');
+  assert.match(r.response.speech, /Antwort/);
+  assert.ok(findStep(r.trace, 'route.agent'));
+  assert.ok(findStep(r.trace, 'llm.usage'));
+});
+
+test('Agent-Tool-Loop: fn-Tool wird aufgerufen, dann formuliert', async () => {
+  llmScript = [
+    toolCalls([{ name: 'fn_test_echo', args: '{"x":"wert1"}' }]),
+    content('fertig mit wert1'),
+  ];
+  const r = await q('nutze das echo tool mit wert1', 'loop1');
+  assert.equal(r.route, 'agent');
+  assert.match(r.response.speech, /fertig mit wert1/);
+  const toolCall = findStep(r.trace, 'tool.call');
+  assert.ok(toolCall);
+  assert.deepEqual((toolCall.detail as { args: Record<string, string> }).args, { x: 'wert1' });
+});
+
+test('Tool-Budget-Hit: zweiter Aufruf wird blockiert, Schleife endet sauber', async () => {
+  setSetting('tool_budgets', '{"fn_test_echo":1}');
+  setSetting('max_tool_iterations', '4');
+  try {
+    llmScript = Array.from({ length: 4 }, () =>
+      toolCalls([{ name: 'fn_test_echo', args: '{"x":"mehrfach"}' }])
+    );
+    const r = await q('spame das echo tool', 'budget1');
+    assert.ok(findStep(r.trace, 'tool.budget_hit'), 'budget_hit Trace fehlt');
+    assert.match(r.response.speech, /zu lange gedauert/);
+    assert.equal(llmCalls, 4, 'Schleife endet nach max_iter');
+  } finally {
+    deleteSetting('tool_budgets');
+    deleteSetting('max_tool_iterations');
+  }
+});
+
+test('deterministische Action mit function_ref + function_args', async () => {
+  createAction({
+    name: 'test_det',
+    mode: 'deterministic',
+    trigger_phrases: '["hausstatus-test"]',
+    fuzzy_threshold: 0.85,
+    system_prompt: null,
+    template: null,
+    function_ref: 'test_fn_det',
+    function_args: '{"wert":"42"}',
+    tools: '[]',
+    enabled: 1,
+  });
+  const r = await q('hausstatus-test', 'det1');
+  assert.equal(r.route, 'action');
+  assert.match(r.response.speech, /Deterministisch: 42/);
+  assert.ok(r.actionId);
+  const db = getDb();
+  const row = db.prepare('SELECT COUNT(*) AS n FROM logs WHERE route = ?').get('action') as { n: number };
+  assert.ok(row.n > 0, 'Log geschrieben');
+});
+
+test('deterministische Action ohne function_ref -> klarer Hinweis', async () => {
+  createAction({
+    name: 'test_det_leer',
+    mode: 'deterministic',
+    trigger_phrases: '["ohne-fn-test"]',
+    fuzzy_threshold: 0.85,
+    system_prompt: null,
+    template: null,
+    function_ref: null,
+    function_args: null,
+    tools: '[]',
+    enabled: 1,
+  });
+  const r = await q('ohne-fn-test', 'det2');
+  assert.match(r.response.speech, /keine Funktion zugewiesen/);
+  assert.ok(findStep(r.trace, 'action.error'));
+});
+
+test('hybrid-Action: Funktion liefert Daten, LLM formuliert', async () => {
+  createAction({
+    name: 'test_hybrid',
+    mode: 'hybrid',
+    trigger_phrases: '["hybrid-test"]',
+    fuzzy_threshold: 0.85,
+    system_prompt: 'Formuliere kurz: {assistant_name}',
+    template: null,
+    function_ref: 'test_fn_det',
+    function_args: '{"wert":"Datenbasis"}',
+    tools: '[]',
+    enabled: 1,
+  });
+  setSetting('assistant_name', 'Dein Helfer');
+  llmScript = [content('Kurzfassung der Datenbasis.')];
+  const r = await q('hybrid-test', 'hyb1');
+  assert.equal(r.route, 'action');
+  assert.match(r.response.speech, /Kurzfassung/);
+  deleteSetting('assistant_name');
+});
+
+test('llm-Action ohne Tools: System-Prompt + Agent-Antwort', async () => {
+  createAction({
+    name: 'test_llm_action',
+    mode: 'llm',
+    trigger_phrases: '["frage-llm-test"]',
+    fuzzy_threshold: 0.85,
+    system_prompt: 'Antworte als {assistant_name}.',
+    template: null,
+    function_ref: null,
+    function_args: null,
+    tools: '[]',
+    enabled: 1,
+  });
+  llmScript = [content('Antwort als Hilfskraft.')];
+  const r = await q('frage-llm-test', 'llmact1');
+  assert.equal(r.route, 'action');
+  assert.match(r.response.speech, /Antwort als/);
+});
+
+test('session_followup keyword: Treffer haelt Session offen, ohne Treffer schliesst', async () => {
+  setSetting('session_followup', 'keyword');
+  setSetting('session_keywords', 'temperatur');
+  try {
+    llmScript = [content('warm, 21 Grad.')];
+    const r1 = await q('wie ist die temperatur im wohnzimmer', 'kw1');
+    assert.equal(r1.response.followUp, true);
+    assert.ok(r1.response.followupPrompt);
+    llmScript = [content('Alles zu.')];
+    const r2 = await q('was ist heute fuer ein tag', 'kw2');
+    assert.ok(!r2.response.followUp, 'kein Followup ohne Keyword-Treffer');
+  } finally {
+    deleteSetting('session_followup');
+    deleteSetting('session_keywords');
+  }
+});
+
+test('session_followup llm: keep_open im JSON haelt Session offen', async () => {
+  setSetting('session_followup', 'llm');
+  try {
+    llmScript = [content('{"speech":"Kurzinfo zur Anfrage.","keep_open":true}')];
+    const r = await q('noch eine offene frage ueber irgendwas', 'kp1');
+    assert.equal(r.response.followUp, true);
+  } finally {
+    deleteSetting('session_followup');
+  }
+});
+
+test('Chat-Session haelt JEDE Antwort offen (Modus schlaegt Keyword)', async () => {
+  await q('chat-modus an', 'chat-sticky');
+  llmScript = [content('Irgendeine Antwort.')];
+  const r = await q('beliebige frage jetzt', 'chat-sticky');
+  assert.equal(r.response.followUp, true);
+  assert.equal(isChatSession('chat-sticky'), true);
+});

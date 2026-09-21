@@ -1,12 +1,13 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { initDb, getDb } from '../src/db/schema.js';
+import { initDb, closeDb, getDb } from '../src/db/schema.js';
 import { setSetting, getSetting, getSettingNum, deleteSetting, getSettings, setPrompt, getPrompt, listPrompts } from '../src/db/settings.js';
 import { createAction, updateAction, getAction, listActions, deleteAction } from '../src/db/actions.js';
 import { createFunction, getFunctionByName, deleteFunction } from '../src/db/functions.js';
 import { addLog, listLogs, recentAgentTurns, summarizeUsage } from '../src/db/logs.js';
 
 before(() => {
+  closeDb(); // hermetisch: Container-DB durch Temp-DB ersetzen
   initDb('/tmp/opencode/test-meinhelfer.db');
   // Hermetisch: Test-Reststaende entfernen (Datei kann von Vorlaeufen existieren)
   const db = getDb();
