@@ -86,7 +86,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   Image `ghcr.io/homeassistant-ai/ha-mcp`), als Container im HTTP-Modus
   (`ha-mcp-web`). Das Gateway verbindet sich per Streamable HTTP — kein
   stdio, kein HA-Supervisor-Endpoint.
-- **Anlage (Server-Seite, docker-compose )**:
+- **Docker MCP Container für Home Assistant (Server-Seite, docker-compose )**:
   ```yaml
   ha-mcp:
     image: ghcr.io/homeassistant-ai/ha-mcp:latest
@@ -113,7 +113,8 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   (mcp.env: das Home-Assistant-**Long-Lived-Access-Token** — der ha-mcp
   nutzt es selbst, um HA zu bedienen. Es gehört NUR hierher, nicht in das
   Gateway-Feld.)
-- **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+  
+- **Einrichtung des Home Assistant MCP in Mein Helfere (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
   - Name: `Home Assistant MCP`
   - Transport: `http`
   - URL: `http://<ha-host>:8086/mcp`
@@ -124,11 +125,8 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
     verlangt einen Client-Token im Gateway-Feld — deshalb steht in jedem
     Fall, WELCHER Server gemeint ist.
   - **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe Fall 5.1), Aktiv ✓.
-- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index. Die
-  Konfiguration, die in der Referenz-Installation produktiv läuft — der
-  Nachbauer kann sie unverändert übernehmen (keine Platzhalter).
+- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index:
 
-  Das Extraktions-Template (so sieht es als Jinja aus):
   ```jinja
   {% for e in states %}
   {% set area = area_name(e.entity_id) or '' %}
