@@ -81,12 +81,15 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 2.1 Home Assistant (`ha-mcp`, Streamable HTTP)
 
-- **Was es ist**: der offizielle MCP-Server des Home-Assistant-Ökosystems
+- **Was es ist**: der MCP-Server des Home-Assistant-Ökosystems
   ([github.com/homeassistant-ai/ha-mcp](https://github.com/homeassistant-ai/ha-mcp),
-  Image `ghcr.io/homeassistant-ai/ha-mcp`), als Container im HTTP-Modus
-  (`ha-mcp-web`). Das Gateway verbindet sich per Streamable HTTP — kein
-  stdio, kein HA-Supervisor-Endpoint.
-- **Docker MCP Container für Home Assistant (Server-Seite, docker-compose )**:
+  Image `ghcr.io/homeassistant-ai/ha-mcp`). Das Gateway verbindet sich per
+  Streamable HTTP — kein stdio.
+- **Installationsmethode: Docker (HTTP server)** — die Methode der
+  Referenz-Installation. (Für Home Assistant OS/Supervised ist die
+  **HA-MCP Custom Component** über HACS die einfachere Route: der Server
+  läuft dann in HA in-process, ganz ohne Token-Verwaltung — nur eine der
+  Methoden gleichzeitig betreiben.)
   ```yaml
   ha-mcp:
     image: ghcr.io/homeassistant-ai/ha-mcp:latest
@@ -113,21 +116,21 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   (mcp.env: das Home-Assistant-**Long-Lived-Access-Token** — der ha-mcp
   nutzt es selbst, um HA zu bedienen. Es gehört NUR hierher, nicht in das
   Gateway-Feld.)
-  
-- **Einrichtung des Home Assistant MCP in Mein Helfer (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+- **Einrichtung in MeinHelfer (Gateway-Seite)**: Tab **Tool-Registry** →
+  Server hinzufügen:
   - Name: `Home Assistant MCP`
   - Transport: `http`
   - URL: `http://<ha-host>:8086/mcp`
   - Auth-Token: **leer** lassen — der ha-mcp verlangt keinen eigenen
     Client-Token; das Home-Assistant-Long-Living-Zugangs-Token liegt nur in
     der Container-Env (siehe compose oben).
-  - **Agent-Inventory-Prompt** (Beispiel: die Schalten-Kaskade):
-   ```
-   Schalten (Licht, Schalter, Rolladen, Klima): zuerst fn_find_entities mit dem Namen (liefert entity_id), dann ha_call_service mit passendem domain/service und dieser entity_id (z. B. light/turn_on, switch/turn_off, cover/set_cover_position mit data {position: 80}, climate/set_temperature mit data {temperature: 21}). Mehrdeutigkeit (z. B. zwei Lampen im selben Raum): NIEMALS raten oder eine entity_id erfinden - stattdessen im Echo nachfragen ("es gibt Stehlampe unten und Stehlampe oben, welche?"), ohne weitere Tool-Runde.
-   ```
-
-  Aktiv ✓.
-  - **Test**: **Tools abfragen** — die `ha_*`-Werkzeuge erscheinen in der
+  - Agent-Inventory-Prompt: die Schalten-Kaskade (Name → entity_id →
+    Service-Call, Mehrdeutigkeit per Rückfrage):
+    ```
+    Schalten (Licht, Schalter, Rolladen, Klima): zuerst fn_find_entities mit dem Namen (liefert entity_id), dann ha_call_service mit passendem domain/service und dieser entity_id (z. B. light/turn_on, switch/turn_off, cover/set_cover_position mit data {position: 80}, climate/set_temperature mit data {temperature: 21}). Mehrdeutigkeit (z. B. zwei Lampen im selben Raum): NIEMALS raten oder eine entity_id erfinden - stattdessen im Echo nachfragen ("es gibt Stehlampe unten und Stehlampe oben, welche?"), ohne weitere Tool-Runde.
+    ```
+  - Aktiv ✓
+  - Test: **Tools abfragen** — die `ha_*`-Werkzeuge erscheinen in der
     Liste darunter; die Registry-Verbindung steht.
 - **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index.
   Das `template`-Feld ist Teil des JSON und daher eine String-Zeile: die
