@@ -265,9 +265,12 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   - Befehl: `node_modules/.bin/mcp-searxng` (das Paket `mcp-searxng`,
     im Gateway-Container installiert)
   - Umgebungsvariablen: `SEARXNG_URL=http://<searxng-host>:8080/search`
-  - Agent-Inventory-Prompt: die Lese-Regel — „nur konkrete
-    Treffer-URLs/Feeds lesen oder auf Wunsch; nach der Lese-Runde sofort
-    antworten" (die Voll-Kaskade: Fall 5.3), Aktiv ✓
+  - Agent-Inventory-Prompt: die Lese-Regel:
+    ```
+    Lese nur konkrete Treffer-URLs/Feeds der Quelle oder auf Wunsch. Nach der Lese-Runde sofort antworten - keine zweite URL.
+    ```
+    (Die Voll-Kaskade mit den konkreten Aufrufen: Fall 5.3.)
+  - Aktiv ✓
   - Test: **Tools abfragen** — die Such-Werkzeuge erscheinen in der
     Liste darunter.
 
