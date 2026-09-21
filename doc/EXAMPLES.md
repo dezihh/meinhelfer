@@ -118,17 +118,17 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   - Name: `Home Assistant MCP`
   - Transport: `http`
   - URL: `http://<ha-host>:8086/mcp`
-  - Auth-Token: **leer** lassen — der ha-mcp verlangt in dieser Anleitung
-    keinen Client-Token (Absicherung über das lokale Netz). Das
-    Home-Assistant-Long-Living-Zugangs-Token liegt nur in der Container-Env
-    (siehe compose oben). **Anders bei HA's eingebaurem `/api/mcp`**: der
-    verlangt einen Client-Token im Gateway-Feld — deshalb steht in jedem
-    Fall, WELCHER Server gemeint ist.
-  - **Agent-Inventory-Prompt**:
+  - Auth-Token: **leer** lassen — der ha-mcp verlangt keinen eigenen
+    Client-Token; das Home-Assistant-Long-Living-Zugangs-Token liegt nur in
+    der Container-Env (siehe compose oben).
+  - **Agent-Inventory-Prompt** (Beispiel: die Schalten-Kaskade):
    ```
    Schalten (Licht, Schalter, Rolladen, Klima): zuerst fn_find_entities mit dem Namen (liefert entity_id), dann ha_call_service mit passendem domain/service und dieser entity_id (z. B. light/turn_on, switch/turn_off, cover/set_cover_position mit data {position: 80}, climate/set_temperature mit data {temperature: 21}). Mehrdeutigkeit (z. B. zwei Lampen im selben Raum): NIEMALS raten oder eine entity_id erfinden - stattdessen im Echo nachfragen ("es gibt Stehlampe unten und Stehlampe oben, welche?"), ohne weitere Tool-Runde.
    ```
 
+  Aktiv ✓.
+  - **Test**: **Tools abfragen** — die `ha_*`-Werkzeuge erscheinen in der
+    Liste darunter; die Registry-Verbindung steht.
 - **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index.
   Das `template`-Feld ist Teil des JSON und daher eine String-Zeile: die
   `\n`-Escapes bauen die Pipe-Zeilen (die HA-Template-Engine ignoriert die
@@ -189,22 +189,44 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   automatisch in dem Gesamt-Listing — die deterministischen Beispiele
   (Kapitel 3) laufen damit ohne Zusatz-Integration.
 
-### 2.2 Music Assistant (MCP)
+### 2.2 Music Assistant (MCP-Plugin)
 
-- **Wo**: Tab **Tool-Registry** → MCP-Server hinzufügen (Transport `http` oder
-  `stdio` je nach Installation), Token falls nötig, **MCP-System-Prompt** (die
-  Wiedergabe-Kaskade + Falscherkennungen), Aktiv ✓.
-- **Werkzeuge**: `library_search_artists/albums/tracks`, `playback_play_media/
-  pause/resume/stop`, `volume_volume_set`.
-- **Zweit-Index für Player**: Tab **Index-Quellen** → zusätzlicher Index mit
-  Key `ma` (die Player-Liste), damit `fn_ma_players` sie in einem Call
-  liefert.
+- **Was es ist**: das Plugin
+  [ma-provider-mcp](https://github.com/trudenboy/ma-provider-mcp) hängt
+  sich in den laufenden Music-Assistant-Webserver (`/mcp/v1`) — kein
+  Extra-Port, keine Firewall-Regel. Voraussetzung: Music Assistant läuft.
+- **Anlage (Music-Assistant-Seite)**:
+  1. MA-Einstellungen → **Plugins** → **MCP Server** aktivieren.
+  2. **Token**: im Config-Panel des Plugins auf **Open Connect Wizard** —
+     der Wizard erzeugt ein Client-Token (`MCP — <Client>`), sichtbar und
+     einzeln widerrufbar unter **Profil → Long-lived access tokens**.
+     Alternativ manuell: dort selbst minten. Beim Minten ein
+     Berechtigungs-Profil wählen, das mehr als Lesen erlaubt (z. B.
+     **Home control** — query + control + edit), weil der Agent für
+     Wiedergabe control-Rechte braucht.
+- **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+  - Name: `Music Assistant`
+  - Transport: `http`
+  - URL: `http://<ma-host>:8095/mcp/v1` — hinter Reverse-Proxy mit TLS:
+    `https://<ma-host>/mcp/v1`
+  - Auth-Token: das Token aus Schritt 2 (Bearer)
+  - **Agent-Inventory-Prompt**: die Wiedergabe-Kaskade (Artist →
+    Album/Track → Player), die bekannten Falscherkennungen und der
+    Werkzeug-Fluss (siehe unten), Aktiv ✓
+  - **Test**: **Tools abfragen** — die drei Werkzeuge erscheinen in der
+    Liste darunter.
+- **Werkzeuge (exakt drei)**: das Plugin kapselt den ganzen MA-Befehlskatalog
+  in `search_tools` (Katalog durchsuchen, z. B. „album tracks"),
+  `get_tool_schema` (Parameter eines Befehls nachschlagen) und `call_tool`
+  (ausführen). Der Agent-Fluss: erst `search_tools` mit dem Ziel, dann
+  Schema prüfen, dann `call_tool`. Genau dieser Fluss gehört in den
+  Agent-Inventory-Prompt, damit der Agent nicht ratet.
 
 ### 2.3 Websuche + URL-Lesen (MCP)
 
 - **Wo**: Tab **Tool-Registry** → MCP-Server für einen Such-Connector (Beispiel:
   SearXNG-MCP, Beispiel: Brave-MCP) + ein URL-Lesen-Tool (`web_url_read` mit
-  maxLength-Parameter). MCP-System-Prompt: die Lese-Regel (nur konkrete
+  maxLength-Parameter). Agent-Inventory-Prompt: die Lese-Regel (nur konkrete
   Treffer-URLs/Feeds oder auf Wunsch).
 - **Bemerkung**: Kann dein Modell Websuche **nativ** über seinen
   Anbieter-Stack, entfällt der Such-Connector (siehe Einleitung).
@@ -404,7 +426,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   1. Funktionen `find_entities`/`get_entity` existieren nach Grundinstallation
      (Schema-Basis); bei Bedarf eigene Lesefunktionen mit `parameters`-Schema
      (`query`) anlegen — das Schema macht sie zu Agent-Tools mit Argumenten.
-  2. Die Schalten-Kaskade in der **MCP-System-Prompt** des HA-MCP-Servers (Tab
+  2. Die Schalten-Kaskade im **Agent-Inventory-Prompt** des HA-MCP-Servers (Tab
      Systeme) pflegen — Beispieltext: „Schalten: zuerst fn_find_entities mit
      dem Namen (liefert entity_id), dann ha_call_service mit passendem
      domain/service. Mehrdeutigkeit: NIEMALS raten — im Echo nachfragen."
@@ -418,27 +440,34 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   Antwort auch gelaufen sind. 3. Bei Mehrdeutigkeit (zwei Lichter im Raum):
   Rückfrage im Echo — weil eine falsche entity_id unbeobachtbar falsch
   schaltet.
-- **Hinweise**: die Kaskade steht in der MCP-System-Prompt des HA-Connectors —
+- **Hinweise**: die Kaskade steht im Agent-Inventory-Prompt des HA-Connectors —
   nicht im Agent-Prompt (dort nur generisches Verhalten).
 
 ### 5.2 Musik abspielen (Music-Assistant-Kaskade)
 
 - **Alexa-Frage**: „Alexa, frag MeinHelfer, spiele Musik von <Künstler>."
-- **Werkzeuge**: MCP Music Assistant + Zweit-Index `ma` (2.2).
+- **Werkzeuge**: MCP Music Assistant (2.2) + `fn ma_players`.
 - **Modus**: `llm`.
 - **Anlegen**:
-  1. Funktion `ma_players` mit Parameter-Schema (Player-Query) und Template
-     `{{ index.find(args.query, 'ma') }}` — die Player-Liste kommt aus dem
-     Zweit-Index.
-  2. Die Wiedergabe-Kaskade (+ Falscherkennungs-Regel) in der **MCP-System-Prompt**
-     des MA-MCP-Servers.
-  3. Allowlist: MA-Tools anhaken (Grundeinstellungen → Agent-Tool-Allowlist).
-- **Ablauf (warum)**: 1. `fn_ma_players` — weil `playback_play_media` eine
-  `player_id` braucht und der Player-State (Lautstärke, gerade laufend) aus
-  einem Call kommt. 2. `library_search_artists` — weil der Name-URI für den
+  1. Funktion `ma_players` (Parameter frei, Budget 1) — Template ruft
+     `players_list_players` aus dem MA-Katalog und formatiert die
+     Player-Zeilen (`id | Name | State | vol=…`), so dass der Agent
+     player_id, State und Lautstärke in einem Call hat. inventory_prompt:
+     „IMMER erster Schritt für Musiksteuerung …, danach die Steuercalls mit
+     dieser player_id. NIE die HA-media_player-Entities dafür."
+  2. Die Wiedergabe-Kaskade (+ Falscherkennungs-Regel) im
+     **Agent-Inventory-Prompt** des Music-Assistant-Eintrags.
+  3. Allowlist: die MA-Werkzeuge (`search_tools`, `get_tool_schema`,
+     `call_tool`) + `fn ma_players` anhaken (Grundeinstellungen →
+     Agent-Tool-Allowlist).
+- **Ablauf (warum)**: 1. `fn ma_players` — weil die Steuercalls eine
+  `player_id` brauchen und der Player-State (Lautstärke, gerade laufend)
+  aus einem Call kommt. 2. Bibliothekssuche über die Plugin-Tektonik —
+  `search_tools` mit dem Ziel (z. B. „album tracks"), Schema prüfen,
+  `call_tool` auf den Bibliotheksbefehl — weil der Name-URI für den
   Play-Call her muss; ASR-Falscherkennungen zuerst gegen bekannte
   Verwechslungen prüfen, dann plausible Schreibweisen (2–3 Varianten) —
-  **bevor** „nicht gefunden" antwortet. 3. `playback_play_media` mit URI +
+  **bevor** „nicht gefunden" antwortet. 3. Wiedergabebefehl mit URI +
   player_id; Playlist/Album bevorzugen — weil sie vollständig gespielt
   werden; nach dem letzten Titel endet die Queue (Hinweis nur auf Nachfrage).
 - **Hinweise**: die Falscherkennung ist ein **BEVOR**-Regel-Fall — sie steht
