@@ -132,6 +132,18 @@ const SETTINGS_FIELDS = [
     help: 'Komma-getrennte Liste (z. B. zusammenfassung, bericht, news). Enthält die gerade gestellte Frage eines dieser Wörter, bekommt DIESE Antwort ein Follow-up und das Mikro bleibt danach offen; die nächste Frage entscheidet erneut (Keyword oder LLM-Vorschlag). Der Schalter dafür steht in den GRUNDEINSTELLUNGEN im Feld „Nachfrage (Mikro offen halten)" direkt darüber — dort „Bei Session-Keyword" oder „Beides" wählen.',
   },
   {
+    key: 'memory_turns',
+    label: 'Kontext für Folgefragen (Turns)',
+    type: 'number',
+    help: 'Wie viele vorangegangene Frage-Antwort-Paare das LLM pro Frage zusätzlich sieht — im laufenden Gespräch und beim Wiedereinstieg über alte Log-Einträge (gleiche Zahl). Hoher Wert = bessere Anknüpfung, aber größerer Prompt (Rundenzeit). Leer = Default 4.',
+  },
+  {
+    key: 'memory_minutes',
+    label: 'Kontext-Rückblick (Minuten)',
+    type: 'number',
+    help: 'Wie weit beim Wiedereinstieg (neue Session, z. B. nach Pause oder Gateway-Neustart) aus dem Log zurückgelesen wird. Innerhalb der Zeit gilt die Frage-Antwort-Historie als „frühere Unterhaltung", danach nicht mehr. Leer = Default 30.',
+  },
+  {
     key: 'alexa_progress_after_ms',
     label: 'Alexa-Warteton ab (ms)',
     type: 'number',

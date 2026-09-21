@@ -39,18 +39,26 @@ function prune(now = Date.now()): void {
   }
 }
 
-export function priorTurns(sessionId: string): ChatMessage[] {
+export function priorTurns(sessionId: string, maxMessages: number = HISTORY_MAX_MESSAGES): ChatMessage[] {
   prune();
-  return sessions.get(sessionId)?.messages ?? [];
+  const msgs = sessions.get(sessionId)?.messages ?? [];
+  return maxMessages > 0 && msgs.length > maxMessages ? msgs.slice(-maxMessages) : msgs;
 }
 
-export function rememberTurn(sessionId: string, query: string, speech: string, now = Date.now()): void {
+export function rememberTurn(
+  sessionId: string,
+  query: string,
+  speech: string,
+  now = Date.now(),
+  maxMessages: number = HISTORY_MAX_MESSAGES
+): void {
   prune(now);
   const s = sessions.get(sessionId) ?? { messages: [], lastSeen: now, chatMode: false };
   s.lastSeen = now;
   s.messages.push({ role: 'user', content: query });
   s.messages.push({ role: 'assistant', content: speech });
-  s.messages = s.messages.slice(-HISTORY_MAX_MESSAGES);
+  const cap = maxMessages > 0 ? Math.max(maxMessages, HISTORY_MAX_MESSAGES) : HISTORY_MAX_MESSAGES;
+  s.messages = s.messages.slice(-cap);
   sessions.set(sessionId, s);
 }
 

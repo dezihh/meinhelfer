@@ -27,12 +27,24 @@ import type {
 
 const FallbackError = 'Entschuldigung, da ist etwas schiefgelaufen.';
 
+// Kontext-Tiefe für Folgefragen (Grundeinstellungen): memory_turns =
+// Wie viele vorangegangene Turns das LLM sieht (In-Memory UND DB-Recall),
+// memory_minutes = Wie weit der DB-Recall über Session-Grenzen zurückreicht.
+function memoryTurns(): number {
+  return getSettingNum('memory_turns', 4);
+}
+
+function memoryMinutes(): number {
+  return getSettingNum('memory_minutes', 30);
+}
+
 function priorTurns(sessionId: string): ChatMessage[] {
-  const inMem = sessionPriorTurns(sessionId);
+  const maxTurns = memoryTurns();
+  const inMem = sessionPriorTurns(sessionId, maxTurns * 2);
   if (inMem.length > 0) return inMem;
   // DB-Recall als ALT markieren: Das LLM weiss, dass die Zeit fortgeschritten
   // ist, und kann selbst entscheiden, ob der Inhalt noch relevant ist.
-  const turns = recentAgentTurns(2, 30 * 60_000);
+  const turns = recentAgentTurns(maxTurns, memoryMinutes() * 60_000);
   if (turns.length === 0) return [];
   const ageHits = turns.filter((t) => t.ageMs > 5 * 60_000);
   const out: ChatMessage[] = [];
@@ -55,7 +67,7 @@ function priorTurns(sessionId: string): ChatMessage[] {
 }
 
 function rememberTurn(sessionId: string, query: string, speech: string): void {
-  sessionRememberTurn(sessionId, query, speech);
+  sessionRememberTurn(sessionId, query, speech, Date.now(), memoryTurns() * 2);
 }
 
 const toolDeadline = (): number => getSettingNum('tool_deadline_ms', config.toolDeadlineMs);

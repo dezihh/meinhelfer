@@ -11,12 +11,14 @@ import type { TraceEvent } from '../src/types.js';
 const originalFetch = globalThis.fetch;
 let llmCalls = 0;
 let llmScript: ((i: number) => unknown)[] = [];
+let llmBodies: { messages: { role: string; content: string | null }[] }[] = [];
 
 function stubFetchEngine(): void {
-  globalThis.fetch = (async (url: string | URL) => {
+  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
     if (!String(url).includes('chat/completions')) {
       return { ok: false, status: 404, text: async () => '', json: async () => ({}) } as unknown as Response;
     }
+    llmBodies.push(JSON.parse(String(init?.body ?? '{}')));
     const i = llmCalls++;
     const data = llmScript[i] ?? { choices: [{ message: { role: 'assistant', content: 'leer' } }] };
     return {
@@ -88,6 +90,7 @@ before(() => {
 beforeEach(() => {
   llmCalls = 0;
   llmScript = [];
+  llmBodies = [];
   stubFetchEngine();
 });
 
@@ -274,4 +277,73 @@ test('Chat-Session haelt JEDE Antwort offen (Modus schlaegt Keyword)', async () 
   const r = await q('beliebige frage jetzt', 'chat-sticky');
   assert.equal(r.response.followUp, true);
   assert.equal(isChatSession('chat-sticky'), true);
+});
+
+function userMessages(body: { messages: { role: string; content: string | null }[] }): string[] {
+  return body.messages.filter((m) => m.role === 'user').map((m) => m.content ?? '');
+}
+
+test('memory_turns: Kontext-Tiefe konfigurierbar (Default 4)', async () => {
+  setSetting('memory_turns', '1');
+  try {
+    llmScript = [content('antwort eins'), content('antwort zwei'), content('antwort drei')];
+    await q('erste frage', 'mem1');
+    await q('zweite frage', 'mem1');
+    await q('dritte frage', 'mem1');
+    // 3. LLM-Call: system + letzte Pair (1 Turn) + aktuelle Frage
+    const third = llmBodies[2];
+    const users = userMessages(third);
+    assert.deepEqual(users, ['zweite frage', 'dritte frage']);
+  } finally {
+    deleteSetting('memory_turns');
+  }
+});
+
+test('memory_turns: mit Default sieht der 3. Aufruf beide frueheren Pairs', async () => {
+  llmScript = [content('antwort eins'), content('antwort zwei'), content('antwort drei')];
+  await q('erste frage', 'mem2');
+  await q('zweite frage', 'mem2');
+  await q('dritte frage', 'mem2');
+  const users = userMessages(llmBodies[2]);
+  assert.deepEqual(users, ['erste frage', 'zweite frage', 'dritte frage']);
+});
+
+test('memory_minutes: DB-Recall ueber Session-Grenzen mit Zeitfenster', async () => {
+  const db = getDb();
+  db.exec("DELETE FROM logs WHERE route = 'agent'");
+  try {
+    setSetting('memory_turns', '2');
+    setSetting('memory_minutes', '30');
+    // Frisch (< 5 min): Recall OHNE ALT-Hinweis, Pairs kommen direkt
+    db.prepare(
+      "INSERT INTO logs (session_id, query, route, response, ts) VALUES ('alt', 'alte frage frisch', 'agent', 'frische Antwort', datetime('now', '-2 minutes'))"
+    ).run();
+    resetSessionsForTests(); // In-Memory leer -> DB-Recall greift
+    llmScript = [content('neue antwort')];
+    await q('neue frage', 'mem-recall');
+    let msgs = llmBodies[0].messages;
+    assert.ok(!msgs.some((m) => m.role === 'system' && (m.content ?? '').includes('fruehere Unterhaltungen')), 'frischer Turn ohne ALT-Hinweis');
+    assert.ok(msgs.some((m) => m.role === 'user' && m.content === 'alte frage frisch'), 'frischer Turn im Recall');
+    assert.ok(msgs.some((m) => m.role === 'assistant' && m.content === 'frische Antwort'), 'frische Antwort im Recall');
+    // Aelter als 5 min (aber im Fenster): ALT-Hinweis kommt dazu
+    db.exec("DELETE FROM logs WHERE route = 'agent'");
+    db.prepare(
+      "INSERT INTO logs (session_id, query, route, response, ts) VALUES ('alt', 'alte frage alt', 'agent', 'alte Antwort', datetime('now', '-6 minutes'))"
+    ).run();
+    db.prepare(
+      "INSERT INTO logs (session_id, query, route, response, ts) VALUES ('alt', 'alte frage uralt', 'agent', 'urale Antwort', datetime('now', '-35 minutes'))"
+    ).run();
+    resetSessionsForTests();
+    llmBodies = [];
+    llmScript = [content('neue antwort 2')];
+    await q('neue frage zwei', 'mem-recall-2');
+    msgs = llmBodies[0].messages;
+    assert.ok(msgs.some((m) => m.role === 'system' && (m.content ?? '').includes('fruehere Unterhaltungen')), 'ALT-Hinweis bei >5min fehlt');
+    assert.ok(msgs.some((m) => m.role === 'user' && m.content === 'alte frage alt'), 'Turn im Fenster (6 min) drin');
+    assert.ok(!msgs.some((m) => (m.content ?? '').includes('alte frage uralt')), 'Turn ausserhalb des Fensters (35 min) raus');
+  } finally {
+    deleteSetting('memory_turns');
+    deleteSetting('memory_minutes');
+    db.exec("DELETE FROM logs WHERE route = 'agent'");
+  }
 });
