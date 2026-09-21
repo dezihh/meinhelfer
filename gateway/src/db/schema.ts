@@ -127,7 +127,7 @@ db.exec(`
     template TEXT NOT NULL,
     parameters TEXT,
     budget INTEGER,
-    inventory_note TEXT,
+    inventory_prompt TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -158,6 +158,24 @@ db.exec(`
   );
 `);
 
+// inventory_note -> inventory_prompt: umbenennen, oder - falls der ALTER-
+// Loop die neue Spalte schon vorher angelegt hat - die Inhalte rueberkopieren
+// und die alte Spalte fallen lassen. In allen Faellen idempotent.
+{
+  const cols = (t: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((r) => r.name);
+  for (const t of ['tpl_functions', 'mcp_servers']) {
+    if (cols(t).includes('inventory_note')) {
+      if (!cols(t).includes('inventory_prompt')) {
+        db.exec(`ALTER TABLE ${t} RENAME COLUMN inventory_note TO inventory_prompt`);
+      } else {
+        db.exec(`UPDATE ${t} SET inventory_prompt = inventory_note WHERE inventory_prompt IS NULL OR inventory_prompt = ''`);
+        db.exec(`ALTER TABLE ${t} DROP COLUMN inventory_note`);
+      }
+    }
+  }
+}
+
 for (const stmt of [
   "ALTER TABLE mcp_servers ADD COLUMN transport TEXT NOT NULL DEFAULT 'http'",
   'ALTER TABLE mcp_servers ADD COLUMN command TEXT',
@@ -167,8 +185,8 @@ for (const stmt of [
   'ALTER TABLE actions ADD COLUMN function_args TEXT',
   'ALTER TABLE tpl_functions ADD COLUMN parameters TEXT',
   'ALTER TABLE tpl_functions ADD COLUMN budget INTEGER',
-  'ALTER TABLE tpl_functions ADD COLUMN inventory_note TEXT',
-  'ALTER TABLE mcp_servers ADD COLUMN inventory_note TEXT',
+  'ALTER TABLE tpl_functions ADD COLUMN inventory_prompt TEXT',
+  'ALTER TABLE mcp_servers ADD COLUMN inventory_prompt TEXT',
 ]) {
   try {
     db.exec(stmt);

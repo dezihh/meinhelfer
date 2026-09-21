@@ -20,7 +20,7 @@ before(() => {
     template: 'x',
     parameters: null,
     budget: null,
-    inventory_note: 'Recherche zu jedem Thema: Treffer + URLs',
+    inventory_prompt: 'Recherche zu jedem Thema: Treffer + URLs',
     enabled: 1,
   });
   createFunction({
@@ -29,7 +29,7 @@ before(() => {
     template: 'x',
     parameters: null,
     budget: null,
-    inventory_note: null,
+    inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -38,7 +38,7 @@ before(() => {
     template: 'x',
     parameters: null,
     budget: null,
-    inventory_note: 'Player-Liste mit State/Vol',
+    inventory_prompt: 'Player-Liste mit State/Vol',
     enabled: 1,
   });
 });
@@ -50,7 +50,7 @@ after(() => {
   closeDb();
 });
 
-test('Werkzeug-Zeilen aus inventory_note, fn_-Praefix, note-lose fehlen', () => {
+test('Werkzeug-Zeilen aus inventory_prompt, fn_-Praefix, note-lose fehlen', () => {
   const out = buildInventoryPrompt();
   assert.match(out, /- fn_recherche: Recherche zu jedem Thema/);
   assert.match(out, /- fn_ma_players: Player-Liste/);
@@ -87,7 +87,7 @@ test('Allowlist ' + "'keine'" + ' -> Regeln unverändert ohne Werkzeuge', () => 
   }
 });
 
-test('Systeme-Sektion aus mcp_servers.inventory_note (Kaskaden am System)', () => {
+test('Systeme-Sektion aus mcp_servers.inventory_prompt (Kaskaden am System)', () => {
   const db = getDb();
   const before = db.prepare('SELECT COUNT(*) AS n FROM mcp_servers').get() as { n: number };
   const server = createMcpServer({
@@ -98,7 +98,7 @@ test('Systeme-Sektion aus mcp_servers.inventory_note (Kaskaden am System)', () =
     command: null,
     args: null,
     env: null,
-    inventory_note: 'Schalten: zuerst fn_find_entities, dann ha_call_service (light/turn_on).',
+    inventory_prompt: 'Schalten: zuerst fn_find_entities, dann ha_call_service (light/turn_on).',
     enabled: 1,
   });
   try {
@@ -127,7 +127,7 @@ test('Systeme-Filter: nur Server der aktiven Tool-Liste, [] = ohne Systeme', () 
     command: null,
     args: null,
     env: null,
-    inventory_note: 'Kaskade fuer Filter-System.',
+    inventory_prompt: 'Kaskade fuer Filter-System.',
     enabled: 1,
   });
   try {

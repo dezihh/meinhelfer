@@ -475,7 +475,7 @@ function openFunctionEditor(id) {
   $('fn-id').value = f?.id ?? '';
   $('fn-name').value = f?.name ?? '';
   $('fn-description').value = f?.description ?? '';
-  $('fn-inventory-note').value = f?.inventory_note ?? '';
+  $('fn-inventory-prompt').value = f?.inventory_prompt ?? '';
   $('fn-template').value = f?.template ?? '';
   $('fn-enabled').checked = f ? !!f.enabled : true;
 }
@@ -485,7 +485,7 @@ function functionPayload() {
     name: $('fn-name').value.trim(),
     description: $('fn-description').value.trim() || null,
     template: $('fn-template').value.trim(),
-    inventory_note: $('fn-inventory-note').value.trim() || null,
+    inventory_prompt: $('fn-inventory-prompt').value.trim() || null,
     enabled: $('fn-enabled').checked,
   };
 }
@@ -759,7 +759,7 @@ function openServerEditor(id) {
   } catch { envText = ''; }
   $('mcp-args').value = argsText;
   $('mcp-env').value = envText;
-  $('mcp-inventory-note').value = s?.inventory_note ?? '';
+  $('mcp-inventory-prompt').value = s?.inventory_prompt ?? '';
   $('mcp-enabled').checked = s ? !!s.enabled : true;
   $('mcp-tools').innerHTML = '';
   toggleMcpTransportFields($('mcp-transport').value);
@@ -770,7 +770,7 @@ async function saveServer() {
   const payload = {
     name: $('mcp-name').value.trim(),
     transport,
-    inventory_note: $('mcp-inventory-note').value.trim() || null,
+    inventory_prompt: $('mcp-inventory-prompt').value.trim() || null,
     enabled: $('mcp-enabled').checked,
   };
   if (transport === 'stdio') {

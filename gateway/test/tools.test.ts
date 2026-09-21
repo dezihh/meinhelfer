@@ -17,7 +17,7 @@ before(() => {
     template: 'test',
     parameters: '{"type":"object","properties":{"query":{"type":"string"}}}',
     budget: 2,
-    budget: 2,inventory_note: null,
+    budget: 2,inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -26,7 +26,7 @@ before(() => {
     template: 'test',
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
 });

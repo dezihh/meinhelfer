@@ -89,7 +89,7 @@ test('Functions: Create + Name-Lookup + Budget', () => {
     template: "{{ index.find(args.query) }}",
     parameters: JSON.stringify({ type: 'object', properties: {} }),
     budget: 2,
-    budget: 2,inventory_note: null,
+    budget: 2,inventory_prompt: null,
     enabled: 1,
   });
   const byName = getFunctionByName('test_fn_x');

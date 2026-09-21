@@ -9,7 +9,7 @@ export interface McpServerInput {
   command: string | null;
   args: string | null;
   env: string | null;
-  inventory_note: string | null;
+  inventory_prompt: string | null;
   enabled: number;
 }
 
@@ -25,8 +25,8 @@ export function getMcpServer(id: number): McpServerRow | undefined {
 
 export function createMcpServer(data: McpServerInput): McpServerRow {
   const info = getDb().prepare(
-      `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_note, enabled)
-       VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_note, @enabled)`
+      `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, enabled)
+       VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_prompt, @enabled)`
     )
     .run(data);
   return getMcpServer(Number(info.lastInsertRowid)) as McpServerRow;
@@ -38,7 +38,7 @@ export function updateMcpServer(id: number, data: McpServerInput): McpServerRow 
   getDb().prepare(
     `UPDATE mcp_servers SET name = @name, url = @url,
      auth_token = COALESCE(@auth_token, auth_token), transport = @transport,
-     command = @command, args = @args, env = @env, inventory_note = @inventory_note, enabled = @enabled WHERE id = @id`
+     command = @command, args = @args, env = @env, inventory_prompt = @inventory_prompt, enabled = @enabled WHERE id = @id`
   ).run({ ...data, id });
   return getMcpServer(id);
 }

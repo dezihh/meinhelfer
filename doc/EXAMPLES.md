@@ -30,7 +30,7 @@ kombiniert, was kein Trigger vorhersehen kann.
 
 1. **Werkzeuge anlegen** (Kapitel 2): MCP-Server, Index-Quellen — einmalig.
 2. **Funktion anlegen** (Tab **Funktionen** → „Neue Funktion"): Name,
-   Template, optional Parameter-Schema, `inventory_note`/Budget für
+   Template, optional Parameter-Schema, `inventory_prompt`/Budget für
    Agent-Tools — mit dem **Ausführen**-Button live testen (echter Kontext).
 3. **Vorgang anlegen** (Tab **Vorgänge** → „Neuer Vorgang"): Trigger-Phrasen
    (kommagetrennt), Modus, Funktions-Zuweisung bzw. Agent-Route — im
@@ -70,8 +70,8 @@ steht und fällt das an:
 ### Wo die Regeln leben (ein Satz zur Architektur)
 
 Zentral (`agent_system`) steht nur **generisches Verhalten**. Domänen-Kaskaden
-stehen an ihrem System (MCP-Server-Notiz, Feld „Agent-Inventory-Regeln"),
-Werkzeug-Eigenheiten an der Funktion (`inventory_note`). Dritte können mit
+stehen an ihrem System (MCP-Server-Prompt, Feld „Agent-Inventory-Prompt"),
+Werkzeug-Eigenheiten an der Funktion (`inventory_prompt`). Dritte können mit
 eigenem System + eigenen Noten arbeiten, ohne den Agent-Prompt anzufassen.
 
 ## 2. Werkzeuge (Grundanbindung — einmalig)
@@ -83,7 +83,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 - **Wo**: Tab **Systeme** → „MCP-Server hinzufügen". Felder: Name (z. B.
   `Home Assistant MCP`), Transport `http`, URL des HA-MCP-Endpunkts (z. B.
-  `https://ha.example.org/api/mcp`), Token (HA-Zugangs-Token), **Systemnotiz**
+  `https://ha.example.org/api/mcp`), Token (HA-Zugangs-Token), **MCP-System-Prompt**
   (die Kaskaden, z. B. Schalten/Lesen), Aktiv ✓.
 - **Werkzeuge danach**: Service-Calls (`ha_call_service`) und ein
   Template-Tool (z. B. `ha_eval_template`) für Attribute/Index-Extraktion.
@@ -111,7 +111,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 ### 2.2 Music Assistant (MCP)
 
 - **Wo**: Tab **Systeme** → MCP-Server hinzufügen (Transport `http` oder
-  `stdio` je nach Installation), Token falls nötig, **Systemnotiz** (die
+  `stdio` je nach Installation), Token falls nötig, **MCP-System-Prompt** (die
   Wiedergabe-Kaskade + Falscherkennungen), Aktiv ✓.
 - **Werkzeuge**: `library_search_artists/albums/tracks`, `playback_play_media/
   pause/resume/stop`, `volume_volume_set`.
@@ -123,7 +123,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 - **Wo**: Tab **Systeme** → MCP-Server für einen Such-Connector (Beispiel:
   SearXNG-MCP, Beispiel: Brave-MCP) + ein URL-Lesen-Tool (`web_url_read` mit
-  maxLength-Parameter). Systemnotiz: die Lese-Regel (nur konkrete
+  maxLength-Parameter). MCP-System-Prompt: die Lese-Regel (nur konkrete
   Treffer-URLs/Feeds oder auf Wunsch).
 - **Bemerkung**: Kann dein Modell Websuche **nativ** über seinen
   Anbieter-Stack, entfällt der Such-Connector (siehe Einleitung).
@@ -323,7 +323,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   1. Funktionen `find_entities`/`get_entity` existieren nach Grundinstallation
      (Schema-Basis); bei Bedarf eigene Lesefunktionen mit `parameters`-Schema
      (`query`) anlegen — das Schema macht sie zu Agent-Tools mit Argumenten.
-  2. Die Schalten-Kaskade in der **Systemnotiz** des HA-MCP-Servers (Tab
+  2. Die Schalten-Kaskade in der **MCP-System-Prompt** des HA-MCP-Servers (Tab
      Systeme) pflegen — Beispieltext: „Schalten: zuerst fn_find_entities mit
      dem Namen (liefert entity_id), dann ha_call_service mit passendem
      domain/service. Mehrdeutigkeit: NIEMALS raten — im Echo nachfragen."
@@ -337,7 +337,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   Antwort auch gelaufen sind. 3. Bei Mehrdeutigkeit (zwei Lichter im Raum):
   Rückfrage im Echo — weil eine falsche entity_id unbeobachtbar falsch
   schaltet.
-- **Hinweise**: die Kaskade steht in der Systemnotiz des HA-Connectors —
+- **Hinweise**: die Kaskade steht in der MCP-System-Prompt des HA-Connectors —
   nicht im Agent-Prompt (dort nur generisches Verhalten).
 
 ### 5.2 Musik abspielen (Music-Assistant-Kaskade)
@@ -349,7 +349,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   1. Funktion `ma_players` mit Parameter-Schema (Player-Query) und Template
      `{{ index.find(args.query, 'ma') }}` — die Player-Liste kommt aus dem
      Zweit-Index.
-  2. Die Wiedergabe-Kaskade (+ Falscherkennungs-Regel) in der **Systemnotiz**
+  2. Die Wiedergabe-Kaskade (+ Falscherkennungs-Regel) in der **MCP-System-Prompt**
      des MA-MCP-Servers.
   3. Allowlist: MA-Tools anhaken (Grundeinstellungen → Agent-Tool-Allowlist).
 - **Ablauf (warum)**: 1. `fn_ma_players` — weil `playback_play_media` eine
@@ -370,7 +370,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 - **Modus**: `llm`.
 - **Anlegen**:
   1. Funktion `recherche` mit Parameter-Schema (`query`, optional `url`),
-     Budget 2, `inventory_note` mit der Kaskaden-Regel (Beispiel unten).
+     Budget 2, `inventory_prompt` mit der Kaskaden-Regel (Beispiel unten).
   2. Allowlist: Such-Tools + `web_url_read` + `fn_recherche` anhaken.
 - **Ablauf (warum)**: 1. Die Funktion ruft den Such-Call mit `count 5` —
   weil Treffer die Quellen liefern. 2. Liefert die Quelle einen verlinkten
@@ -417,7 +417,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 - **Modus**: `llm` — kein Trigger deckt die Phrasenvielfalt ab.
 - **Anlegen**: nur Werkzeuge (2.1) + Allowlist; die Lesefunktionen existieren
   nach Grundinstallation; Regeln in der `find_entities`-Note (Tab Funktionen
-  → Feld Agent-Inventory-Regeln).
+  → Feld Agent-Inventory-Prompt).
 - **Ablauf (warum)**: 1. `fn_find_entities` mit Stichworten — weil die
   Treffer den aktuellen Zustand enthalten und die Suche Fuzzy/Aliase/Räume
   bereits behandelt. 2. SOFORT aus dem Treffer antworten (max. 1 Aufruf) —

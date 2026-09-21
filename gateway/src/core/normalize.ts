@@ -71,7 +71,7 @@ export function normalizeFunctionInput(body: Record<string, unknown>): FunctionI
     template,
     parameters,
     budget,
-    inventory_note: body.inventory_note == null ? null : String(body.inventory_note).trim() || null,
+    inventory_prompt: body.inventory_prompt == null ? null : String(body.inventory_prompt).trim() || null,
     enabled: body.enabled === false ? 0 : 1,
   };
 }

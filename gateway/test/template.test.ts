@@ -210,7 +210,7 @@ before(async () => {
     template: `{{ mcp.call('tool_x', {'q': args.x}) }}`,
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -219,7 +219,7 @@ before(async () => {
     template: `{{ http('https://api.example.org/' ~ args.path, 0) | dump }}`,
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -228,7 +228,7 @@ before(async () => {
     template: `{{ http('http://' ~ args.host ~ '/api', 0) }}`,
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -237,7 +237,7 @@ before(async () => {
     template: `{{ fn('test_fn_a') }} B`,
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -246,7 +246,7 @@ before(async () => {
     template: `A {{ fn('test_fn_b') }}`,
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
 });

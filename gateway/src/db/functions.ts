@@ -7,7 +7,7 @@ export interface ParsedFunction {
   template: string;
   parameters: unknown | null;
   budget: number | null;
-  inventory_note: string | null;
+  inventory_prompt: string | null;
   enabled: boolean;
 }
 
@@ -17,7 +17,7 @@ export interface FunctionInput {
   template: string;
   parameters: string | null;
   budget: number | null;
-  inventory_note: string | null;
+  inventory_prompt: string | null;
   enabled: number;
 }
 
@@ -28,7 +28,7 @@ interface FunctionRow {
   template: string;
   parameters: string | null;
   budget: number | null;
-  inventory_note: string | null;
+  inventory_prompt: string | null;
   enabled: number;
 }
 
@@ -46,7 +46,7 @@ function parseFunction(row: FunctionRow): ParsedFunction {
     template: row.template,
     parameters,
     budget: row.budget ?? null,
-    inventory_note: row.inventory_note ?? null,
+    inventory_prompt: row.inventory_prompt ?? null,
     enabled: !!row.enabled,
   };
 }
@@ -70,8 +70,8 @@ export function getFunctionByName(name: string): ParsedFunction | undefined {
 
 export function createFunction(data: FunctionInput): ParsedFunction {
   const info = getDb().prepare(
-      `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_note, enabled)
-       VALUES (@name, @description, @template, @parameters, @budget, @inventory_note, @enabled)`
+      `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, enabled)
+       VALUES (@name, @description, @template, @parameters, @budget, @inventory_prompt, @enabled)`
     )
     .run(data);
   const row = getFunction(Number(info.lastInsertRowid));
@@ -82,7 +82,7 @@ export function createFunction(data: FunctionInput): ParsedFunction {
 export function updateFunction(id: number, data: FunctionInput): ParsedFunction | undefined {
   getDb().prepare(
     `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
-     parameters = @parameters, budget = @budget, inventory_note = @inventory_note, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
+     parameters = @parameters, budget = @budget, inventory_prompt = @inventory_prompt, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
   ).run({ ...data, id });
   return getFunction(id);
 }

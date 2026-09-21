@@ -51,7 +51,7 @@ export interface McpServerRow {
   command: string | null;
   args: string | null;
   env: string | null;
-  inventory_note: string | null;
+  inventory_prompt: string | null;
   enabled: number;
 }
 

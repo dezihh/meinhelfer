@@ -73,7 +73,7 @@ before(() => {
     template: 'Echo: {{ args.x }}',
     parameters: '{"type":"object","properties":{"x":{"type":"string"}}}',
     budget: null,
-    inventory_note: null,
+    inventory_prompt: null,
     enabled: 1,
   });
   createFunction({
@@ -82,7 +82,7 @@ before(() => {
     template: 'Deterministisch: {{ args.wert }}',
     parameters: null,
     budget: null,
-    budget: null,inventory_note: null,
+    budget: null,inventory_prompt: null,
     enabled: 1,
   });
 });
