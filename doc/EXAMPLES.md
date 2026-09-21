@@ -124,7 +124,11 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
     (siehe compose oben). **Anders bei HA's eingebaurem `/api/mcp`**: der
     verlangt einen Client-Token im Gateway-Feld — deshalb steht in jedem
     Fall, WELCHER Server gemeint ist.
-  - **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe Fall 5.1), Aktiv ✓.
+  - **Agent-Inventory-Prompt**:
+   ```
+   Schalten (Licht, Schalter, Rolladen, Klima): zuerst fn_find_entities mit dem Namen (liefert entity_id), dann ha_call_service mit passendem domain/service und dieser entity_id (z. B. light/turn_on, switch/turn_off, cover/set_cover_position mit data {position: 80}, climate/set_temperature mit data {temperature: 21}). Mehrdeutigkeit (z. B. zwei Lampen im selben Raum): NIEMALS raten oder eine entity_id erfinden - stattdessen im Echo nachfragen ("es gibt Stehlampe unten und Stehlampe oben, welche?"), ohne weitere Tool-Runde.
+   ```
+
 - **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index.
   Das `template`-Feld ist Teil des JSON und daher eine String-Zeile: die
   `\n`-Escapes bauen die Pipe-Zeilen (die HA-Template-Engine ignoriert die
