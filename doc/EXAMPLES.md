@@ -125,33 +125,19 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
     verlangt einen Client-Token im Gateway-Feld — deshalb steht in jedem
     Fall, WELCHER Server gemeint ist.
   - **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe Fall 5.1), Aktiv ✓.
-- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index:
-
-  ```jinja
-  {% for e in states %}
-  {% set area = area_name(e.entity_id) or '' %}
-  {% set nm = e.attributes.get('friendly_name', e.entity_id) %}
-  {% set extra = 'device_class=' ~ (e.attributes.get('device_class','') or '')
-                  ~ ';icon=' ~ (e.attributes.get('icon','') or '')
-                  ~ ';supported_features=' ~ (e.attributes.get('supported_features','') or '') %}
-  {% if e.entity_id.startswith('climate.') and e.attributes.get('current_temperature') is not none %}
-  {% set extra = extra ~ ';current_temperature=' ~ (e.attributes.get('current_temperature') or '') %}
-  {% endif %}
-  {{ e.entity_id }}|{{ area }}|{{ e.state }}|{{ e.attributes.get('unit_of_measurement','') or '' }}|{{ nm }}|{{ extra }}
-  {% endfor %}
-  ```
-  Übernahme-Hinweis: das Index-Konfigurationsfeld nimmt JSON — das Template
-  gehört als **eine String-Zeile** hinein, Umbrüche als `\n`
-  (`{% ... %}\n{{ ... }}\n{% endfor %}`). Die HA-Template-Engine ignoriert
-  die Zeilenumbrüche zwischen den `{% ... %}`-Tags (trim), das `\n` nach
-  der Ausgabezeile baut die Pipe-Zeilen.
-
-  Der Rest als JSON:
+- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index.
+  Das `template`-Feld ist Teil des JSON und daher eine String-Zeile: die
+  `\n`-Escapes bauen die Pipe-Zeilen (die HA-Template-Engine ignoriert die
+  Umbrüche zwischen den `{% ... %}`-Tags). Bausteine: `for` über alle
+  States, `area_name`, `friendly_name`, das `extra`-Bündel
+  (`device_class`/`icon`/`supported_features`), das Klima-If
+  (`current_temperature`) und die Ausgabezeile
+  (`entity_id|Raum|State|Einheit|Name|Extra`).
   ```json
   {
     "tool": "ha_eval_template",
     "args": {
-      "template": "<obiges Template, als String-Zeile mit \\n-Umbrüchen>",
+      "template": "{% for e in states %}{% set area = area_name(e.entity_id) or '' %}{% set nm = e.attributes.get('friendly_name', e.entity_id) %}{% set extra = 'device_class=' ~ (e.attributes.get('device_class','') or '') ~ ';icon=' ~ (e.attributes.get('icon','') or '') ~ ';supported_features=' ~ (e.attributes.get('supported_features','') or '') %}{% if e.entity_id.startswith('climate.') and e.attributes.get('current_temperature') is not none %}{% set extra = extra ~ ';current_temperature=' ~ (e.attributes.get('current_temperature') or '') %}{% endif %}{{ e.entity_id }}|{{ area }}|{{ e.state }}|{{ e.attributes.get('unit_of_measurement','') or '' }}|{{ nm }}|{{ extra }}\n{% endfor %}",
       "timeout": 15,
       "report_errors": false
     },
