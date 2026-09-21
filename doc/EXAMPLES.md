@@ -1,13 +1,16 @@
 # Praxisbeispiele: Vorgänge, Funktionen und Agent-Kaskaden
 
-Sammlung realer Muster aus dem Betrieb  Alle Beispiele können nach
-Grundinstallation übernommen und direkt getestet werden: Bei Home Assistant
-genügen die Entities, die jede Basisinstallation mitbringt (`sun.sun`,
-`weather.home`, `zone.home`, `person.*` — siehe unten).
+Sammlung realer Muster aus dem Betrieb — anonymisiert, so dass nichts auf die
+eigene Infrastruktur rückschließen lässt. Alle Beispiele sind nach
+Grundinstallation **1:1 nachbaubar**: Bei Home Assistant genügen die
+Entities, die jede Basisinstallation mitbringt (`sun.sun`, `weather.home`,
+`zone.home` — siehe Werkzeuge-Kapitel).
 
-Technische Grundlagen (Bausteine, Registry, Index-Konfiguration) stehen in
-`FUNKTIONEN.md` — hier geht es um die **Praxis**: welchen Modus man wählt,
-welche Quelle herhält und **warum** die Schritte in dieser Reihenfolge laufen.
+Zentraler Zweck dieser Seite: **wo muss was angelegt werden.** Jedes Beispiel
+listet deshalb die Anlage-Schritte (welcher Tab, welche Felder). Die
+Grundanbindung der Werkzeuge steht einmal im Werkzeuge-Kapitel (Kapitel 2);
+die Cases verweisen nur noch darauf. Technische Grundlagen (Bausteine,
+Registry, Index-Konfiguration) stehen in `FUNKTIONEN.md`.
 
 ## 1. Einleitung
 
@@ -22,6 +25,16 @@ welche Quelle herhält und **warum** die Schritte in dieser Reihenfolge laufen.
 Faustregel: **so deterministisch wie möglich, so agentig wie nötig.** Ein
 `deterministic`-Vorgang ist unschlagbar schnell und vorhersehbar; der Agent
 kombiniert, was kein Trigger vorhersehen kann.
+
+### Anlage-Reihenfolge (gilt für alle Beispiele)
+
+1. **Werkzeuge anlegen** (Kapitel 2): MCP-Server, Index-Quellen — einmalig.
+2. **Funktion anlegen** (Tab **Funktionen** → „Neue Funktion"): Name,
+   Template, optional Parameter-Schema, `inventory_note`/Budget für
+   Agent-Tools — mit dem **Ausführen**-Button live testen (echter Kontext).
+3. **Vorgang anlegen** (Tab **Vorgänge** → „Neuer Vorgang"): Trigger-Phrasen
+   (kommagetrennt), Modus, Funktions-Zuweisung bzw. Agent-Route — im
+   **Monitor/Test** mit der echten Frage prüfen.
 
 ### Modellwahl — worauf es ankommt
 
@@ -57,74 +70,130 @@ steht und fällt das an:
 ### Wo die Regeln leben (ein Satz zur Architektur)
 
 Zentral (`agent_system`) steht nur **generisches Verhalten**. Domänen-Kaskaden
-stehen an ihrem System (MCP-Server-Prompt), Werkzeug-Eigenheiten an der
-Funktion (`inventory_prompt`). Dritte können mit eigenem System + eigenen Promps
-arbeiten, ohne den Agent-Prompt anzufassen.
+stehen an ihrem System (MCP-Server-Notiz, Feld „Agent-Inventory-Regeln"),
+Werkzeug-Eigenheiten an der Funktion (`inventory_note`). Dritte können mit
+eigenem System + eigenen Noten arbeiten, ohne den Agent-Prompt anzufassen.
 
-## 2. Quellen (Connectoren)
+## 2. Werkzeuge (Grundanbindung — einmalig)
 
-Jede Quelle braucht hier mindestens einen Fall — die Kapitel 3–5 zeigen sie
-in Aktion.
+Jedes Beispiel baut auf diesen Werkzeugen auf. Hier steht einmal, **wo und
+wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
-| Quelle | Anbindung | Kernregeln (in der Systemnotiz pflegbar) |
-|--------|-----------|------------------------------------------|
-| **Home Assistant** | MCP-Server (URL + Token), Tools: Service-Calls + ein Template-Tool für Attribute/Index-Extraktion; Lesekanal ist der **Entity-Index** (Kanal-Config im Admin-UI) | Lesen: `fn_find_entities` (Treffer enthalten den Zustand, sofort antworten, max. 1 Aufruf). Schalten: erst entity_id ermitteln, dann Service-Call — **niemals raten**, bei Mehrdeutigkeit im Echo nachfragen |
-| **Music Assistant** | MCP-Server; Tools: `library_search_*`, `playback_*`, `volume_*` | Wiedergabe-Kaskade: Player ermitteln → Suchen → Abspielen (Playlist/Album bevorzugen); ASR-Falscherkennungen mit Schreibweisen-Varianten behandeln |
-| **Websuche** | MCP-Connector (z. B. ein SearXNG- oder Brave-Server) | Kaskade: Suchen → Treffer nennen; Portal-Übersichten nicht als Meldungen verkaufen |
-| **Kaskadierte Suche** | derselbe Connector + `web_url_read` (URL-Lesen mit Längen-Cap) | Wenn Treffer nur Portal-Übersichten liefern: GENAU EINMAL die passende Treffer-URL (oder den `/rss`-Feed) lesen, dann sofort antworten |
-| **HTTP-Direkt** | `http()`-Baustein in Funktions-Templates (JSON wird geparst) | SSRF: dynamische URLs (mit `args`) nie ins private Netz; literale URLs im Admin-Template sind vertrauenswürdig |
-| **Shell-Direkt** | `shell()`-Baustein | Admin-only editierbar, Timeout 5 s, Output-Cap 4000 — kleine Systemabfragen, keine Langläufer |
-| **Entity-Index (Zweit-Index)** | eigene Index-Quelle pro System (z. B. Musik-Player) | gleiche Bausteine, zweites Argument `index.find(q, 'key')` |
-| **Zeit** | `now` (`now.hour`, `now.weekday`) | für Begrüßungen und Tageszeit-Verzweigungen |
+### 2.1 Home Assistant (MCP)
+
+- **Wo**: Tab **Systeme** → „MCP-Server hinzufügen". Felder: Name (z. B.
+  `Home Assistant MCP`), Transport `http`, URL des HA-MCP-Endpunkts (z. B.
+  `https://ha.example.org/api/mcp`), Token (HA-Zugangs-Token), **Systemnotiz**
+  (die Kaskaden, z. B. Schalten/Lesen), Aktiv ✓.
+- **Werkzeuge danach**: Service-Calls (`ha_call_service`) und ein
+  Template-Tool (z. B. `ha_eval_template`) für Attribute/Index-Extraktion.
+- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index
+  konfigurieren (JSON): `tool` = das Template-Tool, `args` = das
+  Extraktions-Template, optional `aliases`/`domainHints` für Sprachwissen.
+  Minimal-Beispiel (liefert Sonnen-/Wetter-/Zonen-Entities jeder
+  Basisinstallation):
+  ```json
+  {
+    "tool": "ha_eval_template",
+    "args": {
+      "template": "{{ states.sun | list | map(attribute='entity_id') | join(',') | default('sun.sun') }},{{ states.weather | list | map(attribute='entity_id') | join(',') | default('weather.home') }},{{ states.zone | list | map(attribute='entity_id') | join(',') | default('zone.home') }}"
+    },
+    "aliases": { "draussen": "aussen" }
+  }
+  ```
+  (Das Extraktions-Template listet die entity_ids; der Gateway baut daraus
+  den Zustands-Snapshot — Details/Index-Format: `FUNKTIONEN.md`.)
+- **Basis-Entities der Grundinstallation**: `sun.sun` (sun-Integration ist per
+  Default aktiv), `weather.home` (Standard-Wetter-Integration nach dem
+  Standort-Setup), `zone.home` (Personenzahl). Diese drei reichen für alle
+  deterministischen Beispiele in Kapitel 3.
+
+### 2.2 Music Assistant (MCP)
+
+- **Wo**: Tab **Systeme** → MCP-Server hinzufügen (Transport `http` oder
+  `stdio` je nach Installation), Token falls nötig, **Systemnotiz** (die
+  Wiedergabe-Kaskade + Falscherkennungen), Aktiv ✓.
+- **Werkzeuge**: `library_search_artists/albums/tracks`, `playback_play_media/
+  pause/resume/stop`, `volume_volume_set`.
+- **Zweit-Index für Player**: Tab **Index-Quellen** → zusätzlicher Index mit
+  Key `ma` (die Player-Liste), damit `fn_ma_players` sie in einem Call
+  liefert.
+
+### 2.3 Websuche + URL-Lesen (MCP)
+
+- **Wo**: Tab **Systeme** → MCP-Server für einen Such-Connector (Beispiel:
+  SearXNG-MCP, Beispiel: Brave-MCP) + ein URL-Lesen-Tool (`web_url_read` mit
+  maxLength-Parameter). Systemnotiz: die Lese-Regel (nur konkrete
+  Treffer-URLs/Feeds oder auf Wunsch).
+- **Bemerkung**: Kann dein Modell Websuche **nativ** über seinen
+  Anbieter-Stack, entfällt der Such-Connector (siehe Einleitung).
+
+### 2.4 HTTP- und Shell-Bausteine
+
+- **Wo**: keine Anlage nötig — `http()` und `shell()` sind Template-Bausteine
+  (Grenzen/Sicherheit: Kapitel 6 und `FUNKTIONEN.md`).
 
 ## 3. Deterministische Vorgänge
 
 ### 3.1 Sonnenstand (`sun.sun`)
 
-- **Ziel**: „Ist die Sonne schon unter?" → sprechbare Aussage.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, ist die Sonne schon untergegangen?"
+- **Werkzeuge**: MCP Home-Assistant + Entity-Index (2.1).
 - **Modus**: `deterministic` — der Zustand ist ein fester Text, kein LLM nötig.
-- **Quelle**: Home Assistant über den Entity-Index (`sun.sun` — mit der
-  Basisinstallation vorhanden, die sun-Integration ist per Default aktiv).
-- **Ablauf**: 1. Index-Quelle konfigurieren, so dass `sun.sun` geliefert wird
-  (Admin-UI, Index-Tab) — weil der Index der Lesekanal ist. 2. Vorgang
-  `sonnenstand` mit Trigger `sonnenstand` auf eine Funktion mit:
+- **Anlegen**:
+  1. Index-Quelle liefert `sun.sun` (Werkzeuge 2.1 — einmalig).
+  2. Tab **Funktionen** → Neue Funktion: Name `sonnenstand`, Template
+     unten, Aktiv ✓, Speichern; mit **Ausführen** testen.
+  3. Tab **Vorgänge** → Neuer Vorgang: Name `Sonnenstand`, Trigger
+     `sonne,sonnenstand,geht die sonne unter`, Modus `deterministic`,
+     Funktion `sonnenstand`, Speichern.
+  4. **Monitor/Test**: „sonnenstand" → Sprechcheck.
+- **Ablauf (warum)**: Der Index liest den Zustand — weil der Index der
+  Lesekanal ist (gecacht, keine Einzel-Roundtrips).
+- **Template**:
   ```jinja
   Die Sonne ist gerade {{ 'über' if index.state('sun.sun') == 'above_horizon' else 'unter' }} dem Horizont.
   ```
-- **Hinweise**: der State der Sonnen-Entity ist `above_horizon`/
-  `below_horizon`. Attribute (Auf-/Untergangszeiten) stehen nicht im
-  Index-Pipe-Text — dafür den Template-Tool-Fall (4.1) nutzen.
+- **Hinweise**: der State ist `above_horizon`/`below_horizon`. Attribute
+  (Auf-/Untergangszeiten) stehen nicht im Index-Pipe-Text — dafür den
+  Template-Tool-Fall (4.1) nutzen.
 
 ### 3.2 Ist jemand zuhause? (`zone.home`)
 
-- **Ziel**: „Ist jemand zuhause?" → Personenzahl gesprochen.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, ist jemand zuhause?"
+- **Werkzeuge**: MCP Home-Assistant + Entity-Index (2.1).
 - **Modus**: `deterministic`.
-- **Quelle**: Home Assistant Index (`zone.home` — mit der Basisinstallation
-  vorhanden; State = Personenzahl in der Zone).
-- **Ablauf**: wie 3.1, Funktion:
+- **Anlegen**: wie 3.1 (Funktion `zuhause`, Vorgang Trigger
+  `zuhause,ist jemand zuhause`).
+- **Ablauf (warum)**: `zone.home` liefert die Personenzahl im State — weil
+  jede Basisinstallation eine Person- und Zonen-Verwaltung hat, ist das
+  ohne Zusatz-Integration lauffähig.
+- **Template**:
   ```jinja
   {%- set n = index.state('zone.home') | int -%}
   {{ 'Niemand ist zuhause.' if n == 0 else ('Eine Person ist zuhause.' if n == 1 else n ~ ' Personen sind zuhause.') }}
   ```
 - **Hinweise**: `person.<name>`-Entities stehen ebenfalls im Index, wenn die
-  Index-Quelle sie einschließt — für Namen genügt ein Suffix-Muster in der
-  Index-Config.
+  Index-Quelle sie einschließt.
 
 ### 3.3 Wetter-Übersicht (HTTP-Direkt)
 
-- **Ziel**: „Wie wird das Wetter?" → mehrteiliger Bericht für die nächsten
-  Tage.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie wird das Wetter?"
+- **Werkzeuge**: HTTP-Baustein (`http()`) — keine Anlage nötig (2.4).
 - **Modus**: `deterministic` — die API liefert fertig strukturierte Daten,
   das Template formatiert.
-- **Quelle**: öffentliche Wetter-API via `http()` (z. B. open-meteo mit
-  `latitude=<breite>&longitude=<laenge>` — Platzhalter einsetzen; URL ist
-  **literale** im Template, kein SSRF-Risiko).
-- **Ablauf**: 1. `http()` holt JSON — weil `http()` JSON automatisch parst,
-  greift das Template direkt auf Felder zu. 2. Ein Jinja-Macro übersetzt den
-  numerischen Wettercode (`weather_code`) in sprechbare Begriffe — weil die
-  API-Codes nicht sprechbar sind. 3. Tägliche Extremwerte aus dem
-  `daily`-Block — weil ein Bericht Extremwerte, nicht Stundendaten sprechen
-  soll.
+- **Anlegen**:
+  1. Tab **Funktionen** → Neue Funktion: Name `wetter`, Template unten
+     (Platzhalter-Koordinaten anpassen!), Speichern, **Ausführen**-Test.
+  2. Tab **Vorgänge** → Neuer Vorgang: Trigger `wetter,wetterbericht`,
+     Modus `deterministic`, Funktion `wetter`.
+- **Ablauf (warum)**: 1. `http()` holt JSON — weil `http()` JSON automatisch
+  parst, greift das Template direkt auf Felder zu. 2. Ein Jinja-Macro
+  übersetzt den numerischen Wettercode (`weather_code`) in sprechbare
+  Begriffe — weil die API-Codes nicht sprechbar sind. 3. Tägliche Extremwerte
+  aus dem `daily`-Block — weil ein Bericht Extremwerte, nicht Stundendaten
+  sprechen soll.
+- **Template**:
   ```jinja
   {%- set d = http('https://api.example-weather.org/v1/forecast?latitude=50.00&longitude=10.00&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FBerlin&forecast_days=3') -%}
   {%- macro wt(c) -%}{%- if c == 0 %}klar{%- elif c <= 3 %}wolkig{%- elif c <= 65 %}Regen{%- else %}Schnee{%- endif -%}{%- endmacro -%}
@@ -137,11 +206,13 @@ in Aktion.
 
 ### 3.4 Systemdaten über Shell
 
-- **Ziel**: „Wie lange läuft der Gateway schon?" → Uptime in Tagen.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie lange läuft der Server schon?"
+- **Werkzeuge**: Shell-Baustein (`shell()`) — keine Anlage nötig (2.4).
 - **Modus**: `deterministic`.
-- **Quelle**: `shell()` im Gateway-Container.
-- **Ablauf**: eine Zeile Template — weil `/proc/uptime` Sekunden liefert und
-  das Template rechnet:
+- **Anlegen**: Funktion `gateway_uptime` (Template unten), Vorgang Trigger
+  `uptime,laeuft der server`.
+- **Ablauf (warum)**: eine Zeile Template — weil `/proc/uptime` Sekunden
+  liefert und das Template rechnet:
   ```jinja
   Das Gateway läuft seit {{ (shell('cat /proc/uptime | cut -d . -f1') | int / 86400) | round(1) }} Tagen.
   ```
@@ -150,30 +221,36 @@ in Aktion.
 
 ### 3.5 Tageszeit-Begrüßung (`now`)
 
-- **Ziel**: Berichte mit passender Begrüßung statt nüchterner Ansage.
-- **Modus**: `deterministic` (Baustein für andere Berichte).
-- **Quelle**: Gateway-Zeit (`now.hour`).
-- **Ablauf**: ein `set` vor dem Speak-Block — weil die Begrüßung an den
-  Stundenwert gebunden ist:
+- **Alexa-Frage**: — (Baustein für Berichte; ausgespielt z. B. im
+  Hausstatus-Bericht).
+- **Werkzeuge**: Gateway-Zeit (`now`) — keine Anlage nötig.
+- **Modus**: `deterministic` (Baustein).
+- **Anlegen**: in eine bestehende Funktion einbauen (z. B. `hausstatus`).
+- **Ablauf (warum)**: ein `set` vor dem Speak-Block — weil die Begrüßung an
+  den Stundenwert gebunden ist:
   ```jinja
   {%- set gr = 'Guten Morgen' if (now.hour >= 5 and now.hour < 11) else ('Guten Abend' if (now.hour >= 17 and now.hour < 22) else 'Hallo') -%}
   ```
-- **Hinweise**: `now` liefert Gateway-Zeit; Zeitzonen-Fallstricke gibt es
-  bei Log-Timestamps, nicht hier.
 
 ### 3.6 Komplexfall: Hausstatus-Bericht (Makros + Fallbacks)
 
-- **Ziel**: „Wie ist der Hausstatus?" → Sprechpausen-getakter SSML-Bericht
-  (Akkustand, Verbrauch, Produktionswerte).
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie ist der Hausstatus?"
+- **Werkzeuge**: MCP Home-Assistant + Entity-Index (2.1) mit PV-/Verbrauchs-
+  Sensoren.
 - **Modus**: `deterministic` — die Struktur ist fest, nur Zahlen variieren.
-- **Quelle**: Home Assistant Index (mehrere Sensor-IDs).
-- **Ablauf**: 1. Ein Makro `gfmt` normalisiert Zahlen und ersetzt
+- **Anlegen**:
+  1. Die Sensoren in die Index-Quelle aufnehmen (Index-Config-Template um die
+     gewünschten entity_ids erweitern).
+  2. Funktion `hausstatus` (Template unten, IDs auf die eigenen Index-Einträge
+     anpassen), Vorgang Trigger `hausstatus,wie ist der hausstatus`.
+- **Ablauf (warum)**: 1. Ein Makro `gfmt` normalisiert Zahlen und ersetzt
   `unknown`/`unavailable` durch „unbekannt" — weil Sensoren bei Basis-Setup
   (oder Stromausfall) unbelegt sein können. 2. `set`-Variablen holen alle
   Werte über `index.state(...)` — weil der Index bereits die aktuellen
   Zustände gecacht hat (keine Einzel-Roundtrips). 3. Ein
   `<speak>`-Block mit `<break time="..."/>` baut die Sprechpausen — weil
   Stichpunkte im Sprachdialog sonst weggespielt werden.
+- **Template** (Kurzfassung — dieselbe Technik wie im echten Bericht):
   ```jinja
   {%- macro gfmt(val, dec=2) -%}
   {%- if val in ['unknown','unavailable',''] -%}unbekannt{%- else -%}{{ val | float(0) | round(dec) | replace('.', ',') }}{%- endif -%}
@@ -185,23 +262,32 @@ in Aktion.
   </speak>
   ```
 - **Hinweise**: SSML gilt nur, wenn der Sprachpfad es unterstützt — für den
-  Echo-Display-Pfad (APL) ist reiner Text die Basis, SSML-Detail entscheidet
-  die Ausgabeschicht.
+  Echo-Display-Pfad (APL) ist reiner Text die Basis.
 
 ## 4. Hybrid-Vorgänge
 
 ### 4.1 Einzelwert mit Attribut (Template-Tool des HA-Connectors)
 
-- **Ziel**: „Wie warm ist es im Garten?" → Wert **und** sprechende Einordnung.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie warm ist es draußen?"
+- **Werkzeuge**: MCP Home-Assistant — das Template-Tool (`ha_eval_template`),
+  nicht der Index (2.1).
 - **Modus**: `hybrid` — die Zahl kommt aus einer Funktion, das LLM formuliert
   die Einordnung („Es sind X Grad, eher frisch…").
-- **Quelle**: HA-Connector über das Template-Tool (`ha_eval_template`-Typ):
-  `mcp.call('<template-tool>', { template: "states.weather.home.attributes.temperature" })`
-  — `weather.home` ist mit der Basisinstallation vorhanden.
-- **Ablauf**: 1. Die Funktion ruft das Template-Tool — weil das
-  Index-Pipe-Format nur den State zeigt, nicht beliebige Attribute. 2. Der
-  Hybrid-Anteil formuliert — weil die natürliche Einordnung (kalt/mild/warm)
-  das LLM besser spricht als eine if-Kaskade im Template.
+- **Anlegen**:
+  1. Funktion `aussen_temperatur`, Template unten; **kein** Parameter-Schema
+     nötig (Vorgang ohne Argumente).
+  2. Vorgang Trigger `wie warm draussen,aussentemperatur`, Modus `hybrid`,
+     Funktion `aussen_temperatur`; System-Prompt leer lassen (die
+     Standard-Formulierung genügt).
+- **Ablauf (warum)**: 1. Die Funktion ruft das Template-Tool — weil das
+  Index-Pipe-Format nur den State zeigt, nicht beliebige Attribute
+  (`temperature` ist ein Attribut von `weather.home`). 2. Der Hybrid-Anteil
+  formuliert — weil die natürliche Einordnung (kalt/mild/warm) das LLM
+  besser spricht als eine if-Kaskade im Template.
+- **Template**:
+  ```jinja
+  Aussentemperatur: {{ mcp.call('ha_eval_template', {'template': "states.weather.home.attributes.temperature"}) }} Grad.
+  ```
 - **Hinweise**: Im Template-Tool-Call nur **wörtliche** Templates
   verwenden; mit `args` dynamisch gebaute Ausdrücke brauchen die
   Preheat-Regeln aus `FUNKTIONEN.md` (set-Variablen sind im
@@ -209,16 +295,20 @@ in Aktion.
 
 ### 4.2 Verkehrsmeldungen (Liste variabler Länge)
 
-- **Ziel**: „Wie ist der Stau?" → 2–3 konkrete Meldungen gesprochen.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie ist der Stau?"
+- **Werkzeuge**: HTTP-Baustein.
 - **Modus**: `hybrid` — die API liefert eine variable Liste, das LLM wählt
   und formuliert.
-- **Quelle**: öffentliche Verkehrs-API via `http()` (ohne personale Daten —
-  reine Meldungslisten).
-- **Ablauf**: 1. Die Funktion holt je Autobahn-Streifen eine
-  Bauarbeiten-Liste (`http()` je URL) und komprimiert in einen
-  Stichpunkte-Text — weil der LLM-Kontext schlank bleiben soll. 2. Der
-  Hybrid-Anteil formuliert 2–3 Meldungen mit Ort und Grund — weil Sprachdialog
-  keine Tabellen will.
+- **Anlegen**:
+  1. Funktion `verkehr`: Template holt je Autobahn-Streifen eine
+     Bauarbeiten-Liste (`http()` je URL — die öffentliche Autobahn-App-API
+     eignet sich für den Nachbau) und komprimiert zu Stichpunkten — weil der
+     LLM-Kontext schlank bleiben soll.
+  2. Vorgang Trigger `stau,verkehr`, Modus `hybrid`, Funktion `verkehr`;
+     System-Prompt kann „Formuliere 2-3 konkrete Meldungen" enthalten.
+- **Ablauf (warum)**: 1. Funktions-Daten (Stichpunkte). 2. Der Hybrid-Anteil
+  formuliert 2–3 Meldungen mit Ort und Grund — weil Sprachdialog keine
+  Tabellen will.
 - **Hinweise**: öffentliche APIs mit großem Feed brauchen einen schlanken
   Endpunkt (Body-Cap) — siehe Grenzen in `FUNKTIONEN.md`.
 
@@ -226,28 +316,43 @@ in Aktion.
 
 ### 5.1 Licht schalten (HA-Kaskade)
 
-- **Ziel**: „Schalte das Küchenlicht ein" → Ausführung + Bestätigung.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, schalte das Küchenlicht ein."
+- **Werkzeuge**: MCP Home-Assistant (`fn_find_entities` + Service-Call).
 - **Modus**: `llm` — der Agent ermittelt entity_id und Service-Call.
-- **Quelle**: Home Assistant MCP.
-- **Ablauf** (warum in dieser Reihenfolge): 1. `fn_find_entities("küche
-  licht")` — weil die Treffer bereits die `entity_id` **und** den aktuellen
-  Zustand enthalten; ein zweiter Lesecall wäre Rundenverschwendung. 2.
-  Service-Call (`light/turn_on`) mit der exakten entity_id — weil der Agent
-  **niemals ratet** und eine Erfolgsbestätigung nur für Aufrufe gibt, die in
-  dieser Antwort auch gelaufen sind. 3. Bei Mehrdeutigkeit (zwei Lichter im
-  Raum): Rückfrage im Echo — weil eine falsche entity_id unbeobachtbar
-  falsch schaltet.
-- **Konfiguration**: Agent-Vorgang oder offene Frage; `fn_find_entities` mit
-  `parameters`-Schema (`query`); Allowlist im Agent-Tool-Tab.
+- **Anlegen**:
+  1. Funktionen `find_entities`/`get_entity` existieren nach Grundinstallation
+     (Schema-Basis); bei Bedarf eigene Lesefunktionen mit `parameters`-Schema
+     (`query`) anlegen — das Schema macht sie zu Agent-Tools mit Argumenten.
+  2. Die Schalten-Kaskade in der **Systemnotiz** des HA-MCP-Servers (Tab
+     Systeme) pflegen — Beispieltext: „Schalten: zuerst fn_find_entities mit
+     dem Namen (liefert entity_id), dann ha_call_service mit passendem
+     domain/service. Mehrdeutigkeit: NIEMALS raten — im Echo nachfragen."
+  3. Allowlist: Grundeinstellungen → Agent-Tool-Allowlist (anhaken, was der
+     Agent nutzen darf); leer in der DB = alle.
+- **Ablauf (warum)**: 1. `fn_find_entities("küche licht")` — weil die Treffer
+  bereits die `entity_id` **und** den aktuellen Zustand enthalten; ein
+  zweiter Lesecall wäre Rundenverschwendung. 2. Service-Call
+  (`light/turn_on`) mit der exakten entity_id — weil der Agent **niemals
+  ratet** und eine Erfolgsbestätigung nur für Aufrufe gibt, die in dieser
+  Antwort auch gelaufen sind. 3. Bei Mehrdeutigkeit (zwei Lichter im Raum):
+  Rückfrage im Echo — weil eine falsche entity_id unbeobachtbar falsch
+  schaltet.
 - **Hinweise**: die Kaskade steht in der Systemnotiz des HA-Connectors —
   nicht im Agent-Prompt (dort nur generisches Verhalten).
 
 ### 5.2 Musik abspielen (Music-Assistant-Kaskade)
 
-- **Ziel**: „Spiele Musik von <Künstler>" → Wiedergabe auf dem Player.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, spiele Musik von <Künstler>."
+- **Werkzeuge**: MCP Music Assistant + Zweit-Index `ma` (2.2).
 - **Modus**: `llm`.
-- **Quelle**: Music Assistant MCP.
-- **Ablauf**: 1. `fn_ma_players` — weil `playback_play_media` eine
+- **Anlegen**:
+  1. Funktion `ma_players` mit Parameter-Schema (Player-Query) und Template
+     `{{ index.find(args.query, 'ma') }}` — die Player-Liste kommt aus dem
+     Zweit-Index.
+  2. Die Wiedergabe-Kaskade (+ Falscherkennungs-Regel) in der **Systemnotiz**
+     des MA-MCP-Servers.
+  3. Allowlist: MA-Tools anhaken (Grundeinstellungen → Agent-Tool-Allowlist).
+- **Ablauf (warum)**: 1. `fn_ma_players` — weil `playback_play_media` eine
   `player_id` braucht und der Player-State (Lautstärke, gerade laufend) aus
   einem Call kommt. 2. `library_search_artists` — weil der Name-URI für den
   Play-Call her muss; ASR-Falscherkennungen zuerst gegen bekannte
@@ -255,27 +360,29 @@ in Aktion.
   **bevor** „nicht gefunden" antwortet. 3. `playback_play_media` mit URI +
   player_id; Playlist/Album bevorzugen — weil sie vollständig gespielt
   werden; nach dem letzten Titel endet die Queue (Hinweis nur auf Nachfrage).
-- **Konfiguration**: `fn_ma_players` mit `parameters`-Schema (Player-Query)
-  — die Player-Liste kommt aus einem **Zweit-Index** (eigene Index-Quelle,
-  hier `ma`); die Kaskade steht in der MA-Systemnotiz.
-- **Hinweise**: die Musik-Falscherkennung ist ein **BEVOR**-Regel-Fall — sie
-  steht deshalb am System, nicht als nachladbarer Hinweis.
+- **Hinweise**: die Falscherkennung ist ein **BEVOR**-Regel-Fall — sie steht
+  deshalb am System, nicht als nachladbarer Hinweis.
 
 ### 5.3 Nachrichten zu einer Quelle (Such-Kaskade)
 
-- **Ziel**: „Neuigkeiten bei <Quelle>" → 4–5 einzelne Meldungen mit Quelle.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, Neuigkeiten bei <Quelle>."
+- **Werkzeuge**: Websuche-MCP (2.3) + `web_url_read`.
 - **Modus**: `llm`.
-- **Quelle**: Such-Connector (z. B. SearXNG- oder Brave-MCP) + `web_url_read`.
-- **Ablauf**: 1. Eine parametrisierte Funktion (`query`, optional `url`)
-  ruft den Such-Call mit `count 5` — weil Treffer die Quellen liefern. 2.
-  Liefert die Quelle einen verlinkten Treffer, liest dieselbe Funktion den
-  `/rss`-Feed der Seite (`web_url_read`, maxLength 6000) — weil Portale ihre
-  Meldungen als Feed-Titel tragen und die Feed-Prüfe deutlich konkreter ist
-  als Portal-Übersichten. 3. Der Agent formuliert eine **Aufzählung** von
-  4–5 EINZELNEN Meldungen („Erstens… Außerdem… Schließlich…") — weil die
+- **Anlegen**:
+  1. Funktion `recherche` mit Parameter-Schema (`query`, optional `url`),
+     Budget 2, `inventory_note` mit der Kaskaden-Regel (Beispiel unten).
+  2. Allowlist: Such-Tools + `web_url_read` + `fn_recherche` anhaken.
+- **Ablauf (warum)**: 1. Die Funktion ruft den Such-Call mit `count 5` —
+  weil Treffer die Quellen liefern. 2. Liefert die Quelle einen verlinkten
+  Treffer, liest dieselbe Funktion den `/rss`-Feed der Seite
+  (`web_url_read`, maxLength 6000) — weil Portale ihre Meldungen als
+  Feed-Titel tragen und die Feed-Prüfe deutlich konkreter ist als
+  Portal-Übersichten. 3. Der Agent formuliert eine **Aufzählung** von 4–5
+  EINZELNEN Meldungen („Erstens… Außerdem… Schließlich…") — weil die
   Quellenregel verlangt: nur Inhalte aus den Tool-Ergebnissen dieser
   Antwort, niemals Vorwissen oder Gesprächsverlauf. Nach der Lese-Runde
   SOFORT antworten — keine zweite URL.
+- **Template**:
   ```jinja
   {%- set s = mcp.call('<such-tool>', {'query': args.query, 'count': 5}) -%}{{ s }}
   {%- if args.url -%}
@@ -288,33 +395,35 @@ in Aktion.
 
 ### 5.4 Kaskadierte Suche mit URL-Lesen (Brave-Muster)
 
-- **Ziel**: „Was gibt es Neues zu <Thema>?" → konkrete Meldungen, auch wenn
-  Treffer nur Portal-Übersichten sind.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, was gibt es Neues zu <Thema>?"
+- **Werkzeuge**: Websuche-MCP (Beispiel Brave-MCP) + `web_url_read`.
 - **Modus**: `llm`.
-- **Quelle**: Such-Connector (Beispiel Brave-MCP) + `web_url_read`.
-- **Ablauf**: 1. Erste Such-Runde — weil die Suche die Kandidaten-URLs
-  liefert. 2. Sind die Treffer nur Portal-Übersichten (Meta-Beschreibungen
-  statt Meldungen): GENAU EINMAL die passende Treffer-URL mit
-  `web_url_read` lesen (mit maxLength) — weil Portal-Übersichten keine
-  Meldungstexte enthalten. 3. SOFORT danach antworten — weil jede weitere
-  Runde Such-/Read-Budget verbraucht und die Antwortfrist sprengen kann.
-- **Konfiguration**: wie 5.3; der Unterschied ist der Fallback-Weg (Feed
-  vs. Treffer-URL) — beide Muster sind in einer Funktion kombinierbar.
-- **Hinweise**: `web_url_read` ausschließlich für konkrete Treffer-URLs
-  oder auf ausdrücklichen Wunsch — niemals Portale wahllos lesen.
+- **Anlegen**: wie 5.3 — der Unterschied ist der Fallback-Weg (Treffer-URL
+  statt Feed), beide Muster sind in einer Funktion kombinierbar.
+- **Ablauf (warum)**: 1. Erste Such-Runde — weil die Suche die
+  Kandidaten-URLs liefert. 2. Sind die Treffer nur Portal-Übersichten
+  (Meta-Beschreibungen statt Meldungen): GENAU EINMAL die passende
+  Treffer-URL mit `web_url_read` lesen (mit maxLength) — weil
+  Portal-Übersichten keine Meldungstexte enthalten. 3. SOFORT danach
+  antworten — weil jede weitere Runde Such-/Read-Budget verbraucht und die
+  Antwortfrist sprengen kann.
+- **Hinweise**: `web_url_read` ausschließlich für konkrete Treffer-URLs oder
+  auf ausdrücklichen Wunsch — niemals Portale wahllos lesen.
 
 ### 5.5 Messwerte fragen („wie hell ist es im Wohnzimmer")
 
-- **Ziel**: offene Zustands-Fragen über das ganze Zuhause.
+- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie hell ist es im Wohnzimmer?"
+- **Werkzeuge**: MCP Home-Assistant + Entity-Index via `fn_find_entities`.
 - **Modus**: `llm` — kein Trigger deckt die Phrasenvielfalt ab.
-- **Quelle**: Home Assistant Index via `fn_find_entities`.
-- **Ablauf**: 1. `fn_find_entities` mit Stichworten — weil die Treffer den
-  aktuellen Zustand enthalten und die Suche Fuzzy/Aliase/Räume bereits
-  behandelt. 2. SOFORT aus dem Treffer antworten (max. 1 Aufruf) — weil
-  Variationen desselben Begriffs die Suche schon aufklärt und jede
+- **Anlegen**: nur Werkzeuge (2.1) + Allowlist; die Lesefunktionen existieren
+  nach Grundinstallation; Regeln in der `find_entities`-Note (Tab Funktionen
+  → Feld Agent-Inventory-Regeln).
+- **Ablauf (warum)**: 1. `fn_find_entities` mit Stichworten — weil die
+  Treffer den aktuellen Zustand enthalten und die Suche Fuzzy/Aliase/Räume
+  bereits behandelt. 2. SOFORT aus dem Treffer antworten (max. 1 Aufruf) —
+  weil Variationen desselben Begriffs die Suche schon aufklärt und jede
   weitere Runde nur Latenz ist. 3. Kein passender Treffer: ehrlich sagen,
   nichts erfinden.
-- **Konfiguration**: offene Agent-Route; Regeln in der `find_entities`-Prompts.
 - **Hinweise**: Kombinierte Anfragen („Nachrichten und dann der Hausstatus")
   laufen der Reihenfolge nach — jede Teilfrage nutzt ihr zuständiges Tool,
   kein Abbruch nach dem ersten Teil.
@@ -325,7 +434,8 @@ in Aktion.
 
 - Keine echten Entity-IDs, Hostnamen, URLs, Koordinaten oder Namen. Muster:
   `sensor.beispiel_*`, `50.00/10.00` als Platzhalterkoordinaten,
-  „Küchenlicht" statt konkreter Gerätenamen.
+  „Küchenlicht" statt konkreter Gerätenamen, `ha.example.org` als
+  Beispiel-Endpunkt.
 - Persönliche Ansage-Stile (Identität, Witz-Ebene) sind Betreiber-Sache und
   bewusst **nicht** Bestandteil dieser Beispiele.
 
