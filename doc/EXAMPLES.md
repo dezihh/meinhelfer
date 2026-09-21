@@ -57,8 +57,8 @@ steht und fällt das an:
 ### Wo die Regeln leben (ein Satz zur Architektur)
 
 Zentral (`agent_system`) steht nur **generisches Verhalten**. Domänen-Kaskaden
-stehen an ihrem System (MCP-Server-Notiz), Werkzeug-Eigenheiten an der
-Funktion (`inventory_note`). Dritte können mit eigenem System + eigenen Noten
+stehen an ihrem System (MCP-Server-Prompt), Werkzeug-Eigenheiten an der
+Funktion (`inventory_prompt`). Dritte können mit eigenem System + eigenen Promps
 arbeiten, ohne den Agent-Prompt anzufassen.
 
 ## 2. Quellen (Connectoren)
@@ -314,7 +314,7 @@ in Aktion.
   Variationen desselben Begriffs die Suche schon aufklärt und jede
   weitere Runde nur Latenz ist. 3. Kein passender Treffer: ehrlich sagen,
   nichts erfinden.
-- **Konfiguration**: offene Agent-Route; Regeln in der `find_entities`-Note.
+- **Konfiguration**: offene Agent-Route; Regeln in der `find_entities`-Prompts.
 - **Hinweise**: Kombinierte Anfragen („Nachrichten und dann der Hausstatus")
   laufen der Reihenfolge nach — jede Teilfrage nutzt ihr zuständiges Tool,
   kein Abbruch nach dem ersten Teil.
