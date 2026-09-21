@@ -17,7 +17,7 @@ welche Quelle herhält und **warum** die Schritte in dieser Reihenfolge laufen.
 |-------|--------------|-------------|
 | `deterministic` | Trigger rendert ein Funktions-Template, fertig — ohne LLM | Feste Antwortform: Messwert, Bericht, SSML-Report. Schnellste Antwort, keine Modellkosten |
 | `hybrid` | Trigger rendert Funktions-Template (Daten), dann formuliert das LLM daraus die Sprache | Daten liegen vor, aber die Formulierung hängt vom Ergebnis ab (variable Anzahl von Meldungen) |
-| `llm` | Trigger reicht die Frage an den Agenten (Tool-Loop über das Tool-Inventory) | Die Frage ist offen („wie hell ist es im Wohnzimmer"), mehrere Systeme kommen in Frage, oder kombinierte Anfragen |
+| `llm` | Trigger reicht die Frage an den Agenten (Tool-Loop über das Tool-Inventory) | Offene Fragen, die kein Trigger vorhersehen kann: der Agent liest die **freie Frage** und entscheidet selbst, welche Tools er nutzt — Kombinationen („Nachrichten und dann der Hausstatus", dafür gibt es unendlich viele Trigger-Varianten), ungepflegte Phrasenvielfalt („ist es draußen kälter als drinnen") und selbstständige Rückfragen („welchen Lautsprecher?") |
 
 Faustregel: **so deterministisch wie möglich, so agentig wie nötig.** Ein
 `deterministic`-Vorgang ist unschlagbar schnell und vorhersehbar; der Agent
