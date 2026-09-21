@@ -93,9 +93,9 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
     restart: unless-stopped
     command: ha-mcp-web          # HTTP-Modus (Streamable HTTP) statt stdio
     ports:
-      - "9584:8086"              # Host-Port waehlen (8086 belegt hier z. B. durch InfluxDB)
+      - "8086:8086"              # Host-Port waehlen 
     env_file:
-      - ./mcp.env                # enthaelt das Home-Assistant-Zugangs-Token
+      - ./mcp.env                # enthaelt das Home-Assistant-Long-Living-Zugangs-Token
     volumes:
       - ./data:/home/mcpuser/.ha-mcp
       - /etc/timezone:/etc/timezone:ro
@@ -113,7 +113,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 - **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
   - Name: `Home Assistant MCP`
   - Transport: `http`
-  - URL: `http://<ha-host>:9584/mcp`
+  - URL: `http://<ha-host>:8086/mcp`
   - Auth-Token: leer, wenn der ha-mcp-Server ohne Frontend-Auth läuft
     (sonst Token), **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe
     Fall 5.1), Aktiv ✓.
