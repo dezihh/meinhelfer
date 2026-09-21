@@ -111,25 +111,12 @@ async function runToolLoop(
   ];
   const overallDeadline = Date.now() + toolDeadline() * 2;
   const TimeoutAnswer = 'Das hat gerade zu lange gedauert, bitte versuche es gleich noch einmal.';
-  // Budgets: DB-Setting 'tool_budgets' (JSON-Map name->budget, Web-UI) gewinnt,
-  // dann DB-Budgets der Funktionen, dann die Code-Defaults unten.
-  let customBudgets: Record<string, number> = {};
-  try {
-    const raw = getSetting('tool_budgets');
-    if (raw) {
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        for (const [k, v] of Object.entries(parsed)) {
-          if (Number.isFinite(Number(v)) && Number(v) > 0) customBudgets[k] = Number(v);
-        }
-      }
-    }
-  } catch (e) {
-    trace.push({ ts: Date.now(), step: 'tool.budgets.parse_error', detail: String(e).slice(0, 80) });
-  }
-  const toolBudgets: Record<string, number> = { searxng_web_search: 1, web_url_read: 1, fn_find_entities: 2, fn_get_entity: 3, fn_hausstatus_gw: 1 };
+  // Budgets: DB-Budgets der Funktionen (budget-Spalte) gewinnen, dann die
+  // Code-Defaults unten. (Das fruehere Setting 'tool_budgets' ist entfernt:
+  // es referenzierte Raw-MCP-Tool-Namen, die nicht mehr im Agent-Katalog sind.)
+  const toolBudgets: Record<string, number> = { fn_find_entities: 2, fn_get_entity: 3, fn_hausstatus_gw: 1 };
   const budgetFor = (name: string): number | undefined =>
-    customBudgets[name] ?? budgets.get(name) ?? toolBudgets[name];
+    budgets.get(name) ?? toolBudgets[name];
   const toolCalls: Record<string, number> = {};
   const runTools = async (message: ChatMessage): Promise<void> => {
     messages.push({

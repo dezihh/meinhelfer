@@ -73,7 +73,7 @@ before(() => {
     template: 'Echo: {{ args.x }}',
     parameters: '{"type":"object","properties":{"x":{"type":"string"}}}',
     budget: null,
-    budget: null,inventory_note: null,
+    inventory_note: null,
     enabled: 1,
   });
   createFunction({
@@ -147,7 +147,7 @@ test('Agent-Tool-Loop: fn-Tool wird aufgerufen, dann formuliert', async () => {
 });
 
 test('Tool-Budget-Hit: zweiter Aufruf wird blockiert, Schleife endet sauber', async () => {
-  setSetting('tool_budgets', '{"fn_test_echo":1}');
+  getDb().prepare("UPDATE tpl_functions SET budget = 1 WHERE name = 'test_echo'").run();
   setSetting('max_tool_iterations', '4');
   try {
     llmScript = Array.from({ length: 4 }, () =>
@@ -158,7 +158,7 @@ test('Tool-Budget-Hit: zweiter Aufruf wird blockiert, Schleife endet sauber', as
     assert.match(r.response.speech, /zu lange gedauert/);
     assert.equal(llmCalls, 4, 'Schleife endet nach max_iter');
   } finally {
-    deleteSetting('tool_budgets');
+    getDb().prepare("UPDATE tpl_functions SET budget = NULL WHERE name = 'test_echo'").run();
     deleteSetting('max_tool_iterations');
   }
 });

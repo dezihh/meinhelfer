@@ -105,13 +105,6 @@ const SETTINGS_FIELDS = [
     help: 'Angehakt = das Tool kommt als Spec in den Agenten-Prompt. Keins angehakt = der Agent läuft ohne Tool-Specs. Die Buttons „Alle anhaken/abwählen" setzen die Auswahl auf einmal; gespeichert wird immer die explizite Liste („keine" bei leerer Auswahl).',
   },
   {
-    key: 'tool_budgets',
-    label: 'Tool-Budgets (JSON)',
-    type: 'textarea',
-    span: true,
-    help: 'JSON-Map mit Call-Budgets pro MCP-Tool im Agent-Loop, z. B. {"web_url_read":3}. Erschöpft → Budget-Fehler ans Modell (verhindert Such-Shopping). Leer = unbegrenzt.',
-  },
-  {
     key: 'fuzzy_global',
     label: 'Fuzzy-Trigger global',
     type: 'select',

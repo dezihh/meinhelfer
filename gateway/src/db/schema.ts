@@ -231,7 +231,7 @@ Kombinationen (z.B. "News und dann Hausstatus"): jeder Teil nutzt das jeweils zu
 // fastpath_model (News-Fastpath entfernt), fuel_sensor (Benzinpreis ueber Inventory),
 // facade_mode (Tool-Angebot immer Facade + aktivierte MCP-Server; Feinsteuerung
 // ueber die erlaubten Tools je Vorgang).
-db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor', 'facade_mode')").run();
+db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor', 'facade_mode', 'tool_budgets')").run();
 // Toter Prompt-Key: fastpath_system gehoerte zum entfernten News-Fastpath.
 db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
 
