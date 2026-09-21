@@ -25,8 +25,15 @@ kombiniert, was kein Trigger vorhersehen kann.
 
 ### Modellwahl — worauf es ankommt
 
-Das Gateway läuft mit **einem Modell** für alles (Agent, Hybrid-Formulierung,
-Index-Assistent) — kein Fallback. Für den Komfort steht und fällt das an:
+Das Gateway läuft grundsätzlich mit **einem Modell** für Agent,
+Hybrid-Formulierung und Index-Assistent — es gibt keine Fallback-Kaskade.
+Optional erlaubt `tool_model` („Tool-Modell" in den Grundeinstellungen) ein
+eigenes Modell **nur für die Tool-Runden des Agenten** (die latenzkritischen
+Runden), während die finale Formulierung auf dem Hauptmodell bleibt; leer =
+überall dasselbe. Sinnvoll als gestufte A/B-Schleuse beim Modellwechsel
+(erst die Tool-Runden auf dem Kandidaten testen) oder wenn ein kleines
+schnelles Tool-fähiges Modell die Runden drücken soll. Für den Komfort
+steht und fällt das an:
 
 - **Pflicht: Tool- und JSON-fähig.** Der Agent antwortet in strikt
   `{"needs_clarification", "speech", "keep_open"}`-JSON und steuert
@@ -39,9 +46,7 @@ Index-Assistent) — kein Fallback. Für den Komfort steht und fällt das an:
   sich bei Sprachdialogen deutlich besser an.
 - **Reasoning-Trade-off.** Reasoner verstehen kombinierte Anfragen und
   Kaskaden besser, brauchen aber Decode-Zeit und längere Antworten
-  (`llm_max_tokens` ≥ 800, sonst leere Antworten). Ein schmaleres Modell für
-  die Tool-Runden (`tool_model`) ist ein guter gestufter A/B-Schleuse beim
-  Modellwechsel.
+  (`llm_max_tokens` ≥ 800, sonst leere Antworten).
 - **Nativ mitgebrachte Websuche?** Einige Modelle können Suchen nativ über
   ihren Anbieter-Stack. Ist das der Fall, kann der Such-Connector entfallen —
   der Gateway-Ansatz (Fähigkeiten als Funktionen/Tools abstrahieren, die
