@@ -109,14 +109,20 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
       retries: 3
       start_period: 30s
   ```
-  (mcp.env: Home-Assistant-Token, per HA-User mit Long-Lived-Access-Token.)
+  (mcp.env: das Home-Assistant-**Long-Lived-Access-Token** — der ha-mcp
+  nutzt es selbst, um HA zu bedienen. Es gehört NUR hierher, nicht in das
+  Gateway-Feld.)
 - **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
   - Name: `Home Assistant MCP`
   - Transport: `http`
   - URL: `http://<ha-host>:8086/mcp`
-  - Auth-Token: leer, wenn der ha-mcp-Server ohne Frontend-Auth läuft
-    (sonst Token), **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe
-    Fall 5.1), Aktiv ✓.
+  - Auth-Token: **leer** lassen — der ha-mcp verlangt in dieser Anleitung
+    keinen Client-Token (Absicherung über das lokale Netz). Das
+    Home-Assistant-Long-Living-Zugangs-Token liegt nur in der Container-Env
+    (siehe compose oben). **Anders bei HA's eingebaurem `/api/mcp`**: der
+    verlangt einen Client-Token im Gateway-Feld — deshalb steht in jedem
+    Fall, WELCHER Server gemeint ist.
+  - **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe Fall 5.1), Aktiv ✓.
 - **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index. Die
   produktive Konfiguration (1:1 übernehmbar):
   ```json
