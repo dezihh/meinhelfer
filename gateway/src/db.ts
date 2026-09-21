@@ -1,8 +1,9 @@
 import { config } from './config.js';
 import { initDb } from './db/schema.js';
 
-// Runtime-Init (Tests initialisieren bewusst selbst mit Temp-Pfad).
-initDb(config.dbPath);
+// Runtime-Init mit Referenz-Seed (Tests initialisieren bewusst selbst mit
+// Temp-Pfad und ohne Seed - initDb(path) ohne 2. Argument).
+initDb(config.dbPath, true);
 
 export { initDb, getDb } from './db/schema.js';
 export {

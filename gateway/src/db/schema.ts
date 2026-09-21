@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { SEED_JSON } from './seeds.js';
 
 // DB-Handle + Migrationen: getDb() lazily nach initDb(path) - so ist die DB
 // in Tests injizierbar (Temp-File) und im Runtime-Setup einmalig initialisiert.
@@ -15,7 +16,7 @@ export function closeDb(): void {
   }
 }
 
-export function initDb(path: string): void {
+export function initDb(path: string, withReferenceSeed = false): void {
   if (_db) return;
   mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path);
@@ -173,6 +174,44 @@ for (const stmt of [
     db.exec(stmt);
   } catch {
     // Spalte existiert bereits
+  }
+}
+
+// Fresh-Install-Fill: Referenz-Bevoelkerung aus seeds.ts (Live-Stand vom
+// 21.09.2026). NUR wenn withReferenceSeed - Tests initialisieren ohne
+// Referenzdaten (hermetisch: echte MCP-Server/Funktionen wuerden echte
+// Verbindungen ausloesen). INSERT OR IGNORE - bestehende Datenbanken (und
+// User-Edits) bleiben unangetastet; frische Installationen starten mit den
+// bewaehrten Prompts ({{AGENT_FNS}}-Marker), Systeme (ohne Tokens - traegt
+// der User nach), Agent-Funktionen (notes/budgets), entity_index-Setting
+// und den Kern-Vorgaengen (hausstatus/hilfe/wetter/stau/boerse).
+if (withReferenceSeed) {
+  interface SeedShape {
+    agent_system: string;
+    agent_inventory: string;
+    entity_index: string;
+    servers: { name: string; url: string; auth_token: string | null; transport: 'http' | 'stdio'; command: string | null; args: string | null; env: string | null; inventory_note: string | null; enabled: number }[];
+    fns: { name: string; description: string | null; template: string; parameters: unknown; budget: number | null; inventory_note: string | null; enabled: number }[];
+    actions: { name: string; mode: string; trigger_phrases: string | null; fuzzy_threshold: number | null; system_prompt: string | null; template: string | null; function_ref: string | null; function_args: string | null; tools: string | null; enabled: number }[];
+  }
+  const seed = JSON.parse(SEED_JSON) as SeedShape;
+  db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_system', seed.agent_system);
+  db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_inventory', seed.agent_inventory);
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('entity_index', seed.entity_index);
+  for (const s of seed.servers) {
+    db.prepare(
+      'INSERT OR IGNORE INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_note, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(s.name, s.url, null, s.transport, s.command, s.args, s.env, s.inventory_note, s.enabled);
+  }
+  for (const f of seed.fns) {
+    db.prepare(
+      'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, budget, inventory_note, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(f.name, f.description, f.template, typeof f.parameters === 'string' ? f.parameters : f.parameters == null ? null : JSON.stringify(f.parameters), f.budget, f.inventory_note, f.enabled);
+  }
+  for (const a of seed.actions) {
+    db.prepare(
+      "INSERT OR IGNORE INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, function_args, tools, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(a.name, a.mode, a.trigger_phrases, a.fuzzy_threshold, a.system_prompt, a.template, a.function_ref, a.function_args, a.tools, a.enabled);
   }
 }
 
