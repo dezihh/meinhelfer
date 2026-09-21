@@ -43,7 +43,7 @@ async function loadBootstrap() {
 function showTab(name) {
   document.querySelectorAll('.sidebar nav a').forEach((a) => a.classList.toggle('active', a.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
-  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', indexes: 'Index-Quellen', mcp: 'MCP-Registry', logs: 'Logs' };
+  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', indexes: 'Index-Quellen', mcp: 'Tool-Registry', logs: 'Logs' };
   $('tab-title').textContent = titles[name] ?? '';
   if (name === 'logs') loadLogs();
 }

@@ -79,38 +79,79 @@ eigenem System + eigenen Noten arbeiten, ohne den Agent-Prompt anzufassen.
 Jedes Beispiel baut auf diesen Werkzeugen auf. Hier steht einmal, **wo und
 wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
-### 2.1 Home Assistant (MCP)
+### 2.1 Home Assistant (`ha-mcp`, Streamable HTTP)
 
-- **Wo**: Tab **Systeme** → „MCP-Server hinzufügen". Felder: Name (z. B.
-  `Home Assistant MCP`), Transport `http`, URL des HA-MCP-Endpunkts (z. B.
-  `https://ha.example.org/api/mcp`), Token (HA-Zugangs-Token), **MCP-System-Prompt**
-  (die Kaskaden, z. B. Schalten/Lesen), Aktiv ✓.
-- **Werkzeuge danach**: Service-Calls (`ha_call_service`) und ein
-  Template-Tool (z. B. `ha_eval_template`) für Attribute/Index-Extraktion.
-- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index
-  konfigurieren (JSON): `tool` = das Template-Tool, `args` = das
-  Extraktions-Template, optional `aliases`/`domainHints` für Sprachwissen.
-  Minimal-Beispiel (liefert Sonnen-/Wetter-/Zonen-Entities jeder
-  Basisinstallation):
+- **Was es ist**: der offizielle MCP-Server des Home-Assistant-Ökosystems
+  (`ghcr.io/homeassistant-ai/ha-mcp`), als Container im HTTP-Modus
+  (`ha-mcp-web`). Das Gateway verbindet sich per Streamable HTTP — kein
+  stdio, kein HA-Supervisor-Endpoint.
+- **Anlage (Server-Seite, docker-compose — anonymisiert)**:
+  ```yaml
+  ha-mcp:
+    image: ghcr.io/homeassistant-ai/ha-mcp:latest
+    container_name: ha-mcp
+    restart: unless-stopped
+    command: ha-mcp-web          # HTTP-Modus (Streamable HTTP) statt stdio
+    ports:
+      - "9584:8086"              # Host-Port waehlen (8086 belegt hier z. B. durch InfluxDB)
+    env_file:
+      - ./mcp.env                # enthaelt das Home-Assistant-Zugangs-Token
+    volumes:
+      - ./data:/home/mcpuser/.ha-mcp
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Europe/Berlin
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8086/mcp/settings', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  ```
+  (mcp.env: Home-Assistant-Token, per HA-User mit Long-Lived-Access-Token.)
+- **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+  - Name: `Home Assistant MCP`
+  - Transport: `http`
+  - URL: `http://<ha-host>:9584/mcp`
+  - Auth-Token: leer, wenn der ha-mcp-Server ohne Frontend-Auth läuft
+    (sonst Token), **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe
+    Fall 5.1), Aktiv ✓.
+- **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index. Die
+  produktive Konfiguration (1:1 übernehmbar):
   ```json
   {
     "tool": "ha_eval_template",
     "args": {
-      "template": "{{ states.sun | list | map(attribute='entity_id') | join(',') | default('sun.sun') }},{{ states.weather | list | map(attribute='entity_id') | join(',') | default('weather.home') }},{{ states.zone | list | map(attribute='entity_id') | join(',') | default('zone.home') }}"
+      "template": "{% for e in states %}{% set area = area_name(e.entity_id) or '' %}{% set nm = e.attributes.get('friendly_name', e.entity_id) %}{% set extra = 'device_class=' ~ (e.attributes.get('device_class','') or '') ~ ';icon=' ~ (e.attributes.get('icon','') or '') ~ ';supported_features=' ~ (e.attributes.get('supported_features','') or '') %}{% if e.entity_id.startswith('climate.') and e.attributes.get('current_temperature') is not none %}{% set extra = extra ~ ';current_temperature=' ~ (e.attributes.get('current_temperature') or '') %}{% endif %}{{ e.entity_id }}|{{ area }}|{{ e.state }}|{{ e.attributes.get('unit_of_measurement','') or '' }}|{{ nm }}|{{ extra }}\n{% endfor %}",
+      "timeout": 15,
+      "report_errors": false
     },
-    "aliases": { "draussen": "aussen" }
+    "ttlMs": 60000,
+    "aliases": {
+      "licht": "light", "lampe": "light", "steckdose": "switch",
+      "temperatur": "temperature", "heizung": "climate", "klimaanlage": "climate",
+      "fenster": "window", "tür": "door", "fernseher": "media_player",
+      "musik": "media_player", "rolladen": "cover", "garage": "cover",
+      "kamera": "camera", "bewegung": "motion",
+      "luftfeuchtigkeit": "humidity", "batterie": "battery",
+      "draußen": "aussen", "drinnen": "innen", "oben": "upstairs", "unten": "downstairs"
+    }
   }
   ```
-  (Das Extraktions-Template listet die entity_ids; der Gateway baut daraus
-  den Zustands-Snapshot — Details/Index-Format: `FUNKTIONEN.md`.)
-- **Basis-Entities der Grundinstallation**: `sun.sun` (sun-Integration ist per
-  Default aktiv), `weather.home` (Standard-Wetter-Integration nach dem
-  Standort-Setup), `zone.home` (Personenzahl). Diese drei reichen für alle
-  deterministischen Beispiele in Kapitel 3.
+  Das Extraktions-Template listet **alle** States als Pipe-Zeilen
+  (`entity_id|Raum|State|Einheit|Name|Extra`) — weil der Index-Score (fuzzy +
+  Aliase + Domain-Hints) aus der Gesamtliste wählt, gibt es kein
+  Wartungs-Einzel-Listing. `current_temperature` ist ausdrücklich im Extra
+  (Klima), weil der Agent daraus sofort antwortet.
+- **Basis-Entities der Grundinstallation**: `sun.sun`, `weather.home`,
+  `zone.home` sind mit jeder HA-Basisinstallation vorhanden und landen
+  automatisch in dem Gesamt-Listing — die deterministischen Beispiele
+  (Kapitel 3) laufen damit ohne Zusatz-Integration.
 
 ### 2.2 Music Assistant (MCP)
 
-- **Wo**: Tab **Systeme** → MCP-Server hinzufügen (Transport `http` oder
+- **Wo**: Tab **Tool-Registry** → MCP-Server hinzufügen (Transport `http` oder
   `stdio` je nach Installation), Token falls nötig, **MCP-System-Prompt** (die
   Wiedergabe-Kaskade + Falscherkennungen), Aktiv ✓.
 - **Werkzeuge**: `library_search_artists/albums/tracks`, `playback_play_media/
@@ -121,7 +162,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 2.3 Websuche + URL-Lesen (MCP)
 
-- **Wo**: Tab **Systeme** → MCP-Server für einen Such-Connector (Beispiel:
+- **Wo**: Tab **Tool-Registry** → MCP-Server für einen Such-Connector (Beispiel:
   SearXNG-MCP, Beispiel: Brave-MCP) + ein URL-Lesen-Tool (`web_url_read` mit
   maxLength-Parameter). MCP-System-Prompt: die Lese-Regel (nur konkrete
   Treffer-URLs/Feeds oder auf Wunsch).
