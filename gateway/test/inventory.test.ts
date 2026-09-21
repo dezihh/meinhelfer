@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { initDb, closeDb, getDb } from '../src/db/schema.js';
 import { createFunction } from '../src/db/functions.js';
 import { setPrompt, setSetting, deleteSetting } from '../src/db/settings.js';
+import { createMcpServer, deleteMcpServer } from '../src/db/mcpServers.js';
 import { buildInventoryPrompt } from '../src/core/inventory.js';
 
 const RULES = 'Nimm dieses Nachschlagewerk als Pflicht-Referenz.\n\n- Regel A\n- Regel B';
@@ -84,6 +85,35 @@ test('Allowlist ' + "'keine'" + ' -> Regeln unverändert ohne Werkzeuge', () => 
   } finally {
     deleteSetting('agent_tools');
   }
+});
+
+test('Systeme-Sektion aus mcp_servers.inventory_note (Kaskaden am System)', () => {
+  const db = getDb();
+  const before = db.prepare('SELECT COUNT(*) AS n FROM mcp_servers').get() as { n: number };
+  const server = createMcpServer({
+    name: 'Test-System',
+    url: 'https://test.example.org/mcp',
+    auth_token: null,
+    transport: 'http',
+    command: null,
+    args: null,
+    env: null,
+    inventory_note: 'Schalten: zuerst fn_find_entities, dann ha_call_service (light/turn_on).',
+    enabled: 1,
+  });
+  try {
+    const out = buildInventoryPrompt();
+    assert.match(out, /## Systeme/);
+    assert.match(out, /- Test-System: Schalten: zuerst fn_find_entities/);
+    // Werkzeuge vor Systemen
+    const idxFns = out.indexOf('## Werkzeuge');
+    const idxSys = out.indexOf('## Systeme');
+    assert.ok(idxFns < idxSys, 'Werkzeuge zuerst, dann Systeme');
+  } finally {
+    deleteMcpServer(server.id);
+  }
+  const after = db.prepare('SELECT COUNT(*) AS n FROM mcp_servers').get() as { n: number };
+  assert.equal(after.n, before.n);
 });
 
 test('Markierung {{AGENT_FNS}} wird an Ort und Stelle ersetzt', () => {

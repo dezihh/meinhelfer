@@ -6,6 +6,7 @@
 // Reihenfolge/Inhalt deterministisch (fn.id), damit der LLM-Prefix stabil ist.
 import { listFunctions, type ParsedFunction } from '../db/functions.js';
 import { getPrompt, getSetting } from '../db/settings.js';
+import { listMcpServers } from '../db/mcpServers.js';
 
 const FNS_MARKER = '{{AGENT_FNS}}';
 
@@ -34,12 +35,31 @@ function fnLines(allowlist: string[] | null): string[] {
   return lines;
 }
 
+// System-Regeln (Kaskaden, Eigenheiten) leben am MCP-Server selbst.
+export function systemLines(): string[] {
+  const lines: string[] = [];
+  for (const server of listMcpServers(true)) {
+    const note = (server.inventory_note ?? '').trim();
+    if (!note) continue;
+    lines.push(`- ${server.name}: ${note}`);
+  }
+  return lines;
+}
+
 export function buildInventoryPrompt(): string {
   const rules = getPrompt('agent_inventory') ?? '';
   const lines = fnLines(agentFnAllowlist());
-  if (lines.length === 0) return rules;
-  if (rules.includes(FNS_MARKER)) {
-    return rules.split(FNS_MARKER).join(lines.join('\n'));
+  const systems = systemLines();
+  const blocks: string[] = [];
+  if (lines.length > 0) {
+    blocks.push(`## Werkzeuge (aus den registrierten Funktionen)\n${lines.join('\n')}`);
   }
-  return `${rules}\n\n## Werkzeuge (aus den registrierten Funktionen)\n${lines.join('\n')}`;
+  if (systems.length > 0) {
+    blocks.push(`## Systeme (Kaskaden und Eigenheiten)\n${systems.join('\n')}`);
+  }
+  if (blocks.length === 0) return rules;
+  if (rules.includes(FNS_MARKER)) {
+    return rules.split(FNS_MARKER).join(blocks.join('\n\n'));
+  }
+  return `${rules}\n\n${blocks.join('\n\n')}`;
 }

@@ -155,6 +155,7 @@ for (const stmt of [
   'ALTER TABLE tpl_functions ADD COLUMN parameters TEXT',
   'ALTER TABLE tpl_functions ADD COLUMN budget INTEGER',
   'ALTER TABLE tpl_functions ADD COLUMN inventory_note TEXT',
+  'ALTER TABLE mcp_servers ADD COLUMN inventory_note TEXT',
 ]) {
   try {
     db.exec(stmt);

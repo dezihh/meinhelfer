@@ -9,6 +9,7 @@ export interface McpServerInput {
   command: string | null;
   args: string | null;
   env: string | null;
+  inventory_note: string | null;
   enabled: number;
 }
 
@@ -24,17 +25,20 @@ export function getMcpServer(id: number): McpServerRow | undefined {
 
 export function createMcpServer(data: McpServerInput): McpServerRow {
   const info = getDb().prepare(
-      `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, enabled)
-       VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @enabled)`
+      `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_note, enabled)
+       VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_note, @enabled)`
     )
     .run(data);
   return getMcpServer(Number(info.lastInsertRowid)) as McpServerRow;
 }
 
 export function updateMcpServer(id: number, data: McpServerInput): McpServerRow | undefined {
+  // auth_token = COALESCE: null (Feld im UI leer gelassen) beibehält den
+  // bestehenden Token statt ihn zu wischen (PUT ist sonst ein Full-Replace).
   getDb().prepare(
-    `UPDATE mcp_servers SET name = @name, url = @url, auth_token = @auth_token, transport = @transport,
-     command = @command, args = @args, env = @env, enabled = @enabled WHERE id = @id`
+    `UPDATE mcp_servers SET name = @name, url = @url,
+     auth_token = COALESCE(@auth_token, auth_token), transport = @transport,
+     command = @command, args = @args, env = @env, inventory_note = @inventory_note, enabled = @enabled WHERE id = @id`
   ).run({ ...data, id });
   return getMcpServer(id);
 }

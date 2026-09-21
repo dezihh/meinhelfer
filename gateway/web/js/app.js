@@ -752,6 +752,7 @@ function openServerEditor(id) {
   } catch { envText = ''; }
   $('mcp-args').value = argsText;
   $('mcp-env').value = envText;
+  $('mcp-inventory-note').value = s?.inventory_note ?? '';
   $('mcp-enabled').checked = s ? !!s.enabled : true;
   $('mcp-tools').innerHTML = '';
   toggleMcpTransportFields($('mcp-transport').value);
@@ -762,6 +763,7 @@ async function saveServer() {
   const payload = {
     name: $('mcp-name').value.trim(),
     transport,
+    inventory_note: $('mcp-inventory-note').value.trim() || null,
     enabled: $('mcp-enabled').checked,
   };
   if (transport === 'stdio') {
