@@ -27,7 +27,8 @@ test('Fresh-Install-Fill: Prompts + Grundeinstellungen-Defaults, sonst nichts', 
   assert.ok(sys.content.includes('{"needs_clarification"'), 'JSON-Antwortformat');
   const inv = db.prepare("SELECT content FROM prompts WHERE key = 'agent_inventory'").get() as { content: string };
   assert.ok(inv.content.includes('{{AGENT_FNS}}'), 'Marker im Inventory-Seed');
-  assert.ok(inv.content.includes('Musik-Falscherkennungen'), 'Regeln-Block');
+  assert.ok(inv.content.includes('Kombinationen'), 'Regeln-Block');
+  assert.ok(!inv.content.includes('Musik-Falscherkennungen'), 'Domänen-Regeln liegen bei den Systemen, nicht im Inventory');
   const mt = db.prepare("SELECT value FROM settings WHERE key = 'memory_turns'").get() as { value: string } | undefined;
   const mm = db.prepare("SELECT value FROM settings WHERE key = 'memory_minutes'").get() as { value: string } | undefined;
   assert.equal(mt?.value, '4', 'memory_turns-Default');
