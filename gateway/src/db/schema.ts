@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { SEED_JSON } from './seeds.js';
+import { SEED_AGENT_SYSTEM, SEED_AGENT_INVENTORY } from './seeds.js';
 
 // DB-Handle + Migrationen: getDb() lazily nach initDb(path) - so ist die DB
 // in Tests injizierbar (Temp-File) und im Runtime-Setup einmalig initialisiert.
@@ -177,42 +177,16 @@ for (const stmt of [
   }
 }
 
-// Fresh-Install-Fill: Referenz-Bevoelkerung aus seeds.ts (Live-Stand vom
-// 21.09.2026). NUR wenn withReferenceSeed - Tests initialisieren ohne
-// Referenzdaten (hermetisch: echte MCP-Server/Funktionen wuerden echte
-// Verbindungen ausloesen). INSERT OR IGNORE - bestehende Datenbanken (und
-// User-Edits) bleiben unangetastet; frische Installationen starten mit den
-// bewaehrten Prompts ({{AGENT_FNS}}-Marker), Systeme (ohne Tokens - traegt
-// der User nach), Agent-Funktionen (notes/budgets), entity_index-Setting
-// und den Kern-Vorgaengen (hausstatus/hilfe/wetter/stau/boerse).
+// Fresh-Install-Fill: NUR Grundeinstellungen (statistische Agent-Prompts +
+// Defaultwerte). Domänen-spezifisches (Systeme/MCP-Server, Funktionen,
+// Vorgaenge, Index-Quellen) wird bewusst NICHT geseedet - es gehoert in die
+// aktive Konfiguration. INSERT OR IGNORE - bestehende Datenbanken (und
+// User-Edits) bleiben unangetastet.
 if (withReferenceSeed) {
-  interface SeedShape {
-    agent_system: string;
-    agent_inventory: string;
-    entity_index: string;
-    servers: { name: string; url: string; auth_token: string | null; transport: 'http' | 'stdio'; command: string | null; args: string | null; env: string | null; inventory_note: string | null; enabled: number }[];
-    fns: { name: string; description: string | null; template: string; parameters: unknown; budget: number | null; inventory_note: string | null; enabled: number }[];
-    actions: { name: string; mode: string; trigger_phrases: string | null; fuzzy_threshold: number | null; system_prompt: string | null; template: string | null; function_ref: string | null; function_args: string | null; tools: string | null; enabled: number }[];
-  }
-  const seed = JSON.parse(SEED_JSON) as SeedShape;
-  db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_system', seed.agent_system);
-  db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_inventory', seed.agent_inventory);
-  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('entity_index', seed.entity_index);
-  for (const s of seed.servers) {
-    db.prepare(
-      'INSERT OR IGNORE INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_note, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(s.name, s.url, null, s.transport, s.command, s.args, s.env, s.inventory_note, s.enabled);
-  }
-  for (const f of seed.fns) {
-    db.prepare(
-      'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, budget, inventory_note, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(f.name, f.description, f.template, typeof f.parameters === 'string' ? f.parameters : f.parameters == null ? null : JSON.stringify(f.parameters), f.budget, f.inventory_note, f.enabled);
-  }
-  for (const a of seed.actions) {
-    db.prepare(
-      "INSERT OR IGNORE INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, function_args, tools, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(a.name, a.mode, a.trigger_phrases, a.fuzzy_threshold, a.system_prompt, a.template, a.function_ref, a.function_args, a.tools, a.enabled);
-  }
+  db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_system', SEED_AGENT_SYSTEM);
+  db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_inventory', SEED_AGENT_INVENTORY);
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('memory_turns', '4');
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('memory_minutes', '30');
 }
 
 db.prepare(
@@ -412,28 +386,6 @@ Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
 Kombinationen (z. B. "News und dann Hausstatus"): jeder Teil nutzt das jeweils zustaendige Tool - der Reihenfolge nach, nicht abbrechen.`;
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_inventory'").run(neu);
   }
-}
-
-for (const action of [
-  {
-    name: 'benzinpreis',
-    triggers: ['benzinpreis', 'tankstelle', 'nordöl', 'sprit', 'super e10'],
-    template: `Super E10 bei Nordöl kostet derzeit {{ ha.state('sensor.nordoel_sieker_landstrasse_178_super_e10') | replace('.', ',') }} Euro.`,
-  },
-  {
-    name: 'bmw_netzladung_an',
-    triggers: ['bmw netzladung an', 'lade modus netz'],
-    template: `{{ ha.call('bmw_netzladung_an') }}`,
-  },
-  {
-    name: 'bmw_netzladung_aus',
-    triggers: ['bmw netzladung aus', 'lade modus pv'],
-    template: `{{ ha.call('bmw_netzladung_aus') }}`,
-  },
-]) {
-  db.prepare(
-    "INSERT OR IGNORE INTO actions (name, mode, trigger_phrases, template) VALUES (?, 'deterministic', ?, ?)"
-  ).run(action.name, JSON.stringify(action.triggers), action.template);
 }
 
   _db = db;
