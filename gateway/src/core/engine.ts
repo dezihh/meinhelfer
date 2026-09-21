@@ -12,6 +12,7 @@ import { chatCompletion, type ChatCompletionResult, type ChatMessage, type ToolS
 import { getMcpContext, type McpContext } from '../mcp/registry.js';
 import { routeAction, type RouteMatch } from './router.js';
 import { renderFunction } from './template.js';
+import { buildInventoryPrompt } from './inventory.js';
 import { escapeXml, stripSsmlTags, withSsmlBreaks, withDisplay, parseAgentAnswer } from './response.js';
 import { buildTools, type ToolRoute } from './tools.js';
 import { traceUsage, sumUsageFromTrace } from './usage.js';
@@ -68,10 +69,11 @@ function promptWithName(key: string): string | undefined {
   return raw?.replace('{assistant_name}', assistantName());
 }
 
-// System-Prompt fuer den Agenten: agent_system + optionales Tool-Inventory (agent_inventory)
+// System-Prompt fuer den Agenten: agent_system + generiertes Tool-Inventory
+// (Werkzeuge aus den Funktionen + agent_inventory-Regeln)
 function agentSystemPrompt(): string {
   const sys = promptWithName('agent_system') ?? 'Du bist ein hilfreicher deutscher Sprachassistent.';
-  const inv = promptWithName('agent_inventory');
+  const inv = buildInventoryPrompt();
   if (!inv) return sys;
   return `${sys}\n\n## Tool-Inventory (Nachschlagewerk)\n${inv}`;
 }
@@ -246,7 +248,7 @@ async function executeAction(
 ): Promise<AssistantResponse> {
   if (action.mode === 'llm') {
     const system = (action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt())
-      .replace('{agent_inventory}', promptWithName('agent_inventory') ?? '');
+      .replace('{agent_inventory}', buildInventoryPrompt());
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
   // deterministic/hybrid: Daten kommen ausschliesslich aus einer Funktion

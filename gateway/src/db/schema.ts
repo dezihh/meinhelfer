@@ -113,6 +113,8 @@ db.exec(`
     description TEXT,
     template TEXT NOT NULL,
     parameters TEXT,
+    budget INTEGER,
+    inventory_note TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -152,6 +154,7 @@ for (const stmt of [
   'ALTER TABLE actions ADD COLUMN function_args TEXT',
   'ALTER TABLE tpl_functions ADD COLUMN parameters TEXT',
   'ALTER TABLE tpl_functions ADD COLUMN budget INTEGER',
+  'ALTER TABLE tpl_functions ADD COLUMN inventory_note TEXT',
 ]) {
   try {
     db.exec(stmt);

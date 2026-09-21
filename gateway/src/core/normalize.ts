@@ -71,6 +71,7 @@ export function normalizeFunctionInput(body: Record<string, unknown>): FunctionI
     template,
     parameters,
     budget,
+    inventory_note: body.inventory_note == null ? null : String(body.inventory_note).trim() || null,
     enabled: body.enabled === false ? 0 : 1,
   };
 }

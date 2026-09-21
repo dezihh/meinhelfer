@@ -468,6 +468,7 @@ function openFunctionEditor(id) {
   $('fn-id').value = f?.id ?? '';
   $('fn-name').value = f?.name ?? '';
   $('fn-description').value = f?.description ?? '';
+  $('fn-inventory-note').value = f?.inventory_note ?? '';
   $('fn-template').value = f?.template ?? '';
   $('fn-enabled').checked = f ? !!f.enabled : true;
 }
@@ -477,6 +478,7 @@ function functionPayload() {
     name: $('fn-name').value.trim(),
     description: $('fn-description').value.trim() || null,
     template: $('fn-template').value.trim(),
+    inventory_note: $('fn-inventory-note').value.trim() || null,
     enabled: $('fn-enabled').checked,
   };
 }

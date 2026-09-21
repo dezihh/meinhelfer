@@ -169,8 +169,12 @@
             <input id="fn-description" type="text">
           </div>
           <div class="field">
-            <div class="field-head"><label>Template</label><button type="button" class="help" data-help="Wie Vorgangs-Templates: ha.state('entity'), ha.entities('domain'), ha.call('toolname'), shell('befehl') + Jinja. Der gerenderte Text ist das Ergebnis der Funktion." aria-label="Hilfe zu Template">?</button></div>
-            <div class="field-help hidden">
+            <div class="field-head"><label>Agent-Inventory-Zeile</label><button type="button" class="help" data-help="Wie nutzt der Agent diese Funktion? Erscheint automatisch im Agent-System-Prompt (Werkzeuge-Katalog) - keine Pflege in agent_inventory noetig. Nur fuern Agent-faehige Funktionen (agent_tools)." aria-label="Hilfe zu Agent-Inventory-Zeile">?</button></div>
+            <div class="field-help hidden">Wann soll der Agent diese Funktion rufen und mit welchem Ergebnis? 1-2 Saetze, evtl. 1 Beispielkommando. Beispiel: 'Nachrichten/Recherche zu jedem Thema: liefert Treffer + URLs'. Leer = Funktion erscheint nicht im Agent-Katalog (Vorgangs-Bausteine brauchen keinen Eintrag).</div>
+            <textarea id="fn-inventory-note" rows="2" class="span-full"></textarea>
+          </div>
+          <div class="field">
+            <div class="field-head"><label>Template</label><button type="button" class="help" data-help="Wie Vorgangs-Templates: ha.state('entity'), ha.entities('domain'), ha.call('toolname'), shell('befehl') + Jinja. Der gerenderte Text ist das Ergebnis der Funktion." aria-label="Hilfe zu Template">?</button></div>            <div class="field-help hidden">
               Gleiches Repertoire wie Vorgangs-Templates:
               {{ ha.state('sensor.x') }} → Zustand einer Entität,
               {{ ha.entities('domain') }} → Liste einer Domain,

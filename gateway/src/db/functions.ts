@@ -7,6 +7,7 @@ export interface ParsedFunction {
   template: string;
   parameters: unknown | null;
   budget: number | null;
+  inventory_note: string | null;
   enabled: boolean;
 }
 
@@ -16,6 +17,7 @@ export interface FunctionInput {
   template: string;
   parameters: string | null;
   budget: number | null;
+  inventory_note: string | null;
   enabled: number;
 }
 
@@ -26,6 +28,7 @@ interface FunctionRow {
   template: string;
   parameters: string | null;
   budget: number | null;
+  inventory_note: string | null;
   enabled: number;
 }
 
@@ -43,6 +46,7 @@ function parseFunction(row: FunctionRow): ParsedFunction {
     template: row.template,
     parameters,
     budget: row.budget ?? null,
+    inventory_note: row.inventory_note ?? null,
     enabled: !!row.enabled,
   };
 }
@@ -66,8 +70,8 @@ export function getFunctionByName(name: string): ParsedFunction | undefined {
 
 export function createFunction(data: FunctionInput): ParsedFunction {
   const info = getDb().prepare(
-      `INSERT INTO tpl_functions (name, description, template, parameters, budget, enabled)
-       VALUES (@name, @description, @template, @parameters, @budget, @enabled)`
+      `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_note, enabled)
+       VALUES (@name, @description, @template, @parameters, @budget, @inventory_note, @enabled)`
     )
     .run(data);
   const row = getFunction(Number(info.lastInsertRowid));
@@ -78,7 +82,7 @@ export function createFunction(data: FunctionInput): ParsedFunction {
 export function updateFunction(id: number, data: FunctionInput): ParsedFunction | undefined {
   getDb().prepare(
     `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
-     parameters = @parameters, budget = @budget, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
+     parameters = @parameters, budget = @budget, inventory_note = @inventory_note, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
   ).run({ ...data, id });
   return getFunction(id);
 }
