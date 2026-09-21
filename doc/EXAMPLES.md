@@ -1,7 +1,6 @@
 # Praxisbeispiele: Vorgänge, Funktionen und Agent-Kaskaden
 
-Sammlung realer Muster aus dem Betrieb — anonymisiert, so dass nichts auf die
-eigene Infrastruktur rückschließen lässt. Alle Beispiele können nach
+Sammlung realer Muster aus dem Betrieb  Alle Beispiele können nach
 Grundinstallation übernommen und direkt getestet werden: Bei Home Assistant
 genügen die Entities, die jede Basisinstallation mitbringt (`sun.sun`,
 `weather.home`, `zone.home`, `person.*` — siehe unten).
