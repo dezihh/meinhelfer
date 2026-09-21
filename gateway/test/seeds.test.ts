@@ -20,7 +20,9 @@ test('Fresh-Install-Fill: Prompts + Grundeinstellungen-Defaults, sonst nichts', 
   freshInit();
   const db = getDb();
   const sys = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content: string };
-  assert.ok(sys.content.includes('fn_find_entities'), 'agent_system auf fn-Namen');
+  assert.ok(sys.content.includes('AUSSCHLIESSLICH ein JSON-Objekt'), 'agent_system mit JSON-Antwortformat');
+  assert.ok(sys.content.includes('keep_open=true nur'), 'keep_open erklaert');
+  assert.ok(!sys.content.includes('HassTurnOn') && !sys.content.includes('nordoel'), 'keine Domänen-Zeilen im Basis-Prompt');
   assert.ok(sys.content.includes('{"needs_clarification"'), 'JSON-Antwortformat');
   const inv = db.prepare("SELECT content FROM prompts WHERE key = 'agent_inventory'").get() as { content: string };
   assert.ok(inv.content.includes('{{AGENT_FNS}}'), 'Marker im Inventory-Seed');
