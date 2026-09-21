@@ -22,23 +22,57 @@ import { httpCacheGet, httpCacheSet } from './httpCache.js';
 export const HTTP_TIMEOUT_MS = 5000;
 export const HTTP_BODY_CAP = 100_000;
 
-async function fetchUrl(url: string, trace: TraceEvent[]): Promise<unknown | null> {
+// SSRF-Schutz: dynamische http()-URLs (args-kontaminiert) duerfen niemals ins
+// private Netz zeigen. Literale URLs (Admin-Templates) sind vertrauenswuerdig
+// und bleiben unangetastet (LAN-Dienste wie CGIs muessen funktionieren).
+export function isPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^0\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(h)) return true;
+  if (h === '::1' || h === '::' || h.startsWith('fe80:') || /^f[cd][0-9a-f]{2}:/.test(h)) return true;
+  if (h.startsWith('::ffff:')) return isPrivateHost(h.slice(7));
+  return false;
+}
+
+async function fetchUrl(url: string, trace: TraceEvent[], dynamic: boolean): Promise<unknown | null> {
   const timeoutMs = getSettingNum('http_timeout_ms', HTTP_TIMEOUT_MS);
   const bodyCap = getSettingNum('http_body_cap', HTTP_BODY_CAP);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
-    const raw = (await res.text()).slice(0, bodyCap);
-    if (!res.ok) {
-      trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url, status: res.status, body: raw.slice(0, 200) } });
-      return null;
+    let target = url;
+    // Dynamische URLs: jede Redirect-Etappe erneut pruefen statt blindem follow,
+    // sonst umgeht ein Redirect die Host-Pruefung.
+    for (let hop = 0; hop <= 3; hop++) {
+      const u = new URL(target);
+      if (dynamic && isPrivateHost(u.hostname)) {
+        trace.push({ ts: Date.now(), step: 'template.http.blocked', detail: { url: target, reason: 'privates Netz' } });
+        return null;
+      }
+      const res = await fetch(target, { signal: controller.signal, redirect: dynamic ? 'manual' : 'follow' });
+      if (dynamic && res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get('location');
+        if (!loc) {
+          trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url: target, status: res.status, error: 'Redirect ohne Location' } });
+          return null;
+        }
+        target = new URL(loc, target).toString();
+        continue;
+      }
+      const raw = (await res.text()).slice(0, bodyCap);
+      if (!res.ok) {
+        trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url: target, status: res.status, body: raw.slice(0, 200) } });
+        return null;
+      }
+      try {
+        return JSON.parse(raw) as unknown;
+      } catch {
+        return raw;
+      }
     }
-    try {
-      return JSON.parse(raw) as unknown;
-    } catch {
-      return raw;
-    }
+    trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url, error: 'zu viele Redirects' } });
+    return null;
   } catch (e) {
     trace.push({ ts: Date.now(), step: 'template.http.error', detail: { url, error: String(e) } });
     return null;
@@ -151,7 +185,7 @@ async function preheat(
 
   // HTTP-Cache (Finding #7): nur aktiv, wenn der Call eine TTL > 0 mitgibt
   // (http('url', 300000)). Cache lebt pro URL im Prozess, laeuft mit eigener TTL ab.
-  const fetchCached = async (url: string, ttl: number): Promise<unknown | null> => {
+  const fetchCached = async (url: string, ttl: number, dynamic: boolean): Promise<unknown | null> => {
     if (ttl > 0) {
       const hit = httpCacheGet(url);
       if (hit !== null) {
@@ -159,7 +193,7 @@ async function preheat(
         return hit;
       }
     }
-    const data = await fetchUrl(url, trace);
+    const data = await fetchUrl(url, trace, dynamic);
     if (ttl > 0 && data !== null) httpCacheSet(url, data, ttl);
     return data;
   };
@@ -185,11 +219,14 @@ async function preheat(
       }
     })
   );
-  const httpJobs: { url: string; ttl: number }[] = [...httpCalls, ...dynUrls.filter((d): d is { url: string; ttl: number } => d !== null)];
+  const httpJobs: { url: string; ttl: number; dynamic: boolean }[] = [
+    ...httpCalls.map((c) => ({ ...c, dynamic: false })),
+    ...dynUrls.filter((d): d is { url: string; ttl: number } => d !== null).map((d) => ({ ...d, dynamic: true })),
+  ];
   await Promise.all(
     httpJobs.map(async (job) => {
       if (httpMap.has(job.url)) return;
-      httpMap.set(job.url, await fetchCached(job.url, job.ttl));
+      httpMap.set(job.url, await fetchCached(job.url, job.ttl, job.dynamic));
       trace.push({ ts: Date.now(), step: 'template.http', detail: { url: job.url } });
     })
   );

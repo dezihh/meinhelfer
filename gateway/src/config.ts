@@ -27,5 +27,6 @@ export const config = {
   toolDeadlineMs: Number(process.env.LLM_TOOL_DEADLINE_MS ?? 9000),
   alexaSkillId: process.env.ALEXA_SKILL_ID,
   alexaDirectivesBase: process.env.ALEXA_DIRECTIVES_BASE ?? 'https://api.eu.amazonalexa.com',
-  alexaVerifyMode: process.env.ALEXA_VERIFY_MODE ?? 'off',
+  // Fail-closed: ohne explizite Env-Var gilt Signatur-Pflicht, nicht Auslassung.
+  alexaVerifyMode: process.env.ALEXA_VERIFY_MODE ?? 'enforce',
 };

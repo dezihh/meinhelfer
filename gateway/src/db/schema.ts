@@ -6,6 +6,15 @@ import { dirname } from 'node:path';
 // in Tests injizierbar (Temp-File) und im Runtime-Setup einmalig initialisiert.
 let _db: Database.Database | null = null;
 
+export function closeDb(): void {
+  if (!_db) return;
+  try {
+    _db.close();
+  } finally {
+    _db = null;
+  }
+}
+
 export function initDb(path: string): void {
   if (_db) return;
   mkdirSync(dirname(path), { recursive: true });

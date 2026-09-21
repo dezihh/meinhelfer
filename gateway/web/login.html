@@ -43,7 +43,8 @@
           body: JSON.stringify({ token: input.value.trim() }),
         });
         if (!res.ok) throw new Error('Anmeldung fehlgeschlagen');
-        localStorage.setItem('va_token', input.value.trim());
+        // Kein Token im localStorage: die HttpOnly-Session-Cookie (Set-Cookie)
+        // authentifiziert alle /admin/api-Aufrufe.
         location.href = '/admin/';
       } catch (ex) {
         err.textContent = ex.message || 'Fehler beim Anmelden';

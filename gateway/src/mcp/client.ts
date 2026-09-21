@@ -7,13 +7,18 @@ export interface McpTransport {
   stop?(): void;
 }
 
+// Ein haengender MCP-Server darf Template-Preheat/Render nicht unendlich
+// blockieren (deterministic-Pfad hat keine eigene Gesamt-Deadline).
+export const MCP_TIMEOUT_MS = 30_000;
+
 export class McpClient implements McpTransport {
   private nextId = 1;
   private sessionId: string | null = null;
 
   constructor(
     private url: string,
-    private token: string | null
+    private token: string | null,
+    private timeoutMs: number = MCP_TIMEOUT_MS
   ) {}
 
   private async rpc(
@@ -34,6 +39,7 @@ export class McpClient implements McpTransport {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     const sid = res.headers.get('mcp-session-id');
     if (sid) this.sessionId = sid;

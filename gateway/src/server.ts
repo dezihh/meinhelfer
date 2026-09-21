@@ -2,6 +2,7 @@ import express, { type Request } from 'express';
 import { join } from 'node:path';
 import { config } from './config.js';
 import { requireAuth, createSession, sessionValid, cookieFor } from './auth.js';
+import { checkRateLimit } from './rateLimit.js';
 import { chatCompletion } from './llm/client.js';
 import { alexaRoutes } from './routes/alexa.js';
 import { queryRoutes } from './routes/query.js';
@@ -24,8 +25,12 @@ app.use(queryRoutes);
 app.use(adminRoutes);
 app.use(mcpRoutes);
 
-// Admin-UI-Login: Token pruefen, Session-Cookie setzen
+// Admin-UI-Login: Token pruefen, Session-Cookie setzen (rate-limited gegen Brute-Force)
 app.post('/admin/login', (req, res) => {
+  if (!checkRateLimit(req.ip ?? 'unbekannt')) {
+    res.status(429).json({ error: 'zu viele Versuche, spaeter erneut' });
+    return;
+  }
   const header = req.headers.authorization ?? '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
   const token = bearer || String((req.body as { token?: unknown })?.token ?? '');

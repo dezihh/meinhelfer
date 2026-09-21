@@ -23,7 +23,9 @@ function isCombinedQuery(text: string): boolean {
   }
   const fragments = q.split(' ').filter((w) => w === 'und' || w === 'sowie' || w === '&').length;
   if (fragments > 1) return true;
-  const commaParts = q.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+  // Kommas im ROHTEXT zaehlen: normalize() entfernt Kommas bereits, bevor
+  // dieser Check laeuft ("hausstatus, benzinpreis").
+  const commaParts = text.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
   return commaParts.length >= 2;
 }
 

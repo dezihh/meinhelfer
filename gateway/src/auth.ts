@@ -5,7 +5,9 @@ import { config } from './config.js';
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (tokenValid(token)) {
+  // Gueltiger Session-Cookie reicht ebenso wie ein Bearer-Token (Admin-UI ohne
+  // clientseitig geparktes AUTH_TOKEN).
+  if (tokenValid(token) || sessionValid(req)) {
     next();
     return;
   }

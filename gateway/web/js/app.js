@@ -2,7 +2,9 @@ const API = '/admin/api';
 let bootstrap = { settings: {}, actions: [], functions: [], servers: [], prompts: [] };
 
 function token() {
-  return localStorage.getItem('va_token') ?? '';
+  // Session-Cookie (va_session) authentifiziert via requireAuth; nur bei
+  // explizit eingetragenem Token im Token-Feld kommt ein Bearer mit.
+  return document.body.dataset.token ?? '';
 }
 
 async function api(path, options = {}) {
@@ -862,7 +864,7 @@ function init() {
   document.querySelectorAll('.sidebar nav a').forEach((a) => (a.onclick = () => showTab(a.dataset.tab)));
   $('token').value = token();
   $('token-save').onclick = () => {
-    localStorage.setItem('va_token', $('token').value);
+    document.body.dataset.token = $('token').value;
     loadBootstrap();
   };
   $('settings-save').onclick = async () => {
