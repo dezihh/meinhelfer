@@ -232,10 +232,62 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 2.3 Websuche + URL-Lesen (MCP)
 
-- **Wo**: Tab **Tool-Registry** → MCP-Server für einen Such-Connector (Beispiel:
-  SearXNG-MCP, Beispiel: Brave-MCP) + ein URL-Lesen-Tool (`web_url_read` mit
-  maxLength-Parameter). Agent-Inventory-Prompt: die Lese-Regel (nur konkrete
-  Treffer-URLs/Feeds oder auf Wunsch).
+- **Was es ist**: ein Such-Connector liefert die Treffer; `web_url_read`
+  liest konkrete Seiten und Feeds — ein Gateway-Baustein, keine Anlage
+  nötig (SSRF-Regeln: dynamische URLs nie ins private Netz, `maxLength`
+  begrenzt den Text). Zwei Connectoren, je nach Bedarf — beide via
+  stdio-Brücke im Gateway-Container.
+
+#### Gegenseite 1: SearXNG (Metasuche, selbst gehostet)
+
+- **Gegenseite (Server)**: eine SearXNG-Instanz per Docker:
+  ```yaml
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+  ```
+  Wichtig: in `searxng/settings.yml` die JSON-API freischalten, sonst
+  liefert die Brücke nur Fehler:
+  ```yaml
+  search:
+    formats:
+      - html
+      - json
+  ```
+- **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+  - Name: `SearXNG`
+  - Transport: `stdio`
+  - Befehl: `node_modules/.bin/mcp-searxng` (das Paket `mcp-searxng`,
+    im Gateway-Container installiert)
+  - Umgebungsvariablen: `SEARXNG_URL=http://<searxng-host>:8080/search`
+  - Agent-Inventory-Prompt: die Lese-Regel — „nur konkrete
+    Treffer-URLs/Feeds lesen oder auf Wunsch; nach der Lese-Runde sofort
+    antworten" (die Voll-Kaskade: Fall 5.3), Aktiv ✓
+  - Test: **Tools abfragen** — die Such-Werkzeuge erscheinen in der
+    Liste darunter.
+
+#### Gegenseite 2: Brave Search (API, als Kaskaden-Zweite Quelle)
+
+- **Gegenseite (API-Key)**: den Search-API-Key bei
+  [brave.com/search/api](https://brave.com/search/api/) erzeugen (Free-Tier
+  reicht für den Anfang).
+- **Anlage (Gateway-Seite)**: Tab **Tool-Registry** → Server hinzufügen:
+  - Name: `Brave`
+  - Transport: `stdio`
+  - Befehl: `npx`
+  - Argumente: `-y @brave/brave-search-mcp-server` (das offizielle
+    Brave-Paket)
+  - Umgebungsvariablen: `BRAVE_API_KEY=<key>`
+  - Aktiv ✓, Test wie oben.
+
+- **Werkzeuge danach**: die Such-Tools des jeweiligen Connectors (Brave:
+  `brave_web_search` — die recherche-Funktion, Fall 5.3, nutzt es als
+  zweite Quelle) plus `web_url_read`.
 - **Bemerkung**: Kann dein Modell Websuche **nativ** über seinen
   Anbieter-Stack, entfällt der Such-Connector (siehe Einleitung).
 
