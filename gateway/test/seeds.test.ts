@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { initDb, closeDb, getDb } from '../src/db/schema.js';
+import { setSetting, restoreDefaultSettings } from '../src/db/settings.js';
 
 const FRESH_DB = '/tmp/opencode/test-seeds-fresh.db';
 
@@ -53,5 +54,21 @@ test('Seed ist idempotent: erneutes Init fuegt nichts hinzu, User-Edits bleiben'
   assert.equal(inv.content, 'USER-EDIT', 'Seed ueberschreibt nicht');
   const mt = getDb().prepare("SELECT value FROM settings WHERE key = 'memory_turns'").get() as { value: string };
   assert.equal(mt.value, '4');
+  closeDb();
+});
+
+test('restoreDefaultSettings: Settings auf Defaults, entity_index unangetastet', () => {
+  freshInit();
+  setSetting('llm_model', 'user-modell');
+  setSetting('memory_turns', '99');
+  setSetting('entity_index', 'KEEP-INDEX');
+  restoreDefaultSettings();
+  const db = getDb();
+  const llm = db.prepare("SELECT value FROM settings WHERE key = 'llm_model'").get() as { value: string } | undefined;
+  assert.equal(llm, undefined, 'llm_model geloescht (leer = Default)');
+  const mt = db.prepare("SELECT value FROM settings WHERE key = 'memory_turns'").get() as { value: string };
+  assert.equal(mt.value, '4');
+  const idx = db.prepare("SELECT value FROM settings WHERE key = 'entity_index'").get() as { value: string } | undefined;
+  assert.equal(idx?.value, 'KEEP-INDEX', 'Index-Konfiguration bleibt');
   closeDb();
 });

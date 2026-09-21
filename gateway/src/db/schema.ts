@@ -16,6 +16,18 @@ export function closeDb(): void {
   }
 }
 
+// Referenz-Defaults der Grundeinstellungen (eine Quelle fuer Init-Seed,
+// Frisch-Install-Fill und 'Defaults wiederherstellen' in der Web-UI).
+export const SEED_SETTINGS: [string, string][] = [
+  ['assistant_name', 'Smart Pilot'],
+  ['fuzzy_global', '1'],
+  ['session_followup', 'beides'],
+  ['session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe'],
+  ['debug_logging', '0'],
+  ['memory_turns', '4'],
+  ['memory_minutes', '30'],
+];
+
 export function initDb(path: string, withReferenceSeed = false): void {
   if (_db) return;
   mkdirSync(dirname(path), { recursive: true });
@@ -177,16 +189,13 @@ for (const stmt of [
   }
 }
 
-// Fresh-Install-Fill: NUR Grundeinstellungen (statistische Agent-Prompts +
-// Defaultwerte). Domänen-spezifisches (Systeme/MCP-Server, Funktionen,
-// Vorgaenge, Index-Quellen) wird bewusst NICHT geseedet - es gehoert in die
-// aktive Konfiguration. INSERT OR IGNORE - bestehende Datenbanken (und
-// User-Edits) bleiben unangetastet.
+// Fresh-Install-Fill: NUR die statischen Agent-Prompts. Domänen-spezifisches
+// (Systeme/MCP-Server, Funktionen, Vorgaenge, Index-Quellen) wird bewusst
+// NICHT geseedet - es gehoert in die aktive Konfiguration. INSERT OR IGNORE -
+// bestehende Datenbanken (und User-Edits) bleiben unangetastet.
 if (withReferenceSeed) {
   db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_system', SEED_AGENT_SYSTEM);
   db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_inventory', SEED_AGENT_INVENTORY);
-  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('memory_turns', '4');
-  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('memory_minutes', '30');
 }
 
 db.prepare(
@@ -327,7 +336,9 @@ db.prepare(
     db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_inventory'").run(neu);
   }
 }
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('assistant_name', 'Smart Pilot');
+for (const [key, value] of SEED_SETTINGS) {
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+}
 // News als deterministischer Fastpath entfernt (Konzept: Nachrichten/Fragen -> Agent).
 // Bestehende Action-Datei ebenfalls aufraeumen.
 db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
@@ -344,10 +355,8 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
     );
   }
 }
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('fuzzy_global', '1');
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_followup', 'beides');
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe');
-db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('debug_logging', '0');
+// (Die Referenz-Defaults der Settings werden weiter unten ueber SEED_SETTINGS
+// gesetzt - einzeln geseedete Settings gab es nur in frueheren Stadien.)
 
 // Facade-Abbau: agent_system + agent_inventory auf rohe MCP-Tools und
 // dynamische Funktions-Tools (fn_*) umschreiben - nur falls noch alter Text

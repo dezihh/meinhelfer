@@ -1,4 +1,4 @@
-import { getDb } from './schema.js';
+import { getDb, SEED_SETTINGS } from './schema.js';
 
 export function getSettings(): Record<string, string> {
   const rows = getDb().prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
@@ -26,9 +26,21 @@ export function getSettingNum(key: string, fallback: number): number {
 }
 
 export function setSetting(key: string, value: string): void {
-  getDb().prepare(
-    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
-  ).run(key, value);
+  getDb()
+    .prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+    .run(key, value);
+}
+
+// Alle Settings auf Referenz-Defaults (SEED_SETTINGS aus schema.ts)
+// zuruecksetzen. Index-Konfiguration (entity_index*) bleibt unangetastet -
+// sie wird in eigener UI gepflegt. Konfigurierte .env-/Code-Felder
+// (llm_model etc.) fallen auf "leer = Default" zurueck.
+export function restoreDefaultSettings(): void {
+  const db = getDb();
+  db.prepare("DELETE FROM settings WHERE key NOT LIKE 'entity_index%'").run();
+  for (const [key, value] of SEED_SETTINGS) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value);
+  }
 }
 
 export function getPrompt(key: string): string | undefined {

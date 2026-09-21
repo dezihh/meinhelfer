@@ -903,6 +903,19 @@ function init() {
     });
     await loadBootstrap();
   };
+  $('settings-restore').onclick = async () => {
+    if (!confirm('Alle Grundeinstellungen auf die Defaults der Installation zuruecksetzen? (Index-Konfiguration bleibt unangetastet)')) return;
+    const res = await api('/settings/restore-defaults', { method: 'POST' });
+    bootstrap.settings = res.settings;
+    renderSettings();
+    alert('Grundeinstellungen auf Defaults zurueckgesetzt.');
+  };
+  $('prompt-restore').onclick = () => {
+    const seed = bootstrap.seedPrompts?.[$('prompt-key').value];
+    if (!seed) return;
+    $('prompt-content').value = seed;
+    alert('Original-Text geladen - noch nicht gespeichert.');
+  };
   $('test-send').onclick = sendTest;
   $('test-text').onkeydown = (e) => { if (e.key === 'Enter') sendTest(); };
 $('action-new').onclick = () => openActionEditor(null);

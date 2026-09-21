@@ -16,11 +16,14 @@ import {
   createFunction,
   listMcpServers,
   listPrompts,
+  restoreDefaultSettings,
   setPrompt,
   setSetting,
   updateAction,
   updateFunction,
 } from '../db.js';
+import { SEED_SETTINGS } from '../db/schema.js';
+import { SEED_AGENT_SYSTEM, SEED_AGENT_INVENTORY } from '../db/seeds.js';
 import { normalizeActionInput, normalizeFunctionInput } from '../core/normalize.js';
 import { HTTP_BODY_CAP, HTTP_TIMEOUT_MS, renderActionTemplate } from '../core/template.js';
 import { assistIndex, applyDraft } from '../core/indexAssistant.js';
@@ -41,11 +44,14 @@ adminRoutes.get('/admin/api/bootstrap', requireAuth, (req, res) => {
       http_timeout_ms: String(HTTP_TIMEOUT_MS),
       http_body_cap: String(HTTP_BODY_CAP),
       alexa_progress_after_ms: '6500',
+      ...Object.fromEntries(SEED_SETTINGS),
     },
     actions: listActions(false),
     functions: listFunctions(false),
     servers: listMcpServers(false),
     prompts: listPrompts(),
+    // Referenz-Texte der frischen Installation (fuer 'Original' im Prompt-Editor).
+    seedPrompts: { agent_system: SEED_AGENT_SYSTEM, agent_inventory: SEED_AGENT_INVENTORY },
   });
 });
 
@@ -56,6 +62,11 @@ adminRoutes.put('/admin/api/settings', requireAuth, (req, res) => {
     return;
   }
   for (const [key, value] of Object.entries(body.settings)) setSetting(key, String(value));
+  res.json({ settings: getSettings() });
+});
+
+adminRoutes.post('/admin/api/settings/restore-defaults', requireAuth, (req, res) => {
+  restoreDefaultSettings();
   res.json({ settings: getSettings() });
 });
 

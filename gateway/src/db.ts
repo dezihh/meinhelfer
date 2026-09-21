@@ -39,6 +39,7 @@ export {
   getSettingNum,
   setSetting,
   deleteSetting,
+  restoreDefaultSettings,
   getPrompt,
   setPrompt,
   listPrompts,
