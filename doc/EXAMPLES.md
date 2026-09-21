@@ -126,12 +126,34 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   - **Agent-Inventory-Prompt**: die Schalten-Kaskade (siehe Fall 5.1), Aktiv ✓.
 - **Entity-Index (Lesekanal)**: Tab **Index-Quellen** → Standard-Index. Die
   Konfiguration, die in der Referenz-Installation produktiv läuft — der
-  Nachbauer kann sie unverändert übernehmen (keine Platzhalter):
+  Nachbauer kann sie unverändert übernehmen (keine Platzhalter).
+
+  Das Extraktions-Template (so sieht es als Jinja aus):
+  ```jinja
+  {% for e in states %}
+  {% set area = area_name(e.entity_id) or '' %}
+  {% set nm = e.attributes.get('friendly_name', e.entity_id) %}
+  {% set extra = 'device_class=' ~ (e.attributes.get('device_class','') or '')
+                  ~ ';icon=' ~ (e.attributes.get('icon','') or '')
+                  ~ ';supported_features=' ~ (e.attributes.get('supported_features','') or '') %}
+  {% if e.entity_id.startswith('climate.') and e.attributes.get('current_temperature') is not none %}
+  {% set extra = extra ~ ';current_temperature=' ~ (e.attributes.get('current_temperature') or '') %}
+  {% endif %}
+  {{ e.entity_id }}|{{ area }}|{{ e.state }}|{{ e.attributes.get('unit_of_measurement','') or '' }}|{{ nm }}|{{ extra }}
+  {% endfor %}
+  ```
+  Übernahme-Hinweis: das Index-Konfigurationsfeld nimmt JSON — das Template
+  gehört als **eine String-Zeile** hinein, Umbrüche als `\n`
+  (`{% ... %}\n{{ ... }}\n{% endfor %}`). Die HA-Template-Engine ignoriert
+  die Zeilenumbrüche zwischen den `{% ... %}`-Tags (trim), das `\n` nach
+  der Ausgabezeile baut die Pipe-Zeilen.
+
+  Der Rest als JSON:
   ```json
   {
     "tool": "ha_eval_template",
     "args": {
-      "template": "{% for e in states %}{% set area = area_name(e.entity_id) or '' %}{% set nm = e.attributes.get('friendly_name', e.entity_id) %}{% set extra = 'device_class=' ~ (e.attributes.get('device_class','') or '') ~ ';icon=' ~ (e.attributes.get('icon','') or '') ~ ';supported_features=' ~ (e.attributes.get('supported_features','') or '') %}{% if e.entity_id.startswith('climate.') and e.attributes.get('current_temperature') is not none %}{% set extra = extra ~ ';current_temperature=' ~ (e.attributes.get('current_temperature') or '') %}{% endif %}{{ e.entity_id }}|{{ area }}|{{ e.state }}|{{ e.attributes.get('unit_of_measurement','') or '' }}|{{ nm }}|{{ extra }}\n{% endfor %}",
+      "template": "<obiges Template, als String-Zeile mit \\n-Umbrüchen>",
       "timeout": 15,
       "report_errors": false
     },
