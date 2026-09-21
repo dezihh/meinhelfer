@@ -85,7 +85,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   (`ghcr.io/homeassistant-ai/ha-mcp`), als Container im HTTP-Modus
   (`ha-mcp-web`). Das Gateway verbindet sich per Streamable HTTP — kein
   stdio, kein HA-Supervisor-Endpoint.
-- **Anlage (Server-Seite, docker-compose — anonymisiert)**:
+- **Anlage (Server-Seite, docker-compose )**:
   ```yaml
   ha-mcp:
     image: ghcr.io/homeassistant-ai/ha-mcp:latest
