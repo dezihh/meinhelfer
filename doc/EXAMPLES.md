@@ -183,8 +183,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   (`aussen`, `innen`, `upstairs`, `downstairs`). Ohne den Alias findet der
   Score oft nichts: „Fernseher" taucht in `media_player.*`-Zeilen meist gar
   nicht auf. Die Paare innerhalb einer JSON-Zeile teilen sich nur den
-  Zeilenumbruch — sie sind unabhängige Übersetzungen; `fenster` → `window`
-  hat nichts mit `fernseher` → `media_player` zu tun.
+  Zeilenumbruch — sie sind unabhängige Übersetzungen.
 - **Basis-Entities der Grundinstallation**: `sun.sun`, `weather.home`,
   `zone.home` sind mit jeder HA-Basisinstallation vorhanden und landen
   automatisch in dem Gesamt-Listing — die deterministischen Beispiele
