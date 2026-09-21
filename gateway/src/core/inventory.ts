@@ -36,20 +36,23 @@ function fnLines(allowlist: string[] | null): string[] {
 }
 
 // System-Regeln (Kaskaden, Eigenheiten) leben am MCP-Server selbst.
-export function systemLines(): string[] {
+// only: Namen der Systeme, deren Tools der Agent dieses Aufrufs tatsächlich
+// anbietet (null = alle, Liste = gefiltert) - nutzlose Noten sparen Prompt.
+export function systemLines(only?: string[] | null): string[] {
   const lines: string[] = [];
   for (const server of listMcpServers(true)) {
     const note = (server.inventory_note ?? '').trim();
     if (!note) continue;
+    if (Array.isArray(only) && !only.includes(server.name)) continue;
     lines.push(`- ${server.name}: ${note}`);
   }
   return lines;
 }
 
-export function buildInventoryPrompt(): string {
+export function buildInventoryPrompt(activeServers?: string[] | null): string {
   const rules = getPrompt('agent_inventory') ?? '';
   const lines = fnLines(agentFnAllowlist());
-  const systems = systemLines();
+  const systems = systemLines(activeServers === undefined ? null : activeServers);
   const blocks: string[] = [];
   if (lines.length > 0) {
     blocks.push(`## Werkzeuge (aus den registrierten Funktionen)\n${lines.join('\n')}`);

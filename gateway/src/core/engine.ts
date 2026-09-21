@@ -82,12 +82,25 @@ function promptWithName(key: string): string | undefined {
 }
 
 // System-Prompt fuer den Agenten: agent_system + generiertes Tool-Inventory
-// (Werkzeuge aus den Funktionen + agent_inventory-Regeln)
-function agentSystemPrompt(): string {
-  const sys = promptWithName('agent_system') ?? 'Du bist ein hilfreicher deutscher Sprachassistent.';
-  const inv = buildInventoryPrompt();
+// (Werkzeuge aus den Funktionen + agent_inventory-Regeln); die Systeme-Noten
+// werden auf die aktiv angebotenen Systeme gefiltert.
+function agentSystemPrompt(mcp: McpContext, allowlist: string[] | null = null): string {
+  const sys = promptWithName('agent_system') ?? '';
+  const inv = buildInventoryPrompt(activeServerNames(mcp, allowlist));
   if (!inv) return sys;
   return `${sys}\n\n## Tool-Inventory (Nachschlagewerk)\n${inv}`;
+}
+
+// Systeme-Noten nur fuer die Systeme, deren Tools die aktive Allowlist
+// anbietet (null = alle, [] = keine). Vorgaenge ohne Tools (z. B. hilfe)
+// sparen damit die komplette Systeme-Sektion.
+function activeServerNames(mcp: McpContext, allowlist: string[] | null): string[] | null {
+  if (allowlist === null) return null;
+  const out: string[] = [];
+  for (const s of mcp.servers) {
+    if (s.tools.some((t) => allowlist.includes(t.name))) out.push(s.name);
+  }
+  return out;
 }
 
 async function runToolLoop(
@@ -224,7 +237,6 @@ async function runToolLoop(
 }
 
 async function runAgent(query: VoiceQuery, mcp: McpContext, trace: TraceEvent[]): Promise<AssistantResponse> {
-  const system = agentSystemPrompt();
   // Allowlist-Semantik (mit der Vorgangs-Checkbox-Logik konsistent):
   // nicht gesetzt oder "alle" = alle Tools; "keine" = keine Specs;
   // Komma-Liste = genau diese. (Leere Auswahl in der UI wird als "keine"
@@ -234,6 +246,7 @@ async function runAgent(query: VoiceQuery, mcp: McpContext, trace: TraceEvent[])
   if (!agentToolsRaw || agentToolsRaw === 'alle') allowlist = null;
   else if (agentToolsRaw === 'keine') allowlist = [];
   else allowlist = agentToolsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+  const system = agentSystemPrompt(mcp, allowlist);
   const response = await runToolLoop(system, query.text, null, mcp, trace, query.sessionId, allowlist);
   rememberTurn(query.sessionId, query.text, response.speech);
   return response;
@@ -246,8 +259,8 @@ async function executeAction(
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
   if (action.mode === 'llm') {
-    const system = (action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt())
-      .replace('{agent_inventory}', buildInventoryPrompt());
+    const system = (action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList))
+      .replace('{agent_inventory}', buildInventoryPrompt(activeServerNames(mcp, action.toolList)));
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
   // deterministic/hybrid: Daten kommen ausschliesslich aus einer Funktion
@@ -257,7 +270,7 @@ async function executeAction(
   }
   const rendered = await renderFunction(action.function_ref, mcp, trace, action.functionArgs ?? {});
   if (action.mode === 'deterministic') return rendered;
-  const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt();
+  const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList);
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
     {

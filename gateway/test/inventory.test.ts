@@ -116,6 +116,41 @@ test('Systeme-Sektion aus mcp_servers.inventory_note (Kaskaden am System)', () =
   assert.equal(after.n, before.n);
 });
 
+test('Systeme-Filter: nur Server der aktiven Tool-Liste, [] = ohne Systeme', () => {
+  const db = getDb();
+  const before = db.prepare('SELECT COUNT(*) AS n FROM mcp_servers').get() as { n: number };
+  const server = createMcpServer({
+    name: 'Filter-System',
+    url: 'https://test.example.org/mcp',
+    auth_token: null,
+    transport: 'http',
+    command: null,
+    args: null,
+    env: null,
+    inventory_note: 'Kaskade fuer Filter-System.',
+    enabled: 1,
+  });
+  try {
+    // [] (Vorgang ohne Tools): komplette Systeme-Sektion weg
+    const none = buildInventoryPrompt([]);
+    assert.doesNotMatch(none, /## Systeme/);
+    assert.doesNotMatch(none, /Filter-System/);
+    // Trefferliste mit anderem Namen: System nicht dabei
+    const other = buildInventoryPrompt(['Anderes-System']);
+    assert.doesNotMatch(other, /Filter-System/);
+    // Trefferliste mit passendem Namen: System dabei
+    const hit = buildInventoryPrompt(['Filter-System', 'x']);
+    assert.match(hit, /- Filter-System: Kaskade/);
+    // null/undefined = alle (wie bisher)
+    const all = buildInventoryPrompt();
+    assert.match(all, /- Filter-System: Kaskade/);
+  } finally {
+    deleteMcpServer(server.id);
+  }
+  const after = db.prepare('SELECT COUNT(*) AS n FROM mcp_servers').get() as { n: number };
+  assert.equal(after.n, before.n);
+});
+
 test('Markierung {{AGENT_FNS}} wird an Ort und Stelle ersetzt', () => {
   setPrompt('agent_inventory', `Header\n{{AGENT_FNS}}\n\n## Regeln\n- Regel A`);
   try {
