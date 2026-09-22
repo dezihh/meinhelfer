@@ -1,7 +1,8 @@
 import nunjucks from 'nunjucks';
 import { exec } from 'node:child_process';
 import type { McpContext } from '../mcp/registry.js';
-import { getIndexSnapshot, scoreEntries, fmtEntry, listIndexKeys, type IndexEntry } from './entityIndex.js';
+import { getIndexSnapshot, listIndexKeys, type IndexEntry } from './entityIndex.js';
+import { findInSnapshot, getFromSnapshot } from './indexTools.js';
 import { getFunctionByName, getSettingNum } from '../db.js';
 import type { AssistantResponse, TraceEvent } from '../types.js';
 
@@ -248,18 +249,8 @@ async function preheat(
       })
     );
   }
-  const indexFind = (query: string, key = ''): string => {
-    const snapshot = snapshotFor.get(key) ?? [];
-    if (snapshot.length === 0) return 'Entity-Index nicht verfuegbar';
-    const hits = scoreEntries(snapshot, String(query ?? ''), 8, key).map(fmtEntry);
-    return hits.length > 0 ? hits.join('\n') : 'keine Treffer';
-  };
-  const indexGet = (entityId: string, key = ''): string => {
-    const snapshot = snapshotFor.get(key) ?? [];
-    if (snapshot.length === 0) return 'Entity-Index nicht verfuegbar';
-    const found = snapshot.find((e) => e.id === entityId);
-    return found ? fmtEntry(found) : `${entityId}: nicht im Index (ID ungueltig) - nutze fn_find_entities mit dem Namen, statt IDs zu raten`;
-  };
+  const indexFind = (query: string, key = ''): string => findInSnapshot(snapshotFor.get(key) ?? [], query, 8, key);
+  const indexGet = (entityId: string, key = ''): string => getFromSnapshot(snapshotFor.get(key) ?? [], entityId, key);
 
   for (const name of fns) {
     if (fnMap.has(name)) continue;

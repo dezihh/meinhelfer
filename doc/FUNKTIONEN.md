@@ -80,6 +80,19 @@ Index-Tools, das Extraktions-Template steckt im arg, das der Server erwartet):
   kein Code. Die generischen Lesetools heißen entsprechend neutral
   `fn_find_entities` / `fn_get_entity`.
 
+### Basis-Werkzeuge (built-in, Variante A)
+
+`fn_find_entities` und `fn_get_entity` sind **fest im Gateway-Code**
+(`core/indexTools.ts`) - nicht als Datenbankzeilen, nicht editierbar, nicht
+löschbar, unabhängig von `agent_tools`:
+
+- Die Tab „Funktionen" zeigt nur eigene Funktionen; die Basis-Werkzeuge
+  tauchen dort nicht auf und können von keinem Backup/Restore/Paket
+  überschrieben werden.
+- Tool-Namen bleiben unverändert (`fn_find_entities` / `fn_get_entity`),
+  damit alle Prompts, Pakete und Beispiele weiter funktionieren.
+- Budgets (2 bzw. 3 Aufrufe pro Frage) sind ebenfalls fest verdrahtet.
+
 ### Index-Quellen (Multi-Index, universal)
 
 Der Entity-Index ist eine Instanz eines universalen Konzepts: **benannte
@@ -192,11 +205,14 @@ Hat eine Funktion ein **Parameter-Schema**, erscheint sie dem Agenten als
 Tool `fn_<name>` mit genau diesem Schema. Die Argumente des Aufrufs stehen
 im Template als `args` bereit.
 
-Beispiel „find_entities" (ersetzt den früheren statischen Such-Helper):
+Die früheren DB-Vorlagen für die Basis-Lesetools sind abgelöst (built-in
+seit 22.09.2026, Variante A): kein `tpl_functions`-Seed, kein `entity_id`-Parameter -
+`fn_get_entity` nimmt den generischen Parameter `key`.
 
-- Parameter: `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
-- Template: `{{ index.find(args.query) }}`
 - Agent ruft: `fn_find_entities {"query": "garage temperatur"}`
+- Agent ruft: `fn_get_entity {"key": "<aus fn_find_entities>"}`
+- Wer die alte Logik variantenreich braucht, legt in der Tab „Funktionen"
+  eine eigene Funktion an; das Basis-Werkzeug mit gleichem Namen hat Vorrang.
 
 Damit lassen sich beliebige eigene Tools bauen — z. B. eine Datei- oder
 Mediensuche über einen eigenen HTTP-Endpunkt (URL mit `args`-Konkatenation,

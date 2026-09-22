@@ -200,7 +200,7 @@ test('fn: unbekannte Funktion -> null', async () => {
 
 test('index.get ohne Vorwaermen -> Hinweistext statt Crash', async () => {
   const r = await renderActionTemplate(`{{ index.get('light.x') }}`, mcp, []);
-  assert.match(r.speech, /Entity-Index nicht verfuegbar/);
+  assert.match(r.speech, /Index nicht verfuegbar/);
 });
 
 before(async () => {

@@ -34,10 +34,9 @@ test('Fresh-Install-Fill: Prompts + Grundeinstellungen-Defaults, sonst nichts', 
   assert.equal(mt?.value, '4', 'memory_turns-Default');
   assert.equal(mm?.value, '30', 'memory_minutes-Default');
   // Bewusst NICHT geseedet: Systeme/MCP, Vorgaenge, Index, Agent-Funktionen.
-  // Nur die 2 generischen Lesefunktionen (find_entities/get_entity) kommen
-  // aus dem Schema-Basis-Seed (MCP-neutral, Teil der Migration).
+  // Die 2 Basis-Lesetools sind Built-In im Code (core/indexTools.ts) - kein Seed.
   assert.equal((db.prepare('SELECT COUNT(*) n FROM mcp_servers').get() as { n: number }).n, 0, 'keine MCP-Server');
-  assert.equal((db.prepare('SELECT COUNT(*) n FROM tpl_functions').get() as { n: number }).n, 2, 'nur die 2 generischen Lesefunktionen');
+  assert.equal((db.prepare('SELECT COUNT(*) n FROM tpl_functions').get() as { n: number }).n, 0, 'Basis-Lesetools sind Built-In, keine fns geseedet');
   const recherche = db.prepare("SELECT 1 FROM tpl_functions WHERE name = 'recherche'").get();
   assert.ok(!recherche, 'keine Agent-Funktionen geseedet');
   assert.equal((db.prepare('SELECT COUNT(*) n FROM actions').get() as { n: number }).n, 0, 'keine Vorgaenge');

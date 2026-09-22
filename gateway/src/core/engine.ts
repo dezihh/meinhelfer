@@ -15,6 +15,7 @@ import { renderFunction } from './template.js';
 import { buildInventoryPrompt } from './inventory.js';
 import { escapeXml, stripSsmlTags, withSsmlBreaks, withDisplay, parseAgentAnswer } from './response.js';
 import { buildTools, type ToolRoute } from './tools.js';
+import { findIndexEntries, getIndexEntry } from './indexTools.js';
 import { traceUsage, sumUsageFromTrace } from './usage.js';
 import { priorTurns as sessionPriorTurns, rememberTurn as sessionRememberTurn, isChatSession as sessionIsChat, setChatMode } from './session.js';
 import type {
@@ -166,7 +167,11 @@ async function runToolLoop(
                   const resp = await renderFunction(route.name, mcp, trace, args);
                   return { bericht: (resp.ssml ? stripSsmlTags(resp.speech) : resp.speech).slice(0, 4000) };
                 })()
-              : await route.client.callTool(route.toolName, args);
+              : route.kind === 'index_find'
+                ? { bericht: await findIndexEntries(String(args.query ?? ''), typeof args.index === 'string' ? args.index : '') }
+                : route.kind === 'index_get'
+                  ? { bericht: await getIndexEntry(String(args.key ?? ''), typeof args.index === 'string' ? args.index : '') }
+                  : await route.client.callTool(route.toolName, args);
           result = JSON.stringify(out).slice(0, 2000);
           trace.push({ ts: Date.now(), step: 'tool.call', detail: { tool: call.function.name, args } });
         } catch (e) {

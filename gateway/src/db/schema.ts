@@ -272,59 +272,6 @@ db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
   }
 }
 
-// Generische Lesetools als parameterisierte Funktionen (ersetzen die alten
-// Facade-Tools); Namen bewusst systemneutral - die Bindung an Home Assistant
-// steckt im entity_index-Setting, nicht im Funktionsnamen.
-db.prepare(
-  'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
-).run(
-  'find_entities',
-  'Findet Eintraege im konfigurierten Index zu Stichworten (z. B. Name, Bereich, Typ) und liefert die gespeicherten Informationen dazu (max. 8 Treffer). IMMER zuerst bei Fragen, die ein konfigurierter Index beantworten kann (z. B. Zustaende, Messwerte, Status).',
-  '{{ index.find(args.query) }}',
-  JSON.stringify({
-    type: 'object',
-    properties: { query: { type: 'string', description: "Stichwörter, z. B. 'Schlafzimmer Temperatur' oder 'Zisterne'" } },
-    required: ['query'],
-  })
-);
-db.prepare(
-  'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
-).run(
-  'get_entity',
-  'Liest einen konkreten Index-Eintrag per Schluessel inkl. der gespeicherten Details.',
-  '{{ index.get(args.key) }}',
-  JSON.stringify({
-    type: 'object',
-    properties: { key: { type: 'string', description: 'Schluessel des Eintrags, wie ihn find_entities liefert' } },
-    required: ['key'],
-  })
-);
-
-// Basis-Fn-Upgrade (22.09.): die Alt-Signatur (entity_id-Param, HA-Beschreibung)
-// auf die generische Fassung heben. WHERE-Guards treffen nur Alt-Formen, User-
-// Aenderungen an den Basis-Fns bleiben unangetastet.
-{
-  const alt = db.prepare('SELECT template FROM tpl_functions WHERE name = ?').get('get_entity') as { template: string } | undefined;
-  if (alt && alt.template.includes('args.entity_id')) {
-    db.prepare('UPDATE tpl_functions SET description = ?, template = ?, parameters = ? WHERE name = ?').run(
-      'Liest einen konkreten Index-Eintrag per Schluessel inkl. der gespeicherten Details.',
-      '{{ index.get(args.key) }}',
-      JSON.stringify({
-        type: 'object',
-        properties: { key: { type: 'string', description: 'Schluessel des Eintrags, wie ihn find_entities liefert' } },
-        required: ['key'],
-      }),
-      'get_entity'
-    );
-  }
-  const altFind = db.prepare('SELECT description FROM tpl_functions WHERE name = ?').get('find_entities') as { description: string } | undefined;
-  if (altFind && altFind.description.includes('Entity-Index')) {
-    db.prepare('UPDATE tpl_functions SET description = ? WHERE name = ?').run(
-      'Findet Eintraege im konfigurierten Index zu Stichworten (z. B. Name, Bereich, Typ) und liefert die gespeicherten Informationen dazu (max. 8 Treffer). IMMER zuerst bei Fragen, die ein konfigurierter Index beantworten kann (z. B. Zustaende, Messwerte, Status).',
-      'find_entities'
-    );
-  }
-}
 
 // Umbenennung der frueheren HA-praefigierten Lesetools (Funktion + Referenzen).
 // Alte Row gewinnt (kann User-Aenderungen tragen): frisches Seed-Duplikat
@@ -346,6 +293,17 @@ db.prepare(
         .replaceAll('fn_ha_get', 'fn_get_entity');
       db.prepare('UPDATE prompts SET content = ?, updated_at = datetime(\'now\') WHERE key = ?').run(neu, key);
     }
+  }
+}
+
+// Basis-Werkzeuge (Variante A, 22.09.): fn_find_entities/fn_get_entity leben
+// fest im Gateway-Code (core/indexTools.ts) - keine DB-Zeilen mehr. Alt-Zeilen
+// der Index-Basis-Fns aufraeumen; eigene Fn-Definitionen mit gleichem Namen
+// und ANDEREM Template bleiben (die Built-Ins gewinnen im Tool-Bau).
+for (const basisName of ['find_entities', 'get_entity']) {
+  const basisRow = db.prepare('SELECT template FROM tpl_functions WHERE name = ?').get(basisName) as { template: string } | undefined;
+  if (basisRow && (basisRow.template.includes('index.find') || basisRow.template.includes('index.get'))) {
+    db.prepare('DELETE FROM tpl_functions WHERE name = ?').run(basisName);
   }
 }
 
