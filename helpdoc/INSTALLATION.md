@@ -105,6 +105,14 @@ Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 
 - Start ohne Fehler; frische SQLite-DB mit 2 Prompts, 7 Settings und den
   2 generischen Lesefunktionen; Tool-Registry und Vorgaenge leer.
+
+Die zwei Funktionen `find_entities` und `get_entity` sind **Grundausstattung**
+und keine Fehlkonfiguration: sie sind systemneutrale Index-Bausteine des
+Gateways (die Anbindung an einen Dienst steckt im Entity-Index-Setting, nicht
+im Funktionsnamen). Ohne sie koennte der Agent auf keiner Installation lesen.
+Alles Weitere - MCP-Server, Entity-Index, weitere Funktionen, Vorgaenge -
+kommt bewusst nicht automatisch, sondern ueber die **Installationspakete**
+(Tab „Wartung und Pakete") oder manuell.
 - Monitor-Antwort auf „wie heisst du" korrekt mit dem Assistenten-Namen.
 - Admin-Oberflaeche 401 ohne Session, Login-Seite 200.
 - Nach `docker compose restart` bleiben die Daten erhalten.
