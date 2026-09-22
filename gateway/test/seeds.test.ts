@@ -46,6 +46,7 @@ assert.ok(!sys.content.includes('Home Assistant'), 'Seed ohne Systembezug (syste
   assert.equal(hilfe.mode, 'llm', 'Hilfe im llm-Modus');
   assert.equal(hilfe.tools, '[]', 'Hilfe bewusst ohne Tools');
   assert.ok(hilfe.trigger_phrases.includes('was kannst du'), 'Hilfe-Trigger vorhanden');
+  assert.ok(hilfe.system_prompt.includes('{agent_inventory}'), 'Hilfe-Prompt bindet das Nachschlagewerk ein');
   assert.ok(!hilfe.system_prompt.includes('Hausstatus ("'), 'Hilfe-Prompt ohne feste Domaenen');
   assert.equal((db.prepare('SELECT COUNT(*) n FROM actions').get() as { n: number }).n, 1, 'nur die Hilfe-Action');
   const idx = db.prepare("SELECT value FROM settings WHERE key = 'entity_index'").get() as { value: string } | undefined;
@@ -56,13 +57,13 @@ assert.ok(!sys.content.includes('Home Assistant'), 'Seed ohne Systembezug (syste
 test('Seed ist idempotent: erneutes Init fuegt nichts hinzu, User-Edits bleiben', () => {
   freshInit();
   getDb().prepare("UPDATE prompts SET content = 'USER-EDIT' WHERE key = 'agent_inventory'").run();
-  getDb().prepare("UPDATE actions SET system_prompt = 'USER-HILFE' WHERE name = 'hilfe'").run();
+  getDb().prepare("UPDATE actions SET system_prompt = 'USER-HILFE {agent_inventory}' WHERE name = 'hilfe'").run();
   closeDb();
   initDb(FRESH_DB, true); // zweiter Lauf auf existierender DB
   const inv = getDb().prepare("SELECT content FROM prompts WHERE key = 'agent_inventory'").get() as { content: string };
   assert.equal(inv.content, 'USER-EDIT', 'Seed ueberschreibt nicht');
   const hilfe = getDb().prepare("SELECT system_prompt FROM actions WHERE name = 'hilfe'").get() as { system_prompt: string };
-  assert.equal(hilfe.system_prompt, 'USER-HILFE', 'Hilfe-Edit bleibt erhalten');
+  assert.equal(hilfe.system_prompt, 'USER-HILFE {agent_inventory}', 'Hilfe-Edit bleibt erhalten');
   assert.equal((getDb().prepare('SELECT COUNT(*) n FROM actions').get() as { n: number }).n, 1, 'Hilfe wird nicht doppelt angelegt');
   const mt = getDb().prepare("SELECT value FROM settings WHERE key = 'memory_turns'").get() as { value: string };
   assert.equal(mt.value, '4');

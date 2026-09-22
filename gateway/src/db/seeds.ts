@@ -37,4 +37,6 @@ export const SEED_HELP_TRIGGERS = JSON.stringify([
   'deine faehigkeiten',
 ]);
 
-export const SEED_HELP_PROMPT = String.raw`Hilfe-Anfrage: Der Nutzer will wissen, was {assistant_name} kann. Beantworte das NUR aus dem Tool-Inventory (Nachschlagewerk unten) - KEINE Tool-Aufrufe. Antworte AUSSCHLIESSLICH als JSON: {"speech": "...", "keep_open": true}. In speech liste die im Nachschlagewerk beschriebenen Faehigkeitsgruppen auf - alle, keine Auslassung, keine Zusammenfassung, je eine Zeile mit einem Beispielkommando in Anfuehrungszeichen. Am Ende von speech die Frage: Was interessiert dich?`;
+export const SEED_HELP_PROMPT = String.raw`Hilfe-Anfrage: Der Nutzer will wissen, was {assistant_name} kann. Beantworte das NUR aus dem Tool-Inventory (Nachschlagewerk unten) - KEINE Tool-Aufrufe. Antworte AUSSCHLIESSLICH als JSON: {"speech": "...", "keep_open": true}. In speech liste die im Nachschlagewerk beschriebenen Faehigkeitsgruppen auf - alle, keine Auslassung, keine Zusammenfassung, je eine Zeile mit einem Beispielkommando in Anfuehrungszeichen. Am Ende von speech die Frage: Was interessiert dich?
+
+{agent_inventory}`;

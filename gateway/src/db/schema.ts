@@ -387,6 +387,17 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
     );
   }
 }
+// Bestands-DBs (22.09.): die Hilfe-Action braucht den {agent_inventory}-Marker,
+// sonst wird das Nachschlagewerk nicht in den Prompt eingefuegt und sie kann
+// keine Faehigkeiten auflisten. Marker ergaenzen, falls er fehlt.
+{
+  const row = db.prepare("SELECT system_prompt FROM actions WHERE name = 'hilfe'").get() as { system_prompt?: string } | undefined;
+  if (row?.system_prompt && !row.system_prompt.includes('{agent_inventory}')) {
+    db.prepare("UPDATE actions SET system_prompt = ?, updated_at = datetime('now') WHERE name = 'hilfe'").run(
+      `${row.system_prompt}\n\n{agent_inventory}`
+    );
+  }
+}
 // (Die Referenz-Defaults der Settings werden weiter unten ueber SEED_SETTINGS
 // gesetzt - einzeln geseedete Settings gab es nur in frueheren Stadien.)
 
