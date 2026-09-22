@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { SEED_AGENT_SYSTEM, SEED_AGENT_INVENTORY } from './seeds.js';
+import { SEED_AGENT_SYSTEM, SEED_AGENT_INVENTORY, SEED_HELP_TRIGGERS, SEED_HELP_PROMPT } from './seeds.js';
 
 // DB-Handle + Migrationen: getDb() lazily nach initDb(path) - so ist die DB
 // in Tests injizierbar (Temp-File) und im Runtime-Setup einmalig initialisiert.
@@ -226,13 +226,18 @@ for (const stmt of [
   }
 }
 
-// Fresh-Install-Fill: NUR die statischen Agent-Prompts. Domänen-spezifisches
-// (Systeme/MCP-Server, Funktionen, Vorgaenge, Index-Quellen) wird bewusst
-// NICHT geseedet - es gehoert in die aktive Konfiguration. INSERT OR IGNORE -
-// bestehende Datenbanken (und User-Edits) bleiben unangetastet.
+// Fresh-Install-Fill: die statischen Agent-Prompts und die generische Hilfe-
+// Action. Domaenen-spezifisches (Systeme/MCP-Server, Funktionen, weitere
+// Vorgaenge, Index-Quellen) wird bewusst NICHT geseedet - es gehoert in die
+// aktive Konfiguration. INSERT OR IGNORE - bestehende Datenbanken (und
+// User-Edits) bleiben unangetastet.
 if (withReferenceSeed) {
   db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_system', SEED_AGENT_SYSTEM);
   db.prepare('INSERT OR IGNORE INTO prompts (key, content) VALUES (?, ?)').run('agent_inventory', SEED_AGENT_INVENTORY);
+  db.prepare(
+    `INSERT OR IGNORE INTO actions (name, mode, trigger_phrases, fuzzy_threshold, system_prompt, template, function_ref, function_args, tools, enabled)
+     VALUES ('hilfe', 'llm', ?, 0.85, ?, NULL, NULL, NULL, '[]', 1)`
+  ).run(SEED_HELP_TRIGGERS, SEED_HELP_PROMPT);
 }
 
 // (Die frueheren Inline-Seed-Bloecke fuer agent_system/agent_inventory sind

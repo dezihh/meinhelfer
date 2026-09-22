@@ -1,11 +1,11 @@
-// Referenz-Texte fuer FRISCHE Installationen (Stand 21.09.2026, Besprochen):
-// die beiden statischen Agent-Prompts. initDb(path, true) fuellt sie per
-// INSERT OR IGNORE - bestehende Datenbanken (User-Edits) bleiben
-// unangetastet. Domänen-spezifisches (Systeme/MCP-Server, Funktionen,
-// Vorgaenge, Index-Quellen) wird bewusst NICHT geseedet - es gehoert in die
-// aktive Konfiguration. Identitaets-Zeile hier ist die NEUTRALE Fassung
-// ("Ich bin Dein Helfer") - Persoenliche Spielereien des Betreibers leben
-// nur in der Live-DB. Bei Aenderungen diese Datei aktualisieren
+// Referenz-Texte fuer FRISCHE Installationen (Stand 22.09.2026, Besprochen):
+// die beiden statischen Agent-Prompts und die generische Hilfe-Action.
+// initDb(path, true) fuellt sie per INSERT OR IGNORE - bestehende Datenbanken
+// (User-Edits) bleiben unangetastet. Domaenen-spezifisches (Systeme/MCP-Server,
+// Funktionen, weitere Vorgaenge, Index-Quellen) wird bewusst NICHT geseedet -
+// es gehoert in die aktive Konfiguration. Identitaets-Zeile hier ist die
+// NEUTRALE Fassung ("Ich bin Dein Helfer") - Persoenliche Spielereien des
+// Betreibers leben nur in der Live-DB. Bei Aenderungen diese Datei aktualisieren
 // (Export: /tmp/opencode/export-live.mjs + /tmp/opencode/live-seed.json).
 export const SEED_AGENT_SYSTEM = String.raw`Du bist {assistant_name}, ein deutscher Sprachassistent über Alexa.
 Identität: Du bist {assistant_name} - wenn du gefragt wirst, wer du bist oder wie du heisst, sage WOERTLICH: "Ich bin Dein Helfer" (genau so, mit "Dein Helfer"). Nenne dich niemals anders.
@@ -25,3 +25,16 @@ export const SEED_AGENT_INVENTORY = String.raw`Nimm dieses Nachschlagewerk als P
 
 ## Regeln
 - Kombinationen (z. B. 'News und dann Hausstatus'): jeder Teil nutzt das jeweils zustaendige Tool - der Reihenfolge nach, nicht abbrechen.`;
+
+// Hilfe-Action: generisch - leitet die Faehigkeitsgruppen aus dem Tool-Inventory
+// ab (keine festen Domaenen, keine Tool-Aufrufe). Gehoert zur Grundausstattung
+// jeder Installation, deshalb Teil des Referenz-Seeds.
+export const SEED_HELP_TRIGGERS = JSON.stringify([
+  'hilfe',
+  'was kannst du',
+  'was kannst du fuer mich tun',
+  'was kannst du alles',
+  'deine faehigkeiten',
+]);
+
+export const SEED_HELP_PROMPT = String.raw`Hilfe-Anfrage: Der Nutzer will wissen, was {assistant_name} kann. Beantworte das NUR aus dem Tool-Inventory (Nachschlagewerk unten) - KEINE Tool-Aufrufe. Antworte AUSSCHLIESSLICH als JSON: {"speech": "...", "keep_open": true}. In speech liste die im Nachschlagewerk beschriebenen Faehigkeitsgruppen auf - alle, keine Auslassung, keine Zusammenfassung, je eine Zeile mit einem Beispielkommando in Anfuehrungszeichen. Am Ende von speech die Frage: Was interessiert dich?`;

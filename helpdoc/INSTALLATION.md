@@ -111,10 +111,16 @@ Die zwei Basis-Werkzeuge `fn_find_entities` und `fn_get_entity` sind
 in der Tab „Funktionen", sind nicht editierbar und werden von keinem Backup,
 Restore oder Paket angefasst - die Lesefaehigkeit des Agenten ist damit
 unzerstoerbar. Die Anbindung an einen Dienst steckt im Entity-Index-Setting
-(Tab „Index-Quellen"), nicht im Werkzeugnamen. Alles Weitere - MCP-Server,
-Entity-Index, weitere Funktionen, Vorgaenge - kommt bewusst nicht automatisch,
-sondern ueber die **Installationspakete** (Tab „Wartung und Pakete") oder
-manuell.
+(Tab „Index-Quellen"), nicht im Werkzeugnamen.
+
+Ebenfalls Grundausstattung ist die generische **Hilfe-Action** `hilfe`
+(„was kannst du?", „hilfe"): sie listet die im Tool-Inventory beschriebenen
+Faehigkeiten auf, ohne selbst Tools zu rufen - je nach installierten Paketen
+also automatisch passend. Sie ist editierbar und liegt im Seed.
+
+Alles Weitere - MCP-Server, Entity-Index, weitere Funktionen, weitere
+Vorgaenge - kommt bewusst nicht automatisch, sondern ueber die
+**Installationspakete** (Tab „Wartung und Pakete") oder manuell.
 - Monitor-Antwort auf „wie heisst du" korrekt mit dem Assistenten-Namen.
 - Admin-Oberflaeche 401 ohne Session, Login-Seite 200.
 - Nach `docker compose restart` bleiben die Daten erhalten.
