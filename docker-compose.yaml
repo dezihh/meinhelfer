@@ -1,0 +1,12 @@
+services:
+  gateway:
+    build:
+      context: ./gateway
+      target: runtime
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    env_file:
+      - ./gateway/.env
+    volumes:
+      - ./gateway/data:/app/data
