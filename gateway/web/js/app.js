@@ -996,7 +996,7 @@ function renderPackages() {
   $('pkg-available').innerHTML = avail.length ? avail.join('') : '<div class="field-help">Registry leer oder nicht erreichbar — „Aktualisieren“ versucht es erneut.</div>';
   const inst = pkgState.installed.map((p) => {
     const items = (p.items ?? []).map((i) => `<li>${escHtml(i.kind)}: ${escHtml(i.name)}</li>`).join('');
-    return `<div class="pkg-installed-item"><div><strong>${escHtml(p.id)}</strong> v${escHtml(p.version)} <span class="pkg-version">${escHtml(p.source)}</span><div class="field-help">${escHtml(p.installed_at)}</div></div><div class="toolbar"><button class="btn" data-reinstall="${escHtml(p.id)}">Neu installieren</button><button class="btn danger" data-uninstall="${escHtml(p.id)}">Entfernen</button></div></div><details><summary>Enthält</summary><ul>${items}</ul></div>`;
+    return `<div class="pkg-installed-item"><div><strong>${escHtml(p.id)}</strong> v${escHtml(p.version)} <span class="pkg-version">${escHtml(p.source)}</span><div class="field-help">${escHtml(p.installed_at)}</div></div><div class="toolbar"><button class="btn" data-reinstall="${escHtml(p.id)}">Neu installieren</button><button class="btn danger" data-uninstall="${escHtml(p.id)}">Entfernen</button></div><details><summary>Enthält</summary><ul>${items}</ul></details></div>`;
   });
   $('pkg-installed').innerHTML = inst.length ? inst.join('') : '<div class="field-help">Noch keine Pakete installiert.</div>';
   for (const b of document.querySelectorAll('#pkg-available [data-install]')) b.onclick = () => showInstallForm(b.dataset.install, false);
