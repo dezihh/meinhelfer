@@ -1,0 +1,49 @@
+{
+  "id": "home-assistant",
+  "version": "1.0.0",
+  "name": "Home Assistant Anbindung",
+  "summary": "MCP-Server (ha-mcp), Entity-Index (alle HA-States) und Schalten-Kaskade.",
+  "description": "Legt den Registry-Eintrag fuer den ha-mcp-Server (Streamable HTTP) an, konfiguriert den Entity-Index (Standard-Index liest alle HA-States als Pipe-Zeilen) und haekt die HA-Werkzeuge in der Agent-Tool-Allowlist an. Die Schalten-Kaskade (Name -> entity_id -> Service-Call) kommt als Agent-Inventory-Prompt mit.",
+  "requires": "Home Assistant erreichbar; ha-mcp als Container (ha-mcp-web, HTTP-Modus) oder als HA-MCP Custom Component. Das Home-Assistant-Long-Lived-Access-Token liegt nur in der Container-Env (mcp.env) - das Gateway-Feld Auth-Token bleibt leer.",
+  "params": [
+    { "key": "ha_host", "label": "HA-Host", "placeholder": "192.168.1.10", "required": true },
+    { "key": "ha_port", "label": "HA-MCP-Port", "default": "8086" }
+  ],
+  "servers": [
+    {
+      "name": "Home Assistant MCP",
+      "transport": "http",
+      "url": "http://${ha_host}}:${ha_port}}/mcp",
+      "auth_token": "",
+      "inventory_prompt": "Schalten (Licht, Schalter, Rolladen, Klima): zuerst fn_find_entities mit dem Namen (liefert entity_id), dann ha_call_service mit passendem domain/service und dieser entity_id (z. B. light/turn_on, switch/turn_off, cover/set_cover_position mit data {position: 80}, climate/set_temperature mit data {temperature: 21}). Mehrdeutigkeit (z. B. zwei Lampen im selben Raum): NIEMALS raten oder eine entity_id erfinden - stattdessen im Echo nachfragen (\"es gibt Stehlampe unten und Stehlampe oben, welche?\"), ohne weitere Tool-Runde.",
+      "enabled": true
+    }
+  ],
+  "indexes": [
+    {
+      "key": "",
+      "config": {
+        "desc": "Entity-Index: alle HA-States als Pipe-Zeilen (entity_id|Raum|State|Einheit|Name|Extra)",
+        "tool": "ha_eval_template",
+        "args": {
+          "template": "{% for e in states %}{% set area = area_name(e.entity_id) or '' %}{% set nm = e.attributes.get('friendly_name', e.entity_id) %}{% set extra = 'device_class=' ~ (e.attributes.get('device_class','') or '') ~ ';icon=' ~ (e.attributes.get('icon','') or '') ~ ';supported_features=' ~ (e.attributes.get('supported_features','') or '') %}{% if e.entity_id.startswith('climate.') and e.attributes.get('current_temperature') is not none %}{% set extra = extra ~ ';current_temperature=' ~ (e.attributes.get('current_temperature') or '') %}{% endif %}{{e.entity_id}}|{{area}}|{{e.state}}|{{e.attributes.get('unit_of_measurement','') or ''}}|{{nm}}|{{extra}}\\n{% endfor %}",
+          "timeout": 15,
+          "report_errors": false
+        },
+        "ttlMs": 60000,
+        "aliases": {
+          "licht": "light", "lampe": "light", "steckdose": "switch",
+          "temperatur": "temperature", "heizung": "climate", "klimaanlage": "climate",
+          "fenster": "window", "tuer": "door", "fernseher": "media_player",
+          "musik": "media_player", "rolladen": "cover", "garage": "cover",
+          "kamera": "camera", "bewegung": "motion", "luftfeuchtigkeit": "humidity",
+          "batterie": "battery", "draussen": "aussen", "drinnen": "innen",
+          "oben": "upstairs", "unten": "downstairs"
+        }
+      }
+    }
+  ],
+  "allowTools": ["ha_call_service", "ha_list_services", "ha_eval_template", "fn_find_entities", "fn_get_entity", "web_url_read"],
+  "setupDocs": "Server-Seite (Docker, HTTP-Modus):\n\n  ha-mcp:\n    image: ghcr.io/homeassistant-ai/ha-mcp:latest\n    container_name: ha-mcp\n    restart: unless-stopped\n    command: ha-mcp-web\n    ports:\n      - \"8086:8086\"\n    env_file:\n      - ./mcp.env   # enthaelt das Home-Assistant-Long-Lived-Access-Token\n    volumes:\n      - ./data:/home/mcpuser/.ha-mcp\n    environment:\n      - TZ=Europe/Berlin\n\nAlternative (Home Assistant OS/Supervised): HA-MCP Custom Component via HACS - laeuft in-process, ohne Token-Verwaltung. Nur eine Methode gleichzeitig betreiben.\nDetails: https://github.com/homeassistant-ai/ha-mcp",
+  "changelog": "1.0.0: Erste Fassung (Server, Index, Kaskade, Allowlist)."
+}

@@ -8,6 +8,7 @@ import { alexaRoutes } from './routes/alexa.js';
 import { queryRoutes } from './routes/query.js';
 import { adminRoutes } from './routes/admin.js';
 import { mcpRoutes } from './routes/mcp.js';
+import { packagesRoutes } from './routes/packages.js';
 
 const app = express();
 app.use(
@@ -24,6 +25,7 @@ app.use(alexaRoutes);
 app.use(queryRoutes);
 app.use(adminRoutes);
 app.use(mcpRoutes);
+app.use(packagesRoutes);
 
 // Admin-UI-Login: Token pruefen, Session-Cookie setzen (rate-limited gegen Brute-Force)
 app.post('/admin/login', (req, res) => {

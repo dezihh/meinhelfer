@@ -45,6 +45,27 @@ export {
   listPrompts,
 } from './db/settings.js';
 export {
+  listInstalledPackages,
+  getInstalledPackage,
+  listPackageItems,
+  installPackage,
+  uninstallPackage,
+  type InstalledPackageRow,
+  type PackageItemRow,
+  type PackageReport,
+  type UninstallReport,
+} from './db/packages.js';
+export {
+  parseManifest,
+  validateManifest,
+  manifestDangerous,
+  manifestItems,
+  paramValues,
+  requiredParams,
+  manifestHash,
+  type PackageManifest,
+} from './core/packages.js';
+export {
   addLog,
   listLogs,
   summarizeUsage,

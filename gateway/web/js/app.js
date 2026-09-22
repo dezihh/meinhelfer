@@ -8,8 +8,10 @@ function token() {
 }
 
 async function api(path, options = {}) {
+  const body = options.body && typeof options.body === 'object' ? JSON.stringify(options.body) : options.body;
   const res = await fetch(`${API}${path}`, {
     ...options,
+    body,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token()}`,
@@ -43,9 +45,10 @@ async function loadBootstrap() {
 function showTab(name) {
   document.querySelectorAll('.sidebar nav a').forEach((a) => a.classList.toggle('active', a.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
-  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', indexes: 'Index-Quellen', mcp: 'Tool-Registry', logs: 'Logs' };
+  const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', indexes: 'Index-Quellen', mcp: 'Tool-Registry', maintenance: 'Wartung und Pakete', logs: 'Logs' };
   $('tab-title').textContent = titles[name] ?? '';
   if (name === 'logs') loadLogs();
+  if (name === 'maintenance') loadMaintenance();
 }
 
 const SETTINGS_FIELDS = [
@@ -965,3 +968,136 @@ $('mcp-transport').onchange = () => toggleMcpTransportFields($('mcp-transport').
 }
 
 init();
+
+// ---- Wartung und Pakete ----
+
+let pkgState = { registry: [], installed: [], selected: null, preview: null };
+
+function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+async function loadMaintenance() {
+  try {
+    const data = await api('/packages');
+    pkgState.installed = data.installed ?? [];
+    pkgState.registry = data.registry ?? [];
+    $('pkg-registry-url').value = data.registryUrl ?? '';
+    renderPackages();
+  } catch (e) {
+    $('pkg-available').innerHTML = `<div class="error-text">${esc(e.message)}</div>`;
+    $('pkg-installed').innerHTML = '';
+  }
+}
+
+function renderPackages() {
+  const installedIds = new Set(pkgState.installed.map((p) => p.id));
+  const avail = pkgState.registry.map((p) => {
+    const inst = installedIds.has(p.id) ? '<span class="chip ok">installiert</span>' : '';
+    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)}</div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
+  });
+  $('pkg-available').innerHTML = avail.length ? avail.join('') : '<div class="field-help">Registry leer oder nicht erreichbar — „Aktualisieren“ versucht es erneut.</div>';
+  const inst = pkgState.installed.map((p) => {
+    const items = (p.items ?? []).map((i) => `<li>${escHtml(i.kind)}: ${escHtml(i.name)}</li>`).join('');
+    return `<div class="pkg-installed-item"><div><strong>${escHtml(p.id)}</strong> v${escHtml(p.version)} <span class="pkg-version">${escHtml(p.source)}</span><div class="field-help">${escHtml(p.installed_at)}</div></div><div class="toolbar"><button class="btn" data-reinstall="${escHtml(p.id)}">Neu installieren</button><button class="btn danger" data-uninstall="${escHtml(p.id)}">Entfernen</button></div></div><details><summary>Enthält</summary><ul>${items}</ul></div>`;
+  });
+  $('pkg-installed').innerHTML = inst.length ? inst.join('') : '<div class="field-help">Noch keine Pakete installiert.</div>';
+  for (const b of document.querySelectorAll('#pkg-available [data-install]')) b.onclick = () => showInstallForm(b.dataset.install, false);
+  for (const b of document.querySelectorAll('[data-reinstall]')) b.onclick = () => showInstallForm(b.dataset.reinstall, null);
+  for (const b of document.querySelectorAll('[data-uninstall]')) b.onclick = async () => {
+    if (!confirm(`Paket "${b.dataset.uninstall}" entfernen? Nur unveränderte Zeilen werden gelöscht.`)) return;
+    try {
+      const r = await api(`/packages/${encodeURIComponent(b.dataset.uninstall)}/uninstall`, { method: 'POST' });
+      const parts = [];
+      if (r.report?.removed?.length) parts.push('Entfernt: ' + r.report.removed.join(', '));
+      if (r.report?.kept?.length) parts.push('Behalten: ' + r.report.kept.join(', '));
+      alert(parts.join('\n') || 'Entfernt.');
+      loadMaintenance();
+    } catch (e) { alert(e.message); }
+  };
+}
+
+function paramForm(manifest) {
+  const fields = (manifest.params ?? []).map((p) => {
+    const type = p.secret ? 'password' : 'text';
+    return `<label>${escHtml(p.label)}${p.required ? ' *' : ''}</label><input data-param="${escHtml(p.key)}" type="text" placeholder="${escHtml(p.placeholder ?? p.default ?? '')}" value="${escHtml(p.default && !p.secret ? p.default : '')}">`;
+  }).join('');
+  return fields;
+}
+
+async function showInstallForm(id, manifestFromImport) {
+  try {
+    let preview = manifestFromImport;
+    if (!preview) preview = await api(`/packages/manifest/${encodeURIComponent(id)}`);
+    pkgState.selected = { id, preview };
+    const m = preview.manifest;
+    const danger = preview.dangerous ? `<div class="error-text pkg-danger">⚠️ Gefährliche Aktion: ${(preview.dangerousItems ?? []).map((i) => escHtml(i)).join(' · ')}</div>` : '';
+    const info = (preview.infoItems ?? []).length ? `<div class="field-help">${(preview.infoItems ?? []).map((i) => escHtml(i)).join(' · ')}</div>` : '';
+    const items = (preview.items ?? []).map((i) => `<li>${escHtml(i.kind)}: ${escHtml(i.name)}</li>`).join('');
+    $('pkg-install-form').classList.remove('hidden');
+    $('pkg-install-form').innerHTML = `
+      <h3>${escHtml(m.name)} <span class="pkg-version">v${escHtml(m.version)}</span></h3>
+      <p class="field-help">${escHtml(m.description ?? '')}</p>
+      ${m.requires ? `<p class="field-help"><strong>Benötigt:</strong> ${escHtml(m.requires)}</p>` : ''}
+      ${danger}${info}
+      <div class="pkg-items"><strong>Angelegt werden:</strong><ul>${items}</ul></div>
+      ${preview.setupDocs ? `<details><summary>Einrichtung Gegenseite</summary><pre class="pkg-docs">${escHtml(preview.setupDocs)}</pre></details>` : ''}
+      <div class="form-grid">${paramForm(m)}</div>
+      <div class="toolbar">
+        <button id="pkg-install-go" class="btn primary">Installieren</button>
+        <button id="pkg-install-cancel" class="btn">Abbrechen</button>
+      </div>`;
+    $('pkg-install-go').onclick = async () => {
+      const params = {};
+      for (const input of $('pkg-install-form').querySelectorAll('[data-param]')) params[input.dataset.param] = input.value;
+      try {
+        const body = { params, dangerousAck: !!preview.dangerous };
+        if (manifestFromImport) body.manifest = manifestFromImport.manifest;
+        const r = await api(`/packages/${encodeURIComponent(id)}/install`, { method: 'POST', body });
+        const rep = r.report;
+        alert(`Angelegt: ${rep.created.length}\nAktualisiert: ${rep.updated.length}\n${rep.infoItems?.length ? 'Info: ' + rep.infoItems.join(' · ') : ''}`);
+        showInstallFormClose();
+        loadMaintenance();
+      } catch (e) { alert(e.message); }
+    };
+    $('pkg-install-cancel').onclick = showInstallFormClose;
+  } catch (e) { alert(e.message); }
+}
+
+function showInstallFormClose() { $('pkg-install-form').classList.add('hidden'); $('pkg-install-form').innerHTML = ''; }
+
+$('pkg-refresh').onclick = loadMaintenance;
+$('pkg-registry-save').onclick = async () => {
+  try {
+    await api('/packages/registry-url', { method: 'PUT', body: { url: $('pkg-registry-url').value.trim() } });
+    alert('Registry-URL gespeichert.');
+    loadMaintenance();
+  } catch (e) { alert(e.message); }
+};
+$('pkg-import-preview').onclick = async () => {
+  try {
+    const manifest = JSON.parse($('pkg-import-manifest').value);
+    const preview = await api('/packages/preview', { method: 'POST', body: { manifest } });
+    await showInstallForm(preview.manifest.id, preview);
+  } catch (e) { alert(e.message); }
+};
+$('backup-download').onclick = async () => {
+  const tokens = $('backup-with-tokens').checked ? '1' : '0';
+  const res = await fetch(`/admin/api/backup?tokens=${tokens}`, { headers: { Authorization: `Bearer ${$('token').value.trim()}` } });
+  if (!res.ok) { alert(`Sicherung fehlgeschlagen (HTTP ${res.status})`); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `meinhelfer-config-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+  URL.revokeObjectURL(url);
+};
+$('backup-restore').onclick = async () => {
+  const file = $('backup-file').files?.[0];
+  if (!file) { alert('Bitte Sicherungsdatei wählen.'); return; }
+  let backup;
+  try { backup = JSON.parse(await file.text()); } catch { alert('Keine gültige JSON-Datei.'); return; }
+  if (!confirm('Achtung: Die aktuelle Konfiguration (Settings, Prompts, Server, Funktionen, Vorgänge) wird KOMPLETT ersetzt. Fortfahren?')) return;
+  try {
+    await api('/backup/restore', { method: 'POST', body: { backup, confirm: true } });
+    alert('Rücksicherung abgeschlossen.');
+    loadMaintenance();
+  } catch (e) { alert(e.message); }
+};

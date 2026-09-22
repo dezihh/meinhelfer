@@ -144,6 +144,25 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS packages (
+    id TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'registry',
+    registry_url TEXT,
+    params TEXT,
+    manifest_hash TEXT,
+    installed_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS package_items (
+    package_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    row_id INTEGER,
+    content_hash TEXT NOT NULL,
+    PRIMARY KEY (package_id, kind, name)
+  );
+
   CREATE TABLE IF NOT EXISTS logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL DEFAULT (datetime('now')),

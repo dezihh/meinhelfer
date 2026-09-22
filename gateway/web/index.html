@@ -17,6 +17,7 @@
 <a data-tab="functions">Funktionen</a>
 <a data-tab="indexes">Index-Quellen</a>
           <a data-tab="mcp">Tool-Registry</a>
+          <a data-tab="maintenance">Wartung und Pakete</a>
         <a data-tab="logs">Logs</a>
       </nav>
     </aside>
@@ -289,6 +290,41 @@
         </div>
       </section>
 
+      <section id="tab-maintenance" class="tab">
+        <div class="card">
+          <h2>Installationspakete</h2>
+          <div class="field-help">Pakete aus der zentralen Registry (packages/ im Repo) installieren — generisch, Parameter (Host/Port/Token) beim Install. Vorschau zeigt, was angelegt wird; shell()-Funktionen sind als gefährliche Aktion markiert.</div>
+          <div class="toolbar">
+            <label for="pkg-registry-url" class="pkg-url-label">Registry</label>
+            <input id="pkg-registry-url" type="text" placeholder="https://raw.githubusercontent.com/…/packages">
+            <button id="pkg-registry-save" class="btn">Registry-URL speichern</button>
+            <button id="pkg-refresh" class="btn">Aktualisieren</button>
+          </div>
+          <div id="pkg-available" class="pkg-list"></div>
+          <div id="pkg-install-form" class="hidden"></div>
+        </div>
+        <div class="card">
+          <h2>Installierte Pakete</h2>
+          <div id="pkg-installed"></div>
+        </div>
+        <div class="card">
+          <h2>Offline-Import</h2>
+          <div class="field-help">Manifest-JSON direkt einfügen (ohne Registry-Komfort).</div>
+          <textarea id="pkg-import-manifest" rows="6" class="span-full"></textarea>
+          <button id="pkg-import-preview" class="btn">Vorschau</button>
+        </div>
+        <div class="card">
+          <h2>Sicherung und Rücksicherung</h2>
+          <div class="field-help">Logischer Export der Konfiguration (Settings, Prompts, Server, Funktionen, Vorgänge) — ohne Logs. Tokens nur auf Wunsch.</div>
+          <div class="toolbar">
+            <button id="backup-download" class="btn primary">Sicherung herunterladen</button>
+            <label class="check"><input id="backup-with-tokens" type="checkbox" checked> Tokens einschließen</label>
+          </div>
+          <label>Sicherung einspielen (JSON)</label>
+          <input id="backup-file" type="file" accept=".json,application/json">
+          <button id="backup-restore" class="btn danger">Rücksicherung ausführen</button>
+        </div>
+      </section>
       <section id="tab-logs" class="tab">
         <div class="card">
           <div class="toolbar">

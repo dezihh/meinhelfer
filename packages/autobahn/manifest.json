@@ -1,0 +1,27 @@
+{
+  "id": "autobahn",
+  "version": "1.0.0",
+  "name": "Autobahn-Verkehr",
+  "summary": "Baustellen und Verkehrsmeldungen der Autobahnen (oeffentliche Autobahn-App-API, ohne Key) mit Geo-Filter.",
+  "description": "Legt die Funktion autobahn an: Stau, Baustellen und Warnungen je Autobahn aus der oeffentlichen Autobahn-App-API des Bundes (keyless), gefiltert auf eine Geo-Box um Zuhause. Die Highways-Liste und die Geo-Box sind auf die Referenz-Region eingestellt und muessen nach der Installation gemaess README auf die eigene Region angepasst werden (Funktionen-UI, Template).",
+  "requires": "Internetzugang des Gateway-Containers zu verkehr.autobahn.de. Oeffentliche API, ohne Key.",
+  "params": [],
+  "functions": [
+    {
+      "name": "autobahn",
+      "description": "Stau, Baustellen und Verkehrsmeldungen der Heimautobahnen (A1, A7, A20, A24, A25) im Raum Hamburg/Umland (oeffentliche Autobahn-App-API des Bundes, keyless). Optional args.road fuer eine einzelne Autobahn.",
+      "template": "{%- set a1rw = http('https://verkehr.autobahn.de/o/autobahn/A1/services/roadworks') -%}\n{%- set a7rw = http('https://verkehr.autobahn.de/o/autobahn/A7/services/roadworks') -%}\n{%- set a20rw = http('https://verkehr.autobahn.de/o/autobahn/A20/services/roadworks') -%}\n{%- set a24rw = http('https://verkehr.autobahn.de/o/autobahn/A24/services/roadworks') -%}\n{%- set a25rw = http('https://verkehr.autobahn.de/o/autobahn/A25/services/roadworks') -%}\n{%- set a1w = http('https://verkehr.autobahn.de/o/autobahn/A1/services/warning') -%}\n{%- set a7w = http('https://verkehr.autobahn.de/o/autobahn/A7/services/warning') -%}\n{%- set a20w = http('https://verkehr.autobahn.de/o/autobahn/A20/services/warning') -%}\n{%- set a24w = http('https://verkehr.autobahn.de/o/autobahn/A24/services/warning') -%}\n{%- set a25w = http('https://verkehr.autobahn.de/o/autobahn/A25/services/warning') -%}\n{%- macro block(road, rw, w) -%}{% set lines %}{% for x in rw.roadworks %}{% if not x.future and x.coordinate and x.coordinate.lat >= 53.3 and x.coordinate.lat <= 53.95 and x.coordinate.long >= 9.75 and x.coordinate.long <= 10.8 %}Baustelle {{x.title}}{% if x.subtitle %} ({{x.subtitle | trim}}){% endif %}{% if x.isBlocked %} GESPERRT{% endif %}~~{% endif %}{% endfor %}{% for x in w.warning %}{% if x.coordinate and x.coordinate.lat >= 53.3 and x.coordinate.lat <= 53.95 and x.coordinate.long >= 9.75 and x.coordinate.long <= 10.8 %}Meldung {{x.title}}{% if x.subtitle %} ({{x.subtitle | trim}}){% endif %}{% if x.abnormalTrafficType == 'SLOW_TRAFFIC' %} angespannt{% elif x.abnormalTrafficType %} - {{x.abnormalTrafficType | replace('_',' ') | lower}}{% endif %}~~{% endif %}{% endfor %}{% endset %}{% set parts = lines.split('~~') | reject('equalto','') | list %}{% for p in parts %}{% if loop.index <= 3 %}\n{{road}}: {{p}}{% endif %}{% endfor %}{%- endmacro -%}\n{%- macro pick(road, rw, w) -%}{% if road == args.road or not args.road %}{{block(road, rw, w)}}{% endif %}{%- endmacro -%}\n{%- set b1 = pick('A1', a1rw, a1w) -%}\n{%- set b7 = pick('A7', a7rw, a7w) -%}\n{%- set b20 = pick('A20', a20rw, a20w) -%}\n{%- set b24 = pick('A24', a24rw, a24w) -%}\n{%- set b25 = pick('A25', a25rw, a25w) -%}\n{%- set hits = [b1, b7, b20, b24, b25] | reject('equalto','') | list -%}\n{%- if hits | length > 0 -%}\n{{hits | join('') | trim}}\n{%- else -%}\nIm Umland ist aktuell nichts gemeldet - alle Heimautobahnen frei.{% if args.road %} {{args.road}}{% endif %}\n{%- endif -%}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "road": { "type": "string", "description": "Autobahn (optional); fehlt = alle Heimautobahnen" }
+        }
+      },
+      "budget": 2,
+      "inventory_prompt": "Verkehr auf den Heimautobahnen (Baustellen, Stau, Sperrungen): fn_autobahn (oeffentliche API). Optional args.road fuer eine einzelne Autobahn."
+    }
+  ],
+  "allowTools": ["fn_autobahn"],
+  "setupDocs": "Keine Gegenseite - die Autobahn-App-API des Bundes ist oeffentlich (https://verkehr.autobahn.de). ANPASSUNG AUF DIE EIGENE REGION (nach dem Install im Funktionen-Editor): (1) die Autobahn-Nummern in den http()-URLs und pick()-Aufrufen, (2) die Geo-Box (lat/long-Grenzen) im block()-Makro auf die eigene Region. Defaults: Raum Hamburg (A1, A7, A20, A24, A25). Technische Begrenzung: max. 3 Meldungen je Autobahn, Budget 2.",
+  "changelog": "1.0.0: Erste Fassung (autobahn-Funktion, Referenz-Region Hamburg)."
+}

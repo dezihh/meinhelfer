@@ -1,0 +1,45 @@
+{
+  "id": "open-meteo-wetter",
+  "version": "1.0.0",
+  "name": "Wetter (Open-Meteo)",
+  "summary": "Aktuelles Wetter und 3-Tage-Vorhersage via Open-Meteo (oeffentliche API, ohne Key), Koordinaten-Parameter.",
+  "description": "Legt die Funktion wetter an: aktuelles Wetter und 3-Tage-Vorhersage aus der Open-Meteo-Forecast-API (Modell ICON, Wettercodes als sprechbare Texte). Koordinaten und Zeitzone werden beim Install abgefragt. Oeffentliche API - kein Key, keine Gegenseite.",
+  "requires": "Internetzugang des Gateway-Containers zu api.open-meteo.com.",
+  "params": [
+    {
+      "key": "latitude",
+      "label": "Breitengrad (Standort)",
+      "default": "53.6653",
+      "required": true
+    },
+    {
+      "key": "longitude",
+      "label": "Längengrad (Standort)",
+      "default": "10.2826",
+      "required": true
+    },
+    {
+      "key": "timezone",
+      "label": "Zeitzone (URL-encodiert)",
+      "default": "Europe%2FBerlin"
+    }
+  ],
+  "functions": [
+    {
+      "name": "wetter",
+      "description": "Aktuelles Wetter und 3-Tage-Vorhersage für Zuhause (Open-Meteo, DWD-ICON-Modell). Keine Argumente.",
+      "template": "{%- set d = http('https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=${timezone}&forecast_days=4&models=icon_seamless') -%}\n{%- macro wt(c) -%}{%- if c == 0 %}klar{%- elif c == 1 %}überwiegend sonnig{%- elif c == 2 %}teils wolkig{%- elif c == 3 %}bedeckt{%- elif c in [45,48] %}Nebel{%- elif c in [51,53,55] %}Nieselregen{%- elif c in [56,57] %}gefriender Nieselregen{%- elif c in [61,63] %}Regen{%- elif c == 65 %}starker Regen{%- elif c in [66,67] %}gefriender Regen{%- elif c in [71,73] %}Schneefall{%- elif c == 75 %}starker Schneefall{%- elif c in [80,81] %}Schauer{%- elif c == 82 %}heftige Schauer{%- elif c in [85,86] %}Schneeschauer{%- elif c == 95 %}Gewitter{%- elif c in [96,99] %}Gewitter mit Hagel{%- else %}wechselhaft{%- endif -%}{%- endmacro -%}\n{%- macro deg(v) -%}{{ (v or 0) | round(0) | replace('.', ',') }}{%- endmacro -%}\n{%- if d and d.current -%}\nAktuell {{ deg(d.current.temperature_2m) }} Grad, {{ wt(d.current.weather_code) }}, Wind {{ deg(d.current.wind_speed_10m) }} km/h.\nHeute {{ wt(d.daily.weather_code[0]) }}, {{ deg(d.daily.temperature_2m_max[0]) }} Grad tagsüber, {{ deg(d.daily.temperature_2m_min[0]) }} Grad nachts, Regenrisiko {{ deg(d.daily.precipitation_probability_max[0]) }} Prozent.\nMorgen {{ wt(d.daily.weather_code[1]) }}, {{ deg(d.daily.temperature_2m_max[1]) }} Grad tagsüber, {{ deg(d.daily.temperature_2m_min[1]) }} Grad nachts, Regenrisiko {{ deg(d.daily.precipitation_probability_max[1]) }} Prozent.\nÜbermorgen {{ wt(d.daily.weather_code[2]) }}, {{ deg(d.daily.temperature_2m_max[2]) }} Grad tagsüber, {{ deg(d.daily.temperature_2m_min[2]) }} Grad nachts, Regenrisiko {{ deg(d.daily.precipitation_probability_max[2]) }} Prozent.\n{%- else -%}\nIch konnte das Wetter gerade nicht abrufen.\n{%- endif -%}",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "budget": 1,
+      "inventory_prompt": "Wetter (aktuell + 3-Tage-Vorhersage für Zuhause): fn_wetter (fertiger Bericht, Open-Meteo). Keine Websuche nötig."
+    }
+  ],
+  "allowTools": [
+    "fn_wetter"
+  ],
+  "setupDocs": "Keine Gegenseite - Open-Meteo ist eine oeffentliche API (https://open-meteo.com). Die Koordinaten kommen aus den Install-Parametern; die Standard-Koordinaten stehen fuer das Referenz-Haus - bitte eigene Koordinaten eintragen.",
+  "changelog": "1.0.0: Erste Fassung (wetter-Funktion mit Koordinaten-Parametern)."
+}
