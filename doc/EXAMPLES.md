@@ -76,6 +76,12 @@ eigenem System + eigenen Noten arbeiten, ohne den Agent-Prompt anzufassen.
 
 ## 2. Werkzeuge (Grundanbindung — einmalig)
 
+> **Abkürzung**: die gleichen Anlagen gibt es als **Installationspakete** — Tab
+> **Wartung und Pakete** → „Installationspakete" (Registry im Repo unter
+> `packages/`, je Paket eine README mit der Gegenseite-Anleitung). Die Kapitel
+> hier zeigen, **wie** und **warum** — die Pakete erledigen die Anlage mit
+> Parameterformular (Host/Port/Token) und Vorschau.
+
 Jedes Beispiel baut auf diesen Werkzeugen auf. Hier steht einmal, **wo und
 wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
