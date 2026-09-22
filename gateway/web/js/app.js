@@ -991,7 +991,7 @@ function renderPackages() {
   const installedIds = new Set(pkgState.installed.map((p) => p.id));
   const avail = pkgState.registry.map((p) => {
     const inst = installedIds.has(p.id) ? '<span class="chip ok">installiert</span>' : '';
-    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)}</div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
+    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)} <a href="https://github.com/dezihh/meinhelfer/blob/main/packages/${escHtml(p.id)}/README.md" target="_blank" rel="noopener">Installations-Doku</a></div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
   });
   $('pkg-available').innerHTML = avail.length ? avail.join('') : '<div class="field-help">Registry leer oder nicht erreichbar — „Aktualisieren“ versucht es erneut.</div>';
   const inst = pkgState.installed.map((p) => {
