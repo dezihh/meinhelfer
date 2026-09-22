@@ -102,7 +102,10 @@ export function buildTools(
   const routes = new Map<string, ToolRoute>();
   const specs: ToolSpec[] = [];
   const budgets = new Map<string, number>();
-  buildBasisTools(routes, specs, budgets);
+  // Basis-Werkzeuge nur, wenn ueberhaupt Tools angeboten werden: null = alle,
+  // nicht-leere Liste = gefiltert. Explizit [] = bewusst KEINE Tools (z. B.
+  // Hilfe-Action) - dann auch keine Basis-Werkzeuge.
+  if (allowlist === null || allowlist.length > 0) buildBasisTools(routes, specs, budgets);
   buildMcpTools(mcp, allowlist, routes, specs);
   // Funktionen (Stufe 2.5): registrierte Funktionen als dynamische LLM-Tools,
   // optional mit Parameter-Schema; Argumente landen als args im Template.

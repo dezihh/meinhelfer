@@ -124,9 +124,16 @@ test('buildTools: Allowlist schliesst Funktionen aus', () => {
   assert.equal(routes.has('fn_ohne_budget'), false);
 });
 
-test('buildTools: leere Allowlist [] = keine MCP/Fn-Specs, Basis-Werkzeuge bleiben', () => {
+test('buildTools: leere Allowlist [] = bewusst keine Tools (auch keine Basis-Werkzeuge)', () => {
   const { specs, routes } = buildTools(mcpWith([{ name: 'tool_a' }]), []);
-  assert.deepEqual(specs.map((s) => s.function.name), ['fn_find_entities', 'fn_get_entity']);
-  assert.equal(routes.get('fn_find_entities')?.kind, 'index_find');
-  assert.equal(routes.get('fn_get_entity')?.kind, 'index_get');
+  assert.equal(specs.length, 0);
+  assert.equal(routes.size, 0);
+});
+
+test('buildTools: Basis-Werkzeuge sind bei null/gefilterter Liste dabei', () => {
+  const alle = buildTools(mcpWith([]), null);
+  assert.ok(alle.routes.has('fn_find_entities') && alle.routes.has('fn_get_entity'), 'bei null');
+  assert.equal(alle.routes.get('fn_find_entities')?.kind, 'index_find');
+  const gefiltert = buildTools(mcpWith([]), ['recherche']);
+  assert.ok(gefiltert.routes.has('fn_find_entities'), 'Basis-Werkzeug trotz Allowlist');
 });
