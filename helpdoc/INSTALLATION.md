@@ -59,27 +59,55 @@ Admin-Oberfläche öffnet sich und akzeptiert `AUTH_TOKEN`.
 
 ## Docker- oder Compose-Installation
 
-Für das Gateway ist im Repository keine vollständige Dockerfile- oder
-Compose-Definition sichtbar. Eine konkrete Anleitung wäre daher Spekulation.
+Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 
-### Was noch fehlt
+### Voraussetzungen
 
-- Image-Quelle oder Dockerfile und Build-Kontext
-- Startbefehl und Arbeitsverzeichnis
-- persistentes Volume für `DB_PATH`
-- Port-Mapping
-- Übergabe von Secrets
-- Container-Benutzer und Dateirechte
-- Pakete für lokale stdio-MCP-Server
-- Healthcheck und Neustartstrategie
+- Docker mit Compose-Plugin
+- Eine ausgefüllte `gateway/.env` (Vorlage: `gateway/.env.example`)
 
-### So wird das Kapitel vervollständigt
+### Schritte
 
-1. Den aktuell produktiv verwendeten Compose-Service exportieren.
-2. Hostnamen, Tokens und lokale Pfade durch Platzhalter ersetzen.
-3. Mit leerem Datenvolume starten.
-4. Admin-Login, Neustart mit erhaltener Datenbank und stdio-MCP testen.
-5. Nur die reproduzierbar getestete Fassung übernehmen.
+1. Repository klonen:
+
+       git clone https://github.com/dezihh/meinhelfer.git
+       cd meinhelfer
+
+2. Konfiguration anlegen:
+
+       cp gateway/.env.example gateway/.env
+       # gateway/.env ausfuellen: AUTH_TOKEN, LLM_BASE_URL, LLM_API_KEY
+
+3. Container bauen und starten; Host-Port waehlen:
+
+       GATEWAY_PORT=8332 docker compose up -d --build
+
+   `GATEWAY_PORT` ist nur das Host-Port-Mapping (der Code liest `PORT`,
+   im Container 3000). Ohne Angabe: Port 3000.
+
+4. Admin-Oberflaeche oeffnen: `http://<host>:<port>/admin` — Login mit
+   `AUTH_TOKEN` (Login-Seite: `/admin/login.html`, geschuetzt gegen
+   Brute-Force-Rate-Limit).
+
+5. Testmonitor pruefen (Tab „Monitor / Test"): eine Frage stellen und eine
+   Antwort erwarten.
+
+### Was die Compose tut
+
+- Baut das Image aus `gateway/Dockerfile` (Target `runtime`: produktionstauglich,
+  `npm ci --omit=dev`, Start `node dist/server.js`)
+- `./gateway/data` als persistentes Volume fuer `DB_PATH`
+  (`./data/meinhelfer.db` im Container)
+- Uebergibt alle Variablen aus `gateway/.env` an den Container
+- Restart-Strategie `unless-stopped`
+
+### Abnahmemessung (22.09.2026, frischer Clone)
+
+- Start ohne Fehler; frische SQLite-DB mit 2 Prompts, 7 Settings und den
+  2 generischen Lesefunktionen; Tool-Registry und Vorgaenge leer.
+- Monitor-Antwort auf „wie heisst du" korrekt mit dem Assistenten-Namen.
+- Admin-Oberflaeche 401 ohne Session, Login-Seite 200.
+- Nach `docker compose restart` bleiben die Daten erhalten.
 
 ## LLM-Schnittstelle
 
