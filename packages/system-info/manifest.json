@@ -1,6 +1,6 @@
 {
   "id": "system-info",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "System-Info (Shell)",
   "summary": "Gateway-Uptime und CPU-Typ via shell() - als gefaehrliche Aktion markiert.",
   "description": "Legt zwei Shell-Funktionen an: gateway_uptime (Laufzeit des Gateway-Containers in Tagen via /proc/uptime) und cpu_type (CPU-Modell via /proc/cpuinfo). Beide laufen im Gateway-Container, Timeout 5 s, Ausgabe-Cap 4000 Zeichen. GEFAEHRLICHE AKTION: shell()-Templates fuehren Befehle im Gateway-Container aus - daher Bestaetigung beim Install.",
@@ -12,6 +12,7 @@
       "description": "Laufzeit des Gateway-Containers in Tagen via shell (/proc/uptime) mit Jinja-Berechnung (int/round).",
       "template": "Das Gateway läuft seit {{(shell('cat /proc/uptime | cut -d . -f1') | int / 86400) | round(1)}} Tagen.",
       "parameters": { "type": "object", "properties": {} },
+      "inventory_prompt": "Gateway-Laufzeit (Status): fn_gateway_uptime (fertiger Satz, /proc/uptime).",
       "budget": 1
     },
     {
@@ -19,10 +20,11 @@
       "description": "CPU-Typ des Gateway-Hosts via shell (/proc/cpuinfo).",
       "template": "{%- set line = shell('grep \"model name\" /proc/cpuinfo | head -1') -%}{%- if line -%}Die CPU ist{{line.split(':')[1] | trim}}.{%- else -%}Die CPU-Typ ist mir unbekannt.{%- endif -%}",
       "parameters": { "type": "object", "properties": {} },
+      "inventory_prompt": "CPU-/Systemtyp des Gateway-Hosts: fn_cpu_type (fertiger Satz, /proc/cpuinfo).",
       "budget": 1
     }
   ],
   "allowTools": ["fn_gateway_uptime", "fn_cpu_type"],
   "setupDocs": "Keine Gegenseite noetig - die Funktionen lesen lokale Dateien (/proc) im Gateway-Container.",
-  "changelog": "1.0.0: Erste Fassung (gateway_uptime, cpu_type)."
+  "changelog": "1.0.1: inventory_prompt ergaenzt - die Faehigkeiten erscheinen jetzt im Nachschlagewerk (Hilfe/Agent).\n1.0.0: Erste Fassung (gateway_uptime, cpu_type)."
 }
