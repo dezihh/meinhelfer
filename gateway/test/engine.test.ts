@@ -6,6 +6,7 @@ import { createFunction } from '../src/db/functions.js';
 import { createAction } from '../src/db/actions.js';
 import { setSetting, deleteSetting } from '../src/db/settings.js';
 import { resetSessionsForTests } from '../src/core/session.js';
+import { indexInvalidationsForTests } from '../src/core/entityIndex.js';
 import type { TraceEvent } from '../src/types.js';
 
 const originalFetch = globalThis.fetch;
@@ -346,4 +347,18 @@ test('memory_minutes: DB-Recall ueber Session-Grenzen mit Zeitfenster', async ()
     deleteSetting('memory_minutes');
     db.exec("DELETE FROM logs WHERE route = 'agent'");
   }
+});
+
+test('Index-Cache: nach Funktions-/MCP-Call invalidiert, nach Basis-Lesetool nicht', async () => {
+  const vorher = indexInvalidationsForTests();
+  // Funktion (kind 'function') kann den Zustand aendern -> Cache verwerfen.
+  llmScript = [toolCalls([{ name: 'fn_test_echo', args: '{"x":"a"}' }]), content('ok')];
+  await q('echo bitte', 'inv-fn');
+  assert.ok(indexInvalidationsForTests() > vorher, 'nach Funktions-Call invalidiert');
+
+  const nachFn = indexInvalidationsForTests();
+  // Basis-Lesetool (kind 'index_find') hat gerade gelesen -> nicht invalidieren.
+  llmScript = [toolCalls([{ name: 'fn_find_entities', args: '{"query":"x"}' }]), content('ok')];
+  await q('suche x', 'inv-index');
+  assert.equal(indexInvalidationsForTests(), nachFn, 'Basis-Lesetool invalidiert nicht');
 });

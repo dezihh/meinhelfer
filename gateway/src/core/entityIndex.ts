@@ -175,6 +175,13 @@ let cache = new Map<string, { ts: number; entries: IndexEntry[] }>();
 
 export function invalidateIndex(): void {
   cache.clear();
+  invalidations++;
+}
+
+// Nur fuer Tests: wie oft der Index-Cache verworfen wurde.
+let invalidations = 0;
+export function indexInvalidationsForTests(): number {
+  return invalidations;
 }
 
 // Alle konfigurierten Index-Keys ('' = Standard + benannte). Benutzt vom

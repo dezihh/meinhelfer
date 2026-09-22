@@ -16,6 +16,7 @@ import { buildInventoryPrompt } from './inventory.js';
 import { escapeXml, stripSsmlTags, withSsmlBreaks, withDisplay, parseAgentAnswer } from './response.js';
 import { buildTools, type ToolRoute } from './tools.js';
 import { findIndexEntries, getIndexEntry } from './indexTools.js';
+import { invalidateIndex } from './entityIndex.js';
 import { traceUsage, sumUsageFromTrace } from './usage.js';
 import { priorTurns as sessionPriorTurns, rememberTurn as sessionRememberTurn, isChatSession as sessionIsChat, setChatMode } from './session.js';
 import type {
@@ -173,6 +174,11 @@ async function runToolLoop(
                   ? { bericht: await getIndexEntry(String(args.key ?? ''), typeof args.index === 'string' ? args.index : '') }
                   : await route.client.callTool(route.toolName, args);
           result = JSON.stringify(out).slice(0, 2000);
+          // Schreibvorgaenge koennen den Index-Zustand veraendern (z. B.
+          // ha_call_service): nach jedem MCP-/Funktions-Call den Index-Cache
+          // verwerfen, damit das naechste Lesen frisch ist. Die Basis-Lesetools
+          // (index_find/index_get) sind ausgenommen - sie haben gerade gelesen.
+          if (route.kind === 'mcp' || route.kind === 'function') invalidateIndex();
           trace.push({ ts: Date.now(), step: 'tool.call', detail: { tool: call.function.name, args } });
         } catch (e) {
           result = `ERROR: ${String(e)}`;
