@@ -372,6 +372,16 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
     );
   }
 }
+// Bestands-DBs (22.09.): Systembezug aus der agent_system-Kopfzeile entfernen -
+// der Seed ist systemneutral, die Bindung kommt aus den konfigurierten Tools.
+{
+  const row = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content?: string } | undefined;
+  if (row?.content && row.content.includes('Sprachassistent für Home Assistant über Alexa')) {
+    db.prepare("UPDATE prompts SET content = ?, updated_at = datetime('now') WHERE key = 'agent_system'").run(
+      row.content.replace('Sprachassistent für Home Assistant über Alexa', 'Sprachassistent über Alexa')
+    );
+  }
+}
 // (Die Referenz-Defaults der Settings werden weiter unten ueber SEED_SETTINGS
 // gesetzt - einzeln geseedete Settings gab es nur in frueheren Stadien.)
 
