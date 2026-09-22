@@ -279,7 +279,7 @@ db.prepare(
   'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
 ).run(
   'find_entities',
-  'Findet Eintraege im Entity-Index zu Stichworten (Name, Raum, Typ) und liefert deren aktuelle Zustaende mit (max. 8 Treffer). IMMER zuerst bei Fragen zu Messwerten, Zustaenden oder Geraetestatus.',
+  'Findet Eintraege im konfigurierten Index zu Stichworten (z. B. Name, Bereich, Typ) und liefert die gespeicherten Informationen dazu (max. 8 Treffer). IMMER zuerst bei Fragen, die ein konfigurierter Index beantworten kann (z. B. Zustaende, Messwerte, Status).',
   '{{ index.find(args.query) }}',
   JSON.stringify({
     type: 'object',
@@ -291,14 +291,40 @@ db.prepare(
   'INSERT OR IGNORE INTO tpl_functions (name, description, template, parameters, enabled) VALUES (?, ?, ?, ?, 1)'
 ).run(
   'get_entity',
-  'Liest den aktuellen Zustand eines konkreten Index-Eintrags per ID inkl. sprechrelevanter Attribute.',
-  '{{ index.get(args.entity_id) }}',
+  'Liest einen konkreten Index-Eintrag per Schluessel inkl. der gespeicherten Details.',
+  '{{ index.get(args.key) }}',
   JSON.stringify({
     type: 'object',
-    properties: { entity_id: { type: 'string', description: "ID des Eintrags, z. B. 'sensor.schlafzimmer_temperature'" } },
-    required: ['entity_id'],
+    properties: { key: { type: 'string', description: 'Schluessel des Eintrags, wie ihn find_entities liefert' } },
+    required: ['key'],
   })
 );
+
+// Basis-Fn-Upgrade (22.09.): die Alt-Signatur (entity_id-Param, HA-Beschreibung)
+// auf die generische Fassung heben. WHERE-Guards treffen nur Alt-Formen, User-
+// Aenderungen an den Basis-Fns bleiben unangetastet.
+{
+  const alt = db.prepare('SELECT template FROM tpl_functions WHERE name = ?').get('get_entity') as { template: string } | undefined;
+  if (alt && alt.template.includes('args.entity_id')) {
+    db.prepare('UPDATE tpl_functions SET description = ?, template = ?, parameters = ? WHERE name = ?').run(
+      'Liest einen konkreten Index-Eintrag per Schluessel inkl. der gespeicherten Details.',
+      '{{ index.get(args.key) }}',
+      JSON.stringify({
+        type: 'object',
+        properties: { key: { type: 'string', description: 'Schluessel des Eintrags, wie ihn find_entities liefert' } },
+        required: ['key'],
+      }),
+      'get_entity'
+    );
+  }
+  const altFind = db.prepare('SELECT description FROM tpl_functions WHERE name = ?').get('find_entities') as { description: string } | undefined;
+  if (altFind && altFind.description.includes('Entity-Index')) {
+    db.prepare('UPDATE tpl_functions SET description = ? WHERE name = ?').run(
+      'Findet Eintraege im konfigurierten Index zu Stichworten (z. B. Name, Bereich, Typ) und liefert die gespeicherten Informationen dazu (max. 8 Treffer). IMMER zuerst bei Fragen, die ein konfigurierter Index beantworten kann (z. B. Zustaende, Messwerte, Status).',
+      'find_entities'
+    );
+  }
+}
 
 // Umbenennung der frueheren HA-praefigierten Lesetools (Funktion + Referenzen).
 // Alte Row gewinnt (kann User-Aenderungen tragen): frisches Seed-Duplikat
