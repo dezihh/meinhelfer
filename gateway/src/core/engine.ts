@@ -78,7 +78,7 @@ function assistantName(): string {
 
 function promptWithName(key: string): string | undefined {
   const raw = getPrompt(key);
-  return raw?.replace('{assistant_name}', assistantName());
+  return raw?.replaceAll('{assistant_name}', assistantName());
 }
 
 // System-Prompt fuer den Agenten: agent_system + generiertes Tool-Inventory
@@ -259,7 +259,7 @@ async function executeAction(
   trace: TraceEvent[]
 ): Promise<AssistantResponse> {
   if (action.mode === 'llm') {
-    const system = (action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList))
+    const system = (action.system_prompt?.replaceAll('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList))
       .replace('{agent_inventory}', buildInventoryPrompt(activeServerNames(mcp, action.toolList)));
     return runToolLoop(system, query.text, null, mcp, trace, query.sessionId, action.toolList);
   }
@@ -270,7 +270,7 @@ async function executeAction(
   }
   const rendered = await renderFunction(action.function_ref, mcp, trace, action.functionArgs ?? {});
   if (action.mode === 'deterministic') return rendered;
-  const system = action.system_prompt?.replace('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList);
+  const system = action.system_prompt?.replaceAll('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList);
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
     {
