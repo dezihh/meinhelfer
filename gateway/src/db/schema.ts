@@ -245,6 +245,35 @@ if (withReferenceSeed) {
 // facade_mode (Tool-Angebot immer Facade + aktivierte MCP-Server; Feinsteuerung
 // ueber die erlaubten Tools je Vorgang).
 db.prepare("DELETE FROM settings WHERE key IN ('warteton', 'fastpath_model', 'fuel_sensor', 'facade_mode', 'tool_budgets')").run();
+
+// Bestands-DBs (22.09.): die frueher im Code hartcodierten HA-Domain-Hints in
+// die entity_index-Konfiguration uebernehmen - der Code-Default ist jetzt
+// systemneutral (kein Tool, keine Domains). Nur wenn eine HA-Index-Konfiguration
+// ohne eigene domainHints existiert; eigene Hints bleiben unangetastet.
+{
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'entity_index'").get() as { value?: string } | undefined;
+  if (row?.value) {
+    try {
+      const cfg = JSON.parse(row.value) as { tool?: string; domainHints?: unknown };
+      if (cfg.tool === 'ha_eval_template' && !cfg.domainHints) {
+        cfg.domainHints = [
+          { re: 'temperatur|warm|kalt|grad', domains: ['sensor', 'climate', 'weather'] },
+          { re: 'feucht', domains: ['sensor'] },
+          { re: 'verbrauch|leistung|energie|strom|kwh|watt', domains: ['sensor'] },
+          { re: 'fullstand|zisterne|tank', domains: ['sensor'] },
+          { re: 'licht|lampe|leuchte', domains: ['light'] },
+          { re: 'steckdose|schalter', domains: ['switch', 'light'] },
+          { re: 'rolladen|raffstore|jalousie', domains: ['cover'] },
+          { re: 'thermostat|heizung|heizen', domains: ['climate'] },
+          { re: 'lautsta|musik|radio|sprecher', domains: ['media_player'] },
+        ];
+        db.prepare("UPDATE settings SET value = ? WHERE key = 'entity_index'").run(JSON.stringify(cfg));
+      }
+    } catch {
+      // ungueltiges Setting: loadConfig nutzt dann den generischen Default
+    }
+  }
+}
 // Toter Prompt-Key: fastpath_system gehoerte zum entfernten News-Fastpath.
 db.prepare("DELETE FROM prompts WHERE key = 'fastpath_system'").run();
 

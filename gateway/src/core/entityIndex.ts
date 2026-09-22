@@ -50,10 +50,6 @@ interface IndexConfig {
   stopwords: Set<string>;
 }
 
-const DEFAULT_SNAPSHOT_TEMPLATE = `{%- set KEYS = ['current_temperature', 'target_temperature', 'temperature', 'humidity', 'brightness', 'position', 'battery_level', 'hvac_mode', 'fan_mode', 'device_class'] -%}
-{% for e in states %}{{ e.entity_id }}|{{ area_name(e.entity_id) }}|{{ e.state }}|{{ e.attributes.get('unit_of_measurement', '') }}|{{ e.attributes.get('friendly_name', e.entity_id) }}|{% for k in KEYS %}{% if k in e.attributes %}{{ k }}={{ e.attributes[k] }};{% endif %}{% endfor %}
-{% endfor %}`;
-
 // Speech-relevante Attribute, die im Pipe-Format mitgelesen werden (Filter
 // beim Parsen; die Mitlieferung passiert im index.template-Parameter).
 const RELEVANT_ATTRS = new Set([
@@ -71,23 +67,18 @@ const RELEVANT_ATTRS = new Set([
   'device_class',
 ]);
 
+// Generischer Basis-Default OHNE Systembindung: kein Tool -> kein Index
+// konfiguriert (die Basis-Werkzeuge melden dann ehrlich "Index nicht
+// verfuegbar"). Systemspezifisches (Tool, Argumente, Domain-Hints) kommt
+// ausschliesslich aus dem entity_index-Setting - geliefert z. B. vom jeweiligen
+// Installationspaket. Die sprachlichen Helfer (Aliase/Stopwords) sind neutral.
 function defaultConfig(): IndexConfig {
   return {
-    tool: 'ha_eval_template',
-    args: { template: DEFAULT_SNAPSHOT_TEMPLATE },
+    tool: '',
+    args: {},
     ttlMs: 60_000,
     aliases: { draussen: 'aussen', drausen: 'aussen' },
-    domainHints: [
-      { re: /temperatur|warm|kalt|grad/, domains: ['sensor', 'climate', 'weather'] },
-      { re: /feucht/, domains: ['sensor'] },
-      { re: /verbrauch|leistung|energie|strom|kwh|watt/, domains: ['sensor'] },
-      { re: /fullstand|zisterne|tank/, domains: ['sensor'] },
-      { re: /licht|lampe|leuchte/, domains: ['light'] },
-      { re: /steckdose|schalter/, domains: ['switch', 'light'] },
-      { re: /rolladen|raffstore|jalousie/, domains: ['cover'] },
-      { re: /thermostat|heizung|heizen/, domains: ['climate'] },
-      { re: /lautsta|musik|radio|sprecher/, domains: ['media_player'] },
-    ],
+    domainHints: [],
     stopwords: new Set([
       'wie', 'ist', 'es', 'im', 'in', 'der', 'den', 'das', 'die', 'von', 'am', 'an', 'um',
       'mein', 'meine', 'mir', 'bitte', 'sag', 'mal', 'derzeit', 'aktuell', 'aktuelle',
@@ -206,6 +197,7 @@ function settingNameFor(indexKey: string): string {
 export async function getIndexSnapshot(indexKey = '', force = false): Promise<IndexEntry[]> {
   const settingName = settingNameFor(indexKey);
   const cfg = loadConfig(indexKey);
+  if (!cfg.tool) return []; // kein Index konfiguriert -> Basis-Werkzeuge melden das
   const cached = cache.get(settingName);
   if (!force && cached && Date.now() - cached.ts < cfg.ttlMs) return cached.entries;
   const mcp = await getMcpContext();

@@ -117,11 +117,22 @@ test('listIndexKeys: benannte Index-Quellen werden entdeckt', () => {
   }
 });
 
-test('getIndexSnapshot ohne MCP-Server -> klarer Fehler', async () => {
+test('getIndexSnapshot ohne konfigurierten Index -> leer, kein Fehler (generischer Default)', async () => {
+  deleteSetting('entity_index');
+  invalidateIndex();
+  const entries = await getIndexSnapshot('');
+  assert.deepEqual(entries, []);
+});
+
+test('getIndexSnapshot mit konfiguriertem Tool, aber ohne MCP-Server -> klarer Fehler', async () => {
+  setSetting('entity_index', JSON.stringify({ tool: 'irgendein_index_tool' }));
+  invalidateIndex();
   await assert.rejects(
     () => getIndexSnapshot(''),
     /Index-Tool .* nicht gefunden/
   );
+  deleteSetting('entity_index');
+  invalidateIndex();
 });
 
 test('db-Reststaende aufgeraeumt', () => {
