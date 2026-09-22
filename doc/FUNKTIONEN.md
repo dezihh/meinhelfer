@@ -75,10 +75,12 @@ Index-Tools, das Extraktions-Template steckt im arg, das der Server erwartet):
 - **Datenvertrag** (vom Tool geliefert): eine Zeile je Eintrag im
   Format `id|area|state|unit|name|key=value;...`
 - **1 MCP-Call pro TTL-Fenster**, Lookups/Scoring danach lokal (< 1 ms)
-- **Kein Systembezug im Code**: Der Default bindet Home Assistant
-  (ha-mcp `ha_eval_template`); Music Assistant o. Ä. = anderes Setting,
-  kein Code. Die generischen Lesetools heißen entsprechend neutral
-  `fn_find_entities` / `fn_get_entity`.
+- **Kein Systembezug im Code**: Der Code-Default ist leer (kein Tool -> kein
+  Index konfiguriert, die Basis-Werkzeuge melden „Index nicht verfuegbar").
+  Die Bindung an ein System kommt ausschliesslich aus dem `entity_index`-Setting,
+  geliefert z. B. vom Installationspaket (HA: `ha_eval_template`). Music
+  Assistant o. Ä. = anderes Setting, kein Code. Die generischen Lesetools
+  heißen entsprechend neutral `fn_find_entities` / `fn_get_entity`.
 
 ### Basis-Werkzeuge (built-in, Variante A)
 

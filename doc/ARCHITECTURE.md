@@ -157,7 +157,8 @@ oder HA-Fuzzy-Logik. Zwei generische Muster decken alles ab:
    (gemessen ~0,6 s für ~1200 Einträge). Tool, freies Argument-Objekt
   (Datenvertrag `id|area|state|unit|name|key=value;...`), Aliase,
    Domain-Hints und Stopwords stehen als JSON-Setting `entity_index`
-   (Default: HA via `ha_eval_template`) — ein anderes System wird durch ein
+   (Code-Default leer; HA wird z. B. ueber das Installationspaket mit
+   `ha_eval_template` gebunden) — ein anderes System wird durch ein
    anderes Setting angebunden, nicht durch Code. Begründung: Serverseitige
    Fuzzy-Suche (z. B. `ha_search`) bleibt für deutsche Mehrwort-Voice-Queries
    klar schwächer (BM25-AND-Gating, kein Umlaut-Folding, keine Aliase, im
