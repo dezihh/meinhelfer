@@ -1,0 +1,147 @@
+﻿# Gateway konfigurieren
+
+## Ziel
+
+Dieses Kapitel beschreibt die Reihenfolge der Parametrierung. Einzelne Felder
+und Grenzen stehen in [Referenz](REFERENCE.md).
+
+## Empfohlene Reihenfolge
+
+1. Admin-Token im Browser speichern.
+2. Grundeinstellungen und Modell prüfen.
+3. Systeme in der **Tool-Registry** verbinden.
+4. **Index-Quellen** einrichten.
+5. Funktionen anlegen und mit **Ausführen** testen.
+6. Vorgänge anlegen.
+7. Den Gesamtweg unter **Monitor / Test** prüfen.
+8. Erst danach Alexa anbinden.
+
+## Grundeinstellungen
+
+Beim ersten Start werden Standardwerte angelegt. Bestehende Datenbankwerte
+werden dabei nicht überschrieben.
+
+| Einstellung | Empfehlung für den Einstieg |
+|---|---|
+| Hauptmodell | tool- und JSON-fähiges Modell |
+| Tool-Modell | zunächst leer; dann gilt das Hauptmodell |
+| Tool-Runden | Standard beibehalten |
+| Tool-Deadline | innerhalb des verfügbaren Antwortfensters halten |
+| Agent-Tool-Auswahl | nur tatsächlich benötigte Werkzeuge erlauben |
+
+Ein separates kleines Tool-Modell ist eine spätere Optimierung. Zuerst sollte
+der gesamte Ablauf mit einem Modell zuverlässig funktionieren.
+
+## Agent-Prompts
+
+### `agent_system`
+
+Hier steht nur allgemeines Verhalten:
+
+- finales Antwortformat
+- Umgang mit aktuellen Daten
+- Aktion ausführen, bevor sie bestätigt wird
+- Rückfragen bei echter Mehrdeutigkeit
+- Kürze und Sprechbarkeit
+
+### `agent_inventory`
+
+Dies ist der allgemeine Rahmen des Werkzeugkatalogs. Aktive Funktionen und
+MCP-Systeme ergänzen ihn zur Laufzeit. Domänenspezifische Kaskaden gehören an
+das jeweilige System oder die jeweilige Funktion.
+
+## Tool-Registry
+
+Ein Eintrag verbindet einen MCP-Server.
+
+### Streamable HTTP
+
+Benötigt Name, URL und gegebenenfalls Bearer-Token. **Tools abfragen** prüft
+die Verbindung und zeigt die veröffentlichten Werkzeuge.
+
+### stdio
+
+Das Gateway startet einen lokalen Prozess. Befehl und Pakete müssen in der
+tatsächlichen Gateway-Laufzeitumgebung vorhanden sein, bei Docker also im
+Container.
+
+### Agent-Inventory-Prompt
+
+Beschreibe knapp:
+
+- wann das System zuständig ist
+- welche Aufrufreihenfolge gilt
+- welche IDs ausschließlich aus Ergebnissen übernommen werden
+- wann eine Rückfrage statt eines Aufrufs nötig ist
+
+**Prüfung:** **Tools abfragen** zeigt die erwarteten Werkzeuge.
+
+## Index-Quellen
+
+Eine Index-Quelle definiert:
+
+- MCP-Werkzeug und Argumente
+- Extraktion oder Transformation ins Pipe-Format
+- Cache-Zeit `ttlMs`
+- optionale Aliase, Stopwörter und Domain-Hinweise
+
+Ein leerer Key ist der Standard-Index. Ein benannter Index wird als zweites
+Argument angesprochen:
+
+```jinja
+{{ index.find('lautsprecher küche', 'ma') }}
+```
+
+**Prüfung:** Die Probe-Abfrage liefert erwartbare IDs, Namen und Zustände.
+
+## Funktionen
+
+Lege zuerst Name, Beschreibung und Template an. Führe das Template aus, bevor
+du es speicherst.
+
+Parameter-Schema und Agent-Inventory-Zeile sind nur nötig, wenn der Agent die
+Funktion gezielt als `fn_<name>` verwenden soll. Argumentierte Funktionen
+brauchen ein JSON-Schema mit Pflichtfeldern.
+
+## Vorgänge
+
+### Trigger
+
+Trage mehrere natürliche Nutzerfragen ein, je eine pro Zeile. Teste eine
+wörtliche Phrase und mindestens eine leichte Abwandlung.
+
+### Modus
+
+- feste Ausgabe: `deterministic`
+- feste Daten, flexible Sprache: `hybrid`
+- offene Werkzeugwahl: `llm`
+
+### Erlaubte Tools
+
+Die Auswahl begrenzt die Tool-Schemas in LLM- und Hybrid-Vorgängen. Ein
+deterministisches Funktionstemplate verwendet seine konfigurierten
+Datenbausteine unabhängig davon.
+
+**Prüfung:** Der Monitor-Trace zeigt den erwarteten Vorgang und nur die
+beabsichtigten Werkzeugaufrufe.
+
+## Modellwahl
+
+Das Modell muss:
+
+- Tool-Calling unterstützen
+- zuverlässiges JSON erzeugen
+- innerhalb des Zeitbudgets antworten
+- deutsche gesprochene Anfragen robust verstehen
+
+Reasoning-Modelle lösen komplexe Kaskaden oft besser, benötigen aber mehr Zeit
+und ein ausreichend großes Ausgabe-Budget.
+
+## Abnahme
+
+- Tool-Registry zeigt die erwarteten Werkzeuge.
+- Jede Index-Quelle besteht ihre Probe.
+- Jede Funktion liefert über **Ausführen** ein Ergebnis.
+- Jeder Vorgang nimmt im Monitor die erwartete Route.
+- Der Agent sieht nur benötigte Werkzeuge.
+- Fehler und Laufzeiten sind in Trace oder Logs sichtbar.
