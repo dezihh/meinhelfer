@@ -24,9 +24,9 @@ import { invalidateMcpCache } from '../mcp/registry.js';
 
 export const packagesRoutes = Router();
 
-// Registry-URL: konfigurierbar (Setting package_registry_url), Default =
-// packages/ im Repo (raw.githubusercontent).
-const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/dezihh/meinhelfer/main/packages';
+// Registry-URL: hart auf unser Repo (kein Produktkonfigurationsfeld - die
+// Paketquelle ist Teil der Installation, nicht eine Nutzer-Einstellung).
+const REGISTRY_URL = 'https://raw.githubusercontent.com/dezihh/meinhelfer/main/packages';
 const REGISTRY_CACHE_MS = 60_000;
 
 interface RegistryEntry {
@@ -43,7 +43,7 @@ interface RegistryIndex {
 let registryCache: { at: number; data: RegistryIndex } | null = null;
 
 function registryUrl(): string {
-  return (getSetting('package_registry_url') || '').trim() || DEFAULT_REGISTRY_URL;
+  return REGISTRY_URL;
 }
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -73,7 +73,7 @@ async function fetchManifest(id: string): Promise<PackageManifest> {
 // Verfuegbare Pakete (Registry).
 packagesRoutes.get('/admin/api/packages/registry', requireAuth, async (_req, res) => {
   try {
-    res.json({ registryUrl: registryUrl(), packages: await registryEntries(true) });
+    res.json({ packages: await registryEntries(true) });
   } catch (e) {
     res.status(502).json({ error: `Registry nicht erreichbar (${String(e instanceof Error ? e.message : e)})` });
   }
@@ -170,16 +170,7 @@ packagesRoutes.get('/admin/api/packages', requireAuth, async (_req, res) => {
   } catch {
     registry = null;
   }
-  res.json({ installed, registryUrl: registryUrl(), registry });
-});
-
-packagesRoutes.put('/admin/api/packages/registry-url', requireAuth, (req, res) => {
-  const body = req.body as { url?: unknown };
-  const url = String(body.url ?? '').trim();
-  if (url && !/^https:\/\//.test(url)) return res.status(400).json({ error: 'Registry-URL muss HTTPS sein' });
-  setSetting('package_registry_url', url);
-  registryCache = null;
-  res.json({ ok: true, url: url || DEFAULT_REGISTRY_URL });
+  res.json({ installed, registry });
 });
 
 // --- Sicherung / Rücksicherung (logischer JSON-Export, ohne Logs) ---

@@ -980,7 +980,6 @@ async function loadMaintenance() {
     const data = await api('/packages');
     pkgState.installed = data.installed ?? [];
     pkgState.registry = data.registry ?? [];
-    $('pkg-registry-url').value = data.registryUrl ?? '';
     renderPackages();
   } catch (e) {
     $('pkg-available').innerHTML = `<div class="error-text">${esc(e.message)}</div>`;
@@ -1065,13 +1064,6 @@ async function showInstallForm(id, manifestFromImport) {
 function showInstallFormClose() { $('pkg-install-form').classList.add('hidden'); $('pkg-install-form').innerHTML = ''; }
 
 $('pkg-refresh').onclick = loadMaintenance;
-$('pkg-registry-save').onclick = async () => {
-  try {
-    await api('/packages/registry-url', { method: 'PUT', body: { url: $('pkg-registry-url').value.trim() } });
-    alert('Registry-URL gespeichert.');
-    loadMaintenance();
-  } catch (e) { alert(e.message); }
-};
 $('pkg-import-preview').onclick = async () => {
   try {
     const manifest = JSON.parse($('pkg-import-manifest').value);
