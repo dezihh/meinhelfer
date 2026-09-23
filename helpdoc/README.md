@@ -56,12 +56,14 @@ Zielsystem abzufragen.
 3. [Installation](INSTALLATION.md): Gateway, Modell und Netzwerk vorbereiten.
 4. [Konfiguration](CONFIGURATION.md): Grundeinstellungen und Admin-Oberfläche
    parametrieren.
-5. [Praxisrezepte](RECIPES.md): Home Assistant, Musik, Websuche und Berichte
+5. [Cache und Aktualität](CACHE.md): Verstehen, wann Daten lokal bleiben und
+   wann Netzwerkverkehr entsteht.
+6. [Praxisrezepte](RECIPES.md): Home Assistant, Musik, Websuche und Berichte
    schrittweise einrichten.
-6. [Alexa anbinden](ALEXA.md): Erst anbinden, wenn der Testmonitor antwortet.
-7. [Fehler beheben](TROUBLESHOOTING.md): Fehler anhand klarer Prüfpunkte
+7. [Alexa anbinden](ALEXA.md): Erst anbinden, wenn der Testmonitor antwortet.
+8. [Fehler beheben](TROUBLESHOOTING.md): Fehler anhand klarer Prüfpunkte
    eingrenzen.
-8. [Referenz](REFERENCE.md): Felder, Grenzen und technische Details
+9. [Referenz](REFERENCE.md): Felder, Grenzen und technische Details
    nachschlagen.
 
 ## Was du für den ersten Erfolg brauchst

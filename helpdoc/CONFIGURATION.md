@@ -85,6 +85,11 @@ Eine Index-Quelle definiert:
 - Cache-Zeit `ttlMs`
 - optionale Aliase, Stopwörter und Domain-Hinweise
 
+`ttlMs` ist die Gültigkeitsdauer eines geladenen Snapshots, kein
+Polling-Intervall. Ein neuer MCP-Aufruf entsteht erst beim nächsten Zugriff
+nach Ablauf der TTL. Hinweise zur Wahl des Werts stehen unter
+[Cache und Aktualität](CACHE.md#ttl-wählen).
+
 Ein leerer Key ist der Standard-Index. Ein benannter Index wird als zweites
 Argument angesprochen:
 

@@ -48,6 +48,9 @@ Identische vorbereitete Aufrufe werden dedupliziert. Dynamische
 Argumentobjekte von `mcp.call` kennen `args` und `now`, aber keine lokalen
 `set`-Variablen des Templates.
 
+Eine vollständige Übersicht über Entity-Index, HTTP-, MCP-, Paket- und
+Zertifikatscache steht unter [Cache und Aktualität](CACHE.md).
+
 ## Index-Konfiguration
 
 ```json
@@ -72,6 +75,9 @@ id|area|state|unit|name|key=value;key=value
 
 Der leere Key bezeichnet den Standard-Index. Weitere Quellen verwenden einen
 Namen wie `ma` und werden als zweites Argument übergeben.
+
+`ttlMs` löst keinen Timer und kein Polling aus. Der Snapshot wird erst beim
+nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 
 ## Vorgangsfelder
 

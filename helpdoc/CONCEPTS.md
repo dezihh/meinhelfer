@@ -43,6 +43,10 @@ id|area|state|unit|name|key=value;...
 Der Index eignet sich zum Lesen und Finden. Er führt keine Aktion aus.
 Schalten und Steuern bleiben Aufgabe eines Werkzeugs.
 
+Die TTL löst keinen regelmäßigen Abruf aus. Ein neuer Snapshot wird erst beim
+nächsten Zugriff nach Ablauf der TTL geladen. Alle Cachearten und ihre
+Invalidierung erklärt [Cache und Aktualität](CACHE.md).
+
 ## Funktion
 
 Eine Funktion ist ein benanntes Jinja/Nunjucks-Template. Ihr gerenderter Text

@@ -38,14 +38,18 @@ dieser Prüfung an.
 3. Jede Zeile muss dem Format `id|area|state|unit|name|extra` entsprechen.
 4. Suche testweise nach einem Teil der bekannten ID.
 5. Ergänze einen Alias, wenn gesprochener und technischer Begriff abweichen.
-6. Warte bei Änderungen nicht auf den alten TTL-Cache oder invalidiere ihn
-   über die Oberfläche.
+6. Speichere die Index-Quelle erneut, wenn ihre Konfiguration geändert wurde;
+   dadurch wird der Index-Cache verworfen.
 
 ### Index wirkt veraltet
 
 Prüfe `ttlMs`. Innerhalb dieses Fensters ist ein älterer Zustand beabsichtigt.
 Für schreibende Aktionen darf der Index nur die Ziel-ID liefern; der Erfolg
 des Service-Aufrufs kommt vom Werkzeug.
+
+Es gibt kein regelmäßiges Polling: Nach TTL-Ablauf wird erst bei der nächsten
+Indexnutzung neu geladen. Details und weitere Cachearten stehen unter
+[Cache und Aktualität](CACHE.md).
 
 ## Funktionen
 

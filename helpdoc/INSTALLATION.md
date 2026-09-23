@@ -2,18 +2,82 @@
 
 ## Ziel
 
-Am Ende läuft das Gateway, die Admin-Oberfläche ist erreichbar und der
-Testmonitor kann eine Anfrage verarbeiten.
+In dieser Anleitung entsteht Schritt für Schritt ein vollständiges
+MeinHelfer-Setup. Jeder Abschnitt endet mit einem funktionierenden,
+überprüfbaren Zwischenstand. So lassen sich Fehler früh erkennen und der
+Aufbau bleibt nachvollziehbar.
 
-## Belegbare Voraussetzungen
+Zuerst läuft das Gateway lokal und beantwortet Fragen im Testmonitor. Danach
+kommen passende Fähigkeiten als Installationspakete hinzu. Alexa wird erst am
+Ende angebunden, wenn der lokale Weg bereits zuverlässig funktioniert.
 
-- Node.js `22` oder neuer
-- npm
-- Schreibbarer Speicher für SQLite
-- Erreichbare OpenAI-kompatible Chat-Completions-Schnittstelle
-- Ein langes, zufälliges Gateway-Token
-- Optional Docker für externe Dienste wie HA-MCP oder SearXNG
-- Für Alexa später: öffentliche HTTPS-Adresse sowie Amazon- und AWS-Zugang
+## Zwei Teile eines Setups
+
+Ein vollständiges Setup besteht aus zwei weitgehend getrennten Teilen:
+
+| Teil | Aufgabe | Wird benötigt ab |
+|---|---|---|
+| Lokales Gateway | Gateway, Modell, Admin-Oberfläche, Pakete und Testmonitor | dem ersten Schritt |
+| Alexa-Anbindung | öffentlicher HTTPS-Zugang, AWS Lambda und Alexa Skill | erst nach dem lokalen Test |
+
+Das lokale Gateway ist ohne Alexa sinnvoll nutzbar und vollständig testbar.
+Das ist absichtlich so: Für Einrichtung und Fehlersuche müssen weder ein Echo
+noch ein AWS-Konto verfügbar sein.
+
+```mermaid
+flowchart LR
+   subgraph Lokal
+      G[Gateway]
+      L[LLM-Schnittstelle]
+      P[Installationspakete]
+      X[Externe Systeme]
+      G --> L
+      P --> G
+      G --> X
+   end
+
+   subgraph Alexa
+      E[Echo]
+      A[Alexa-Plattform]
+      W[AWS Lambda]
+      E --> A --> W
+   end
+
+   W -->|HTTPS| G
+```
+
+## Was du grundsätzlich brauchst
+
+| Bereich | Benötigt | Wann |
+|---|---|---|
+| Server | Rechner, VM oder Homeserver für das Gateway | sofort |
+| Laufzeit | Docker mit Compose-Plugin | sofort |
+| KI-Modell | erreichbare OpenAI-kompatible Chat-Completions-Schnittstelle | sofort |
+| Konfiguration | langer, zufälliger Admin-Token | sofort |
+| Fähigkeiten | je nach Bedarf externe Systeme, etwa Home Assistant oder Websuche | nach dem Grundtest |
+| Alexa | Amazon-Konto, AWS-Konto und öffentliche HTTPS-Adresse | erst für Alexa |
+
+Home Assistant ist keine Voraussetzung für MeinHelfer. Nach dem Grundtest
+wählst du die Fähigkeiten, die du tatsächlich brauchst, als
+Installationspakete aus.
+
+Der getestete und dokumentierte Installationsweg verwendet Docker Compose.
+Das Gateway kann voraussichtlich auch direkt mit Node.js betrieben werden,
+dieser Weg ist jedoch nicht getestet und gehört deshalb nicht in diese
+Anleitung.
+
+## Aufbau in Etappen
+
+| Etappe | Ergebnis | Prüfung |
+|---|---|---|
+| 1. Gateway starten | Admin-Oberfläche ist erreichbar | Anmeldung mit Admin-Token |
+| 2. Modell prüfen | Testmonitor beantwortet eine allgemeine Frage | „Wie heißt du?“ liefert eine Antwort |
+| 3. Fähigkeit installieren | Ein Paket ergänzt ein konkretes System | Paketvorschau, Installation und Monitor-Test |
+| 4. Konfiguration sichern | Setup kann wiederhergestellt werden | Sicherung herunterladen und prüfen |
+| 5. Alexa anbinden | Dieselbe Anfrage funktioniert über Alexa | Simulator und Echo testen |
+
+Die folgenden Abschnitte behandeln zunächst den lokalen Teil. Die Alexa-
+Anbindung folgt erst, wenn die ersten vier Etappen abgeschlossen sind.
 
 ## Gateway-Umgebung
 
@@ -25,39 +89,27 @@ Diese Variablen liest der Gateway-Code beim Start:
 | `LLM_BASE_URL` | ja | Basis-URL der OpenAI-kompatiblen Schnittstelle |
 | `LLM_API_KEY` | ja | API-Schlüssel; der Prozess verlangt einen Wert |
 | `PORT` | nein | Gateway-Port, Standard `3000` |
-| `DB_PATH` | nein | SQLite-Datei, Standard `./data/meinhelfer.db` |
-| `LLM_MODEL` | nein | Startmodell, Standard `chat-fast` |
+| `DB_PATH` | nein | SQLite-Datei im persistierten Datenvolume, Standard `./data/meinhelfer.db` |
+| `LLM_MODEL` | ja | Name des am LLM-Endpunkt bereitgestellten Modells |
 | `LLM_MAX_TOKENS` | nein | Ausgabe-Budget, Standard `2000` |
-| `ALEXA_SKILL_ID` | für Alexa | erwartete Skill-ID |
-| `ALEXA_VERIFY_MODE` | nein | `off`, `warn` oder `enforce`; Code-Standard `enforce` |
 
-## Vorläufiger Node.js-Weg
+Die Alexa-spezifischen Variablen werden erst im Kapitel zur Alexa-Anbindung
+benötigt und dort erklärt.
 
-Dieser Weg folgt direkt aus `gateway/package.json`. Er ist noch nicht als
-offizieller Produktionsweg festgelegt.
+### Modell wählen
 
-1. Wechsle in das Verzeichnis `gateway`.
-2. Führe `npm ci` aus.
-3. Lege dort eine `.env` mit den Pflichtwerten an.
-4. Prüfe mit `npm run build`.
-5. Starte mit `npm start`.
-6. Öffne den konfigurierten Host auf Port `3000` beziehungsweise `PORT`.
+Das Modell muss Tool-Aufrufe und zuverlässige JSON-Antworten unterstützen.
+Für Sprachdialoge sind zudem kurze Zeit bis zum ersten Token, geringe
+Gesamtlatenz und ausreichend Kontext für System-Prompt, Tool-Definitionen und
+Ergebnisse wichtig. Als schneller Einstieg bietet sich ein aktuelles
+Flash-Modell an, etwa Gemini 3.5 Flash, sofern es über den gewählten
+OpenAI-kompatiblen Endpunkt Tool-Calling unterstützt.
 
-Beispiel `.env`:
+Modelle mit umfangreichem Reasoning können komplexe Kaskaden besser lösen,
+benötigen aber häufig mehr Zeit und ein höheres Ausgabe-Budget. Teste das
+gewählte Modell zunächst im Testmonitor, bevor du Pakete oder Alexa ergänzt.
 
-```dotenv
-AUTH_TOKEN=<langen-zufälligen-wert-eintragen>
-LLM_BASE_URL=http://<llm-host>:<port>/v1
-LLM_API_KEY=<api-key-oder-lokaler-platzhalter>
-LLM_MODEL=<modellname>
-PORT=3000
-DB_PATH=./data/meinhelfer.db
-```
-
-**Prüfung:** Der Prozess meldet keine fehlende Umgebungsvariable. Die
-Admin-Oberfläche öffnet sich und akzeptiert `AUTH_TOKEN`.
-
-## Docker- oder Compose-Installation
+## Docker-Compose-Installation
 
 Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 
@@ -76,7 +128,20 @@ Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 2. Konfiguration anlegen:
 
        cp gateway/.env.example gateway/.env
-       # gateway/.env ausfuellen: AUTH_TOKEN, LLM_BASE_URL, LLM_API_KEY
+
+   Öffne anschließend `gateway/.env` und trage mindestens Folgendes ein:
+
+   ```dotenv
+   AUTH_TOKEN=<langen-zufälligen-wert-eintragen>
+   LLM_BASE_URL=https://<llm-endpunkt>/v1
+   LLM_API_KEY=<api-schlüssel>
+   LLM_MODEL=<tool-fähiger-modellname>
+   ```
+
+   `DB_PATH` kann auf dem Standardwert bleiben. Die Compose bindet das
+   Verzeichnis `gateway/data` als persistentes Volume ein; darin liegt die
+   SQLite-Datenbank. Dieses Verzeichnis nicht löschen, wenn Konfiguration,
+   Pakete, Funktionen und Vorgänge ein Update überleben sollen.
 
 3. Container bauen und starten; Host-Port waehlen:
 
@@ -94,17 +159,11 @@ Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 
 ### Was die Compose tut
 
-- Baut das Image aus `gateway/Dockerfile` (Target `runtime`: produktionstauglich,
-  `npm ci --omit=dev`, Start `node dist/server.js`)
+- Baut und startet das Gateway als Container
 - `./gateway/data` als persistentes Volume fuer `DB_PATH`
   (`./data/meinhelfer.db` im Container)
 - Uebergibt alle Variablen aus `gateway/.env` an den Container
 - Restart-Strategie `unless-stopped`
-
-### Abnahmemessung (22.09.2026, frischer Clone)
-
-- Start ohne Fehler; frische SQLite-DB mit 2 Prompts, 7 Settings und den
-  2 generischen Lesefunktionen; Tool-Registry und Vorgaenge leer.
 
 Die zwei Basis-Werkzeuge `fn_find_entities` und `fn_get_entity` sind
 **fest im Gateway-Code eingebaut** (built-in): sie erscheinen bewusst **nicht**
@@ -121,6 +180,9 @@ also automatisch passend. Sie ist editierbar und liegt im Seed.
 Alles Weitere - MCP-Server, Entity-Index, weitere Funktionen, weitere
 Vorgaenge - kommt bewusst nicht automatisch, sondern ueber die
 **Installationspakete** (Tab „Wartung und Pakete") oder manuell.
+
+### Prüfen
+
 - Monitor-Antwort auf „wie heisst du" korrekt mit dem Assistenten-Namen.
 - Admin-Oberflaeche 401 ohne Session, Login-Seite 200.
 - Nach `docker compose restart` bleiben die Daten erhalten.
