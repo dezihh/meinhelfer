@@ -71,17 +71,54 @@ export interface PackageReport {
   created: string[];
   updated: string[];
   unchanged: string[];
+  /** Items, die der Nutzer lokal geaendert hat (aktueller Stand != Paket-Stand). */
+  conflicts: string[];
+  /** Items, die auf Wunsch lokal behalten wurden (Install-Entscheidung 'keep'). */
+  kept: string[];
   dangerous: boolean;
   dangerousItems: string[];
   infoItems: string[];
 }
 
+class DryRunSignal extends Error {}
+
+// Items mit lokaler Abweichung: der aktuelle DB-Stand (Server/Funktion/Index)
+// weicht vom zuletzt vom Paket gesetzten Inhalt (package_items.content_hash) ab.
+// Nur solche Items brauchen beim (Re-)Install eine Entscheidung.
+export function conflictItems(packageId: string): string[] {
+  const conflicts: string[] = [];
+  for (const item of listPackageItems(packageId)) {
+    if (item.kind === 'allowTools') continue;
+    let content: unknown = null;
+    if (item.kind === 'server') content = serverRowContent(item.name);
+    else if (item.kind === 'function') content = functionRowContent(item.name);
+    else if (item.kind === 'index') {
+      const raw = getSetting(item.name);
+      if (raw !== undefined) {
+        try { content = JSON.parse(raw); } catch { content = raw; }
+      }
+    } else continue;
+    if (content === null) continue; // Zeile fehlt -> wird neu angelegt, kein Konflikt
+    if (hashContent(item.kind, item.name, content) !== item.content_hash) conflicts.push(`${item.kind}:${item.name}`);
+  }
+  return conflicts;
+}
+
 // Install = Upsert (mehrfach installieren ueberschreibt/aktualisiert).
 // Provenienz in packages + package_items. dangerAck: bei shell()-Templates
-// erforderlich.
+// erforderlich. decisions: pro Item 'take' (Paket-Inhalt uebernehmen) oder
+// 'keep' (lokale Aenderung behalten). dryRun: nur Report berechnen, ohne zu
+// schreiben (fuer die Diff-Vorschau vor dem Reinstall).
 export function installPackage(
   m: PackageManifest,
-  opts: { source?: string; registryUrl?: string | null; values?: Record<string, string>; dangerousAck?: boolean }
+  opts: {
+    source?: string;
+    registryUrl?: string | null;
+    values?: Record<string, string>;
+    dangerousAck?: boolean;
+    decisions?: Record<string, 'take' | 'keep'>;
+    dryRun?: boolean;
+  }
 ): PackageReport {
   const db = getDb();
   const applied = substituteManifest(m, opts.values ?? {});
@@ -89,55 +126,71 @@ export function installPackage(
   if (danger.dangerous && !opts.dangerousAck) {
     throw new Error('Gefaehrliche Aktion: Bestaetigung erforderlich (dangerous_ack)');
   }
-  const report: PackageReport = { created: [], updated: [], unchanged: [], dangerous: danger.dangerous, dangerousItems: danger.items, infoItems: danger.info };
-  const hash = manifestHash(applied);
+  const decisions = opts.decisions ?? {};
+  const keep = (key: string): boolean => decisions[key] === 'keep';
+  const report: PackageReport = {
+    created: [], updated: [], unchanged: [], kept: [], conflicts: conflictItems(m.id),
+    dangerous: danger.dangerous, dangerousItems: danger.items, infoItems: danger.info,
+  };
 
+  const run = (): void => {
   db.transaction(() => {
     for (const s of applied.servers ?? []) {
       const content = serverContent(s);
+      const key = `server:${s.name}`;
       const existing = db.prepare('SELECT id FROM mcp_servers WHERE name = ?').get(s.name) as { id: number } | undefined;
-      if (existing) {
+      if (existing && keep(key)) {
+        report.kept.push(key);
+      } else if (existing) {
         db.prepare(
           `UPDATE mcp_servers SET name = @name, url = @url, auth_token = @auth_token, transport = @transport,
            command = @command, args = @args, env = @env, inventory_prompt = @inventory_prompt, side_effect = @side_effect, enabled = @enabled
            WHERE id = @id`
         ).run({ ...content, id: existing.id });
-        report.updated.push(`server:${s.name}`);
+        report.updated.push(key);
       } else {
         db.prepare(
           `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, side_effect, enabled)
            VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_prompt, @side_effect, @enabled)`
         ).run(content);
-        report.created.push(`server:${s.name}`);
+        report.created.push(key);
       }
       const row = db.prepare('SELECT id FROM mcp_servers WHERE name = ?').get(s.name) as { id: number } | undefined;
       recordItem(m.id, 'server', s.name, row?.id ?? null, hashContent('server', s.name, content));
     }
     for (const f of applied.functions ?? []) {
       const content = functionContent(f);
+      const key = `function:${f.name}`;
       const existing = db.prepare('SELECT id FROM tpl_functions WHERE name = ?').get(f.name) as { id: number } | undefined;
-      if (existing) {
+      if (existing && keep(key)) {
+        report.kept.push(key);
+      } else if (existing) {
         db.prepare(
           `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
            parameters = @parameters, budget = @budget, inventory_prompt = @inventory_prompt, side_effect = @side_effect, enabled = @enabled,
            updated_at = datetime('now') WHERE id = @id`
         ).run({ ...content, id: existing.id });
-        report.updated.push(`function:${f.name}`);
+        report.updated.push(key);
       } else {
         db.prepare(
           `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, side_effect, enabled)
            VALUES (@name, @description, @template, @parameters, @budget, @inventory_prompt, @side_effect, @enabled)`
         ).run(content);
-        report.created.push(`function:${f.name}`);
+        report.created.push(key);
       }
       const row = db.prepare('SELECT id FROM tpl_functions WHERE name = ?').get(f.name) as { id: number } | undefined;
       recordItem(m.id, 'function', f.name, row?.id ?? null, hashContent('function', f.name, content));
     }
     for (const ix of applied.indexes ?? []) {
       const key = ix.key ? `entity_index_${ix.key}` : 'entity_index';
+      const itemKey = `index:${key}`;
       const existed = getSetting(key) !== undefined;
-      setSetting(key, JSON.stringify(ix.config));
-      (existed ? report.updated : report.created).push(`index:${key}`);
+      if (existed && keep(itemKey)) {
+        report.kept.push(itemKey);
+      } else {
+        setSetting(key, JSON.stringify(ix.config));
+        (existed ? report.updated : report.created).push(itemKey);
+      }
       recordItem(m.id, 'index', key, null, hashContent('index', key, ix.config));
     }
     if (applied.allowTools?.length) {
@@ -159,7 +212,14 @@ export function installPackage(
        registry_url = excluded.registry_url, params = excluded.params, manifest_hash = excluded.manifest_hash,
        installed_at = datetime('now')`
     ).run(m.id, m.version, opts.source ?? 'registry', opts.registryUrl ?? null, JSON.stringify(safeParams), manifestHash(applied));
+    if (opts.dryRun) throw new DryRunSignal();
   })();
+  };
+  try {
+    run();
+  } catch (e) {
+    if (!(e instanceof DryRunSignal)) throw e;
+  }
 
   return report;
 }

@@ -6,6 +6,7 @@ import {
   uninstallPackage,
   listInstalledPackages,
   listPackageItems,
+  conflictItems,
 } from '../src/db/packages.js';
 import {
   parseManifest,
@@ -150,4 +151,37 @@ test('Backup-Roundtrip (Export -> Restore) ueber Route-Logik simuliert', () => {
     }
   })();
   assert.equal(getSetting('x1'), 'b');
+});
+
+test('Reinstall-Diff: lokal geaenderte Zeile wird gemeldet; Entscheidung take/keep; dryRun schreibt nicht', () => {
+  const db = getDb();
+  db.prepare("DELETE FROM tpl_functions WHERE name = 'test_fn'").run();
+  db.prepare("DELETE FROM mcp_servers WHERE name = 'Test MCP'").run();
+  db.prepare("DELETE FROM packages WHERE id = 'test-package'").run();
+  db.prepare("DELETE FROM package_items WHERE package_id = 'test-package'").run();
+  const opts = { source: 'registry', values: { host: '10.0.0.5', token: 'tok' } } as const;
+  installPackage(OK_MANIFEST as never, opts);
+
+  // lokal aendern -> Konflikt
+  db.prepare("UPDATE tpl_functions SET template = 'LOKAL' WHERE name = 'test_fn'").run();
+  assert.deepEqual(conflictItems('test-package'), ['function:test_fn']);
+
+  // Reinstall ohne Entscheidung: ueberschreibt, meldet aber den Konflikt
+  const r1 = installPackage(OK_MANIFEST as never, opts);
+  assert.deepEqual(r1.conflicts, ['function:test_fn']);
+  let fn = db.prepare("SELECT template FROM tpl_functions WHERE name = 'test_fn'").get() as { template: string };
+  assert.equal(fn.template, 'Server 10.0.0.5 meldet sich.');
+
+  // erneut lokal aendern, diesmal 'keep'
+  db.prepare("UPDATE tpl_functions SET template = 'LOKAL2' WHERE name = 'test_fn'").run();
+  const r2 = installPackage(OK_MANIFEST as never, { ...opts, decisions: { 'function:test_fn': 'keep' } });
+  assert.deepEqual(r2.kept, ['function:test_fn']);
+  fn = db.prepare("SELECT template FROM tpl_functions WHERE name = 'test_fn'").get() as { template: string };
+  assert.equal(fn.template, 'LOKAL2');
+
+  // dryRun berechnet den Report, schreibt aber nichts
+  const dry = installPackage(OK_MANIFEST as never, { ...opts, dryRun: true });
+  const nach = db.prepare("SELECT template FROM tpl_functions WHERE name = 'test_fn'").get() as { template: string };
+  assert.equal(nach.template, 'LOKAL2', 'dryRun schreibt nicht');
+  assert.deepEqual(dry.conflicts, ['function:test_fn']);
 });

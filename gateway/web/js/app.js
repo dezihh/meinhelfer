@@ -1035,31 +1035,50 @@ async function showInstallForm(id, manifestFromImport) {
     if (!preview) preview = await api(`/packages/manifest/${encodeURIComponent(id)}`);
     pkgState.selected = { id, preview };
     const m = preview.manifest;
+    // Bei bereits installierten Paketen: lokal geaenderte Zeilen zum Entscheiden anzeigen.
+    const installed = pkgState.installed.some((p) => p.id === id);
+    let conflicts = [];
+    if (installed) {
+      try { conflicts = (await api(`/packages/${encodeURIComponent(id)}/conflicts`)).conflicts ?? []; } catch { conflicts = []; }
+    }
     const danger = preview.dangerous ? `<div class="error-text pkg-danger">⚠️ Gefährliche Aktion: ${(preview.dangerousItems ?? []).map((i) => escHtml(i)).join(' · ')}</div>` : '';
     const info = (preview.infoItems ?? []).length ? `<div class="field-help">${(preview.infoItems ?? []).map((i) => escHtml(i)).join(' · ')}</div>` : '';
     const items = (preview.items ?? []).map((i) => `<li>${escHtml(i.kind)}: ${escHtml(i.name)}</li>`).join('');
+    const conflictsHtml = conflicts.length ? `
+      <div class="pkg-items pkg-conflicts">
+        <strong>Lokale Änderungen erkannt:</strong>
+        <p class="field-help">Diese Zeilen hast du nach der Installation bearbeitet. Ohne Entscheidung würde das Paket sie überschreiben.</p>
+        <ul>${conflicts.map((c) => `<li>${escHtml(c)}
+          <select data-decision="${escHtml(c)}">
+            <option value="take">Paket-Version übernehmen</option>
+            <option value="keep">Lokale Änderung behalten</option>
+          </select></li>`).join('')}</ul>
+      </div>` : '';
     $('pkg-install-form').classList.remove('hidden');
     $('pkg-install-form').innerHTML = `
       <h3>${escHtml(m.name)} <span class="pkg-version">v${escHtml(m.version)}</span></h3>
       <p class="field-help">${escHtml(m.description ?? '')}</p>
       ${m.requires ? `<p class="field-help"><strong>Benötigt:</strong> ${escHtml(m.requires)}</p>` : ''}
       ${danger}${info}
-      <div class="pkg-items"><strong>Angelegt werden:</strong><ul>${items}</ul></div>
+      ${conflictsHtml}
+      <div class="pkg-items"><strong>Enthält:</strong><ul>${items}</ul></div>
       ${preview.setupDocs ? `<details><summary>Einrichtung Gegenseite</summary><pre class="pkg-docs">${escHtml(preview.setupDocs)}</pre></details>` : ''}
       <div class="form-grid">${paramForm(m)}</div>
       <div class="toolbar">
-        <button id="pkg-install-go" class="btn primary">Installieren</button>
+        <button id="pkg-install-go" class="btn primary">${installed ? 'Aktualisieren' : 'Installieren'}</button>
         <button id="pkg-install-cancel" class="btn">Abbrechen</button>
       </div>`;
     $('pkg-install-go').onclick = async () => {
       const params = {};
       for (const input of $('pkg-install-form').querySelectorAll('[data-param]')) params[input.dataset.param] = input.value;
+      const decisions = {};
+      for (const sel of $('pkg-install-form').querySelectorAll('[data-decision]')) decisions[sel.dataset.decision] = sel.value;
       try {
-        const body = { params, dangerousAck: !!preview.dangerous };
+        const body = { params, dangerousAck: !!preview.dangerous, decisions };
         if (manifestFromImport) body.manifest = manifestFromImport.manifest;
         const r = await api(`/packages/${encodeURIComponent(id)}/install`, { method: 'POST', body });
         const rep = r.report;
-        alert(`Angelegt: ${rep.created.length}\nAktualisiert: ${rep.updated.length}\n${rep.infoItems?.length ? 'Info: ' + rep.infoItems.join(' · ') : ''}`);
+        alert(`Angelegt: ${rep.created.length}\nAktualisiert: ${rep.updated.length}\nBehalten: ${rep.kept?.length ?? 0}\n${rep.infoItems?.length ? 'Info: ' + rep.infoItems.join(' · ') : ''}`);
         showInstallFormClose();
         loadMaintenance();
       } catch (e) { alert(e.message); }

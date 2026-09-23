@@ -50,6 +50,7 @@ export {
   listPackageItems,
   installPackage,
   uninstallPackage,
+  conflictItems,
   type InstalledPackageRow,
   type PackageItemRow,
   type PackageReport,

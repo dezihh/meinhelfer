@@ -5,6 +5,7 @@ import {
   listInstalledPackages,
   listPackageItems,
   uninstallPackage,
+  conflictItems,
   parseManifest,
   manifestDangerous,
   manifestItems,
@@ -127,7 +128,7 @@ packagesRoutes.post('/admin/api/packages/preview', requireAuth, (req, res) => {
 // Install: Registry-Id ODER Offline-Manifest im Body; Parameter per Body.
 packagesRoutes.post('/admin/api/packages/:id/install', requireAuth, async (req, res) => {
   try {
-    const body = req.body as { manifest?: unknown; params?: Record<string, string>; dangerousAck?: boolean };
+    const body = req.body as { manifest?: unknown; params?: Record<string, string>; dangerousAck?: boolean; dryRun?: boolean; decisions?: Record<string, 'take' | 'keep'> };
     let manifest: PackageManifest;
     if (body.manifest) {
       const parsed = parseManifest(JSON.stringify(body.manifest));
@@ -142,9 +143,13 @@ packagesRoutes.post('/admin/api/packages/:id/install', requireAuth, async (req, 
       registryUrl: body.manifest ? null : registryUrl(),
       values,
       dangerousAck: body.dangerousAck,
+      decisions: body.decisions,
+      dryRun: body.dryRun,
     });
-    invalidateMcpCache();
-    invalidateIndex();
+    if (!body.dryRun) {
+      invalidateMcpCache();
+      invalidateIndex();
+    }
     res.json({ report });
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
@@ -174,6 +179,15 @@ packagesRoutes.get('/admin/api/packages', requireAuth, async (_req, res) => {
     registry = null;
   }
   res.json({ installed, registry });
+});
+
+// Lokale Abweichungen eines installierten Pakets (Diff vor dem Reinstall).
+packagesRoutes.get('/admin/api/packages/:id/conflicts', requireAuth, (req, res) => {
+  try {
+    res.json({ conflicts: conflictItems(String(req.params.id ?? '')) });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
 });
 
 // --- Sicherung / Rücksicherung (logischer JSON-Export, ohne Logs) ---
