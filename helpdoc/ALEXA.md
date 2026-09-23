@@ -97,19 +97,59 @@ Admin-API sollen nicht öffentlich erreichbar sein.
 
 ## Lambda bereitstellen
 
-Im Repository existiert ein Workflow `deploy-aws-lambda.yml`. Eine
-vollständige manuelle Anleitung einschließlich erstmaliger AWS-Ressourcen,
-IAM-Rollen und erforderlicher GitHub-Secrets fehlt noch.
+### Weg 1: GitHub-Workflow (dokumentiert und getestet)
 
-### Was noch dokumentiert werden muss
+Der Workflow `deploy-aws-lambda.yml` (manueller Start, `workflow_dispatch`)
+erledigt alles in einem Durchlauf:
 
-- Region und unterstützte Python-Laufzeit
-- Erstellung der Lambda-Funktion
-- Ausführungsrolle und minimale IAM-Rechte
-- Alexa-Skills-Kit-Trigger und dessen Skill-ID-Beschränkung
-- erforderliche GitHub-Secrets und Variablen
-- Einbringen der produktiven `config.json`
-- Rollback und Log-Auswertung in CloudWatch
+1. Baut das Zip aus `alexa/lambda/` (lambda_function.py + ask-sdk/requests)
+2. Legt die Funktion `meinhelfer-alexa` an oder aktualisiert sie
+   (Python 3.14, 512 MB, Timeout konfigurierbar, Default 30 s)
+3. Legt bei Bedarf die IAM-Ausführungsrolle
+   `meinhelfer-lambda-execution` automatisch an (inkl. CloudWatch-Logs-Policy)
+4. Setzt die Env-Variablen: `gateway_url` und `gateway_token` kommen aus
+   GitHub-Secrets — nie ins Repo; `watchdog_delay`, `gateway_timeout`,
+   `skill_name`, `assistant_name` und `apl_exit_delay_ms` setzt der Workflow
+   auf feste Werte.
+5. Setzt den Alexa-Skills-Kit-Trigger (`aws lambda add-permission` mit der
+   Skill-ID als `event-source-token`). Ohne diesen Trigger lehnt Amazon den
+   ARN-Endpoint ab: „The trigger setting for the Lambda … is invalid".
+
+**Erforderliche GitHub-Secrets:**
+
+| Secret | Zweck |
+|---|---|
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS-Deploy-Benutzer |
+| `AWS_REGION` | Region, Default `eu-west-1` |
+| `AWS_LAMBDA_ROLE` | optional: bestehende Rollen-ARN überspringt die Auto-Anlage |
+| `GATEWAY_URL` | öffentliche Basisadresse des Gateways |
+| `GATEWAY_TOKEN` | muss mit `AUTH_TOKEN` des Gateways übereinstimmen |
+| `ALEXA_SKILL_ID` | Skill-ID für den Trigger |
+
+**Nach dem Workflow:** Das Skill-Manifest muss einmalig auf die neue
+Lambda-ARN umgestellt werden (Workflow `sync-manifest.yml` oder
+Alexa-Console). Wichtig: Amazon prüft alle Regions-Endpoints — nur das
+Top-Level-`endpoint` zu setzen reicht nicht; der Workflow schreibt
+`regions.EU.endpoint` mit.
+
+### Weg 2: Manuell (noch nicht vollständig dokumentiert)
+
+Eine vollständige manuelle Anleitung einschließlich erstmaliger
+AWS-Ressourcen fehlt noch. Die vom Workflow automatisierten Schritte geben
+die Reihenfolge vor:
+
+- Region und Runtime (Python 3.14) wählen
+- Ausführungsrolle mit Lambda-Basic-Execution-Trust und
+  CloudWatch-Logs-Policy anlegen
+- Zip aus `alexa/lambda/` bauen (lambda_function.py + Abhängigkeiten)
+- Funktion `meinhelfer-alexa` erstellen (Handler
+  `lambda_function.lambda_handler`, Timeout > 8 s, 512 MB)
+- Env-Variablen setzen (`gateway_url`, `gateway_token`, `watchdog_delay=5`,
+  `gateway_timeout=max(9, timeout-3)`, `skill_name`, `assistant_name`,
+  `apl_exit_delay_ms=90000`)
+- Alexa-Skills-Kit-Trigger mit Skill-ID-Beschränkung hinzufügen
+- Skill-Manifest-Endpoint auf den Funktions-ARN umstellen
+- Rollback: vorheriges Zip erneut hochladen; Logs in CloudWatch auswerten
 
 ### So wird das nachgebildet
 

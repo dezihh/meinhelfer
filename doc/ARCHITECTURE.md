@@ -2,6 +2,14 @@
 
 > Zentrale Architekturregeln von meinhelfer. Festgehalten nach Review 2026-09-06
 > (Improvement-Issues #3–#6, POC-Entscheidungen in [DESIGN_WEBUI.md](DESIGN_WEBUI.md)).
+>
+> **Hinweis zur Aktualität:** Dieses Dokument ist ein Design-Archiv. Einzelne
+> Beispiele und Details sind überholt — aktuell sind die Template-Bausteine
+> `index.*` / `mcp.call` / `http` / `shell` / `fn` (nicht mehr `ha.*`), der
+> Modus `search_summary` wurde entfernt, das LLM wird über einen eigenen
+> OpenAI-kompatiblen Client angebunden (kein litellm), und die
+> Alexa-Signaturprüfung steht per Default auf `enforce`. Bei Widersprüchen
+> gilt der Code und die Nutzer-Doku in `helpdoc/`.
 
 ## Zentrale Architekturregel: Adapter-Muster
 
@@ -78,9 +86,9 @@ Routing-Details und Latenzbudgets: [DESIGN_WEBUI.md](DESIGN_WEBUI.md), [DESIGN_S
 
 | Ebene | Stand (Implementierung) | Später (Improvement) |
 |---|---|---|
-| **Client-Auth** (Alexa → Gateway `/alexa`) | `applicationId`-Vergleich gegen `ALEXA_SKILL_ID` (aktiv, sobald gesetzt); optionale Alexa-Signatur-Verifikation (Zertifikatskette gem. Amazon, Timestamp-Toleranz) via `ALEXA_VERIFY_MODE` off/warn/enforce (Default `off`) | — |
-| **API-/Admin-Auth** (`/api/*`, `/admin/*`) | Bearer-Token (`AUTH_TOKEN`), constant-time über `timingSafeEqual` | Replay-Schutz via HMAC (Timestamp + Nonce) → Issue #5 |
-| **MCP-Server-Auth** (Gateway → HA-MCP `192.168.10.3:9584/mcp`) | ohne Token (LAN-intern, Community-Server ha-mcp) | falls später exponiert: Bearer-Token in der MCP-Registry |
+| **Client-Auth** (Alexa → Gateway `/alexa`) | `applicationId`-Vergleich gegen `ALEXA_SKILL_ID` (aktiv, sobald gesetzt); Alexa-Signatur-Verifikation (Zertifikatskette gem. Amazon, Timestamp-Toleranz) via `ALEXA_VERIFY_MODE` off/warn/enforce — **Default `enforce`** (Fail-closed) | — |
+| **API-/Admin-Auth** (`/api/*`, `/admin/*`) | Bearer-Token (`AUTH_TOKEN`), constant-time über `timingSafeEqual`; Admin-UI zusätzlich mit Session-Login | Replay-Schutz via HMAC (Timestamp + Nonce) → Issue #5 |
+| **MCP-Server-Auth** (Gateway → MCP-Server) | je nach Server: ohne Token (LAN-intern) oder Bearer-Token in der MCP-Registry | falls später exponiert: Bearer-Token in der MCP-Registry |
 
 - Zweck der Client-Auth auf `/alexa`: „Der Request kommt von meinem Alexa-Skill (applicationId) und wirklich von Amazon (Signatur)."
 - Eine spätere Trennung zwischen Client-Authentifizierung und User-Identität bleibt möglich
@@ -209,7 +217,7 @@ Domain mitgeben) und Doppel-/Geister-Entities im Quellsystem ausräumen.
 
 | Dienst | Endpoint (konfigurierbar via `.env`) |
 |---|---|
-| LLM | LiteLLM (OpenAI-kompatibel, `chat/completions`; Base-URL via Env `LLM_BASE_URL`, z. B. Modell `chat-fast`/`chat-quality`; API-Key via Env) |
+| LLM | eigener OpenAI-kompatibler Client (`chat/completions`; Base-URL via Env `LLM_BASE_URL`, Modell via `LLM_MODEL`, API-Key via Env; optionaler Fallback-Endpunkt) |
 | MCP (HA) | HA-MCP-Server (Streamable HTTP, Bearer; URL/Token in der MCP-Registry) |
 
 Weitere fachliche Dienste werden bewusst **nur allgemein** hier geführt: sie

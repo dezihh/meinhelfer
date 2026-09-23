@@ -49,22 +49,22 @@ Snapshot normalerweise einmal geladen und neunmal lokal verwendet.
 
 Der aktuelle Stand verwirft den gesamten Entity-Index unter anderem:
 
-- nach MCP- oder Funktionsaufrufen im Agenten-Toolloop,
+- nach **schreibenden** MCP- oder Funktionsaufrufen im Agenten-Toolloop
+  (`sideEffect: write`, der Default),
 - beim Speichern oder Löschen einer Index-Quelle,
-- beim Anwenden eines Entwurfs aus dem Index-Assistenten.
+- beim Anwenden eines Entwurfs aus dem Index-Assistenten,
+- bei Paketinstallation, Paketentfernung und Rücksicherung.
+
+Rein lesende Aufrufe (`sideEffect: read`) invalidieren den Index nicht —
+so bleibt z. B. eine reine Suchfrage ohne unnötigen Snapshot-Neuaufbau. Die
+Eingabe `sideEffect` steht Funktionen und Paket-Servern als Feld zur
+Verfügung; der Default `write` ist konservativ.
 
 Die eingebauten reinen Lesewerkzeuge `fn_find_entities` und `fn_get_entity`
 invalidieren den Index nicht.
 
-Die Invalidierung nach beliebigen MCP- und Funktionsaufrufen ist konservativ:
-Auch ein rein lesender Aufruf kann dadurch den nächsten Snapshot neu laden.
-Sie verhindert dafür, dass eine nachfolgende Lesefrage nach einer möglichen
-Schreibaktion lange einen alten Zustand erhält.
-
-Paketinstallation, Paketentfernung und Rücksicherung aktualisieren derzeit den
-MCP-Katalog. Ob sie auch den Entity-Index unmittelbar invalidieren, muss am
-jeweiligen Implementierungsstand geprüft werden. Nach einer geänderten
-Index-Konfiguration ist ein Gateway-Neustart der eindeutige Fallback.
+Nach einer geänderten Index-Konfiguration ist ein Gateway-Neustart der
+eindeutige Fallback.
 
 ### TTL wählen
 

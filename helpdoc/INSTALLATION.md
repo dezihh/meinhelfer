@@ -54,12 +54,8 @@ flowchart LR
 | Laufzeit | Docker mit Compose-Plugin | sofort |
 | KI-Modell | erreichbare OpenAI-kompatible Chat-Completions-Schnittstelle | sofort |
 | Konfiguration | langer, zufälliger Admin-Token | sofort |
-| Fähigkeiten | je nach Bedarf externe Systeme, etwa Home Assistant oder Websuche | nach dem Grundtest |
 | Alexa | Amazon-Konto, AWS-Konto und öffentliche HTTPS-Adresse | erst für Alexa |
 
-Home Assistant ist keine Voraussetzung für MeinHelfer. Nach dem Grundtest
-wählst du die Fähigkeiten, die du tatsächlich brauchst, als
-Installationspakete aus.
 
 Der getestete und dokumentierte Installationsweg verwendet Docker Compose.
 Das Gateway kann voraussichtlich auch direkt mit Node.js betrieben werden,
@@ -79,6 +75,21 @@ Anleitung.
 Die folgenden Abschnitte behandeln zunächst den lokalen Teil. Die Alexa-
 Anbindung folgt erst, wenn die ersten vier Etappen abgeschlossen sind.
 
+### Etappe 4: Konfiguration sichern
+
+Alle Einstellungen, Funktionen, Vorgänge und Index-Quellen liegen in der
+SQLite-Datenbank (`gateway/data/meinhelfer.db`). Zwei Wege, das Setup zu
+sichern:
+
+- **Backup über die Admin-Oberfläche** (Tab „Wartung und Pakete"): lädt eine
+  JSON-Sicherung der Konfiguration herunter; dieselbe Stelle bietet das
+  Einspielen (Restore) zurück.
+- **Datenvolume sichern**: den Ordner `gateway/data/` mit üblichen
+  Mitteln (rsync, Snapshot) kopieren, während der Container gestoppt ist.
+
+Die Wiederherstellung prüfst du, indem du nach einem Restore dieselbe Frage
+im Testmonitor stellst und die Vorgänge unverändert erscheinen.
+
 ## Gateway-Umgebung
 
 Diese Variablen liest der Gateway-Code beim Start:
@@ -90,10 +101,13 @@ Diese Variablen liest der Gateway-Code beim Start:
 | `LLM_API_KEY` | ja | API-Schlüssel; der Prozess verlangt einen Wert |
 | `PORT` | nein | Gateway-Port, Standard `3000` |
 | `DB_PATH` | nein | SQLite-Datei im persistierten Datenvolume, Standard `./data/meinhelfer.db` |
-| `LLM_MODEL` | ja | Name des am LLM-Endpunkt bereitgestellten Modells |
+| `LLM_MODEL` | nein | Name des Modells, Standard `chat-fast` (am Endpunkt bereitgestellten Namen eintragen) |
 | `LLM_MAX_TOKENS` | nein | Ausgabe-Budget, Standard `2000` |
 
-Die Alexa-spezifischen Variablen werden erst im Kapitel zur Alexa-Anbindung
+Weitere optionale Variablen (Tool-Runden, Deadline, Keepalive, Fallback) sind
+in der [Referenz](REFERENCE.md#laufzeitkonfiguration) aufgelistet. Die
+Alexa-spezifischen Variablen (`ALEXA_SKILL_ID`, `ALEXA_VERIFY_MODE`,
+`ALEXA_DIRECTIVES_BASE`) werden erst im Kapitel [Alexa anbinden](#alexa-anbinden)
 benötigt und dort erklärt.
 
 ### Modell wählen
@@ -111,7 +125,6 @@ gewählte Modell zunächst im Testmonitor, bevor du Pakete oder Alexa ergänzt.
 
 ## Docker-Compose-Installation
 
-Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 
 ### Voraussetzungen
 
@@ -135,7 +148,7 @@ Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
    AUTH_TOKEN=<langen-zufälligen-wert-eintragen>
    LLM_BASE_URL=https://<llm-endpunkt>/v1
    LLM_API_KEY=<api-schlüssel>
-   LLM_MODEL=<tool-fähiger-modellname>
+   LLM_MODEL=<LLM-modellname>
    ```
 
    `DB_PATH` kann auf dem Standardwert bleiben. Die Compose bindet das
@@ -143,15 +156,15 @@ Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
    SQLite-Datenbank. Dieses Verzeichnis nicht löschen, wenn Konfiguration,
    Pakete, Funktionen und Vorgänge ein Update überleben sollen.
 
-3. Container bauen und starten; Host-Port waehlen:
+3. Container bauen und starten; Host-Port wählen:
 
        GATEWAY_PORT=8332 docker compose up -d --build
 
    `GATEWAY_PORT` ist nur das Host-Port-Mapping (der Code liest `PORT`,
    im Container 3000). Ohne Angabe: Port 3000.
 
-4. Admin-Oberflaeche oeffnen: `http://<host>:<port>/admin` — Login mit
-   `AUTH_TOKEN` (Login-Seite: `/admin/login.html`, geschuetzt gegen
+4. Admin-Oberfläche öffnen: `http://<host>:<port>/admin` — Login mit
+   `AUTH_TOKEN` (Login-Seite: `/admin/login.html`, geschützt gegen
    Brute-Force-Rate-Limit).
 
 5. Testmonitor pruefen (Tab „Monitor / Test"): eine Frage stellen und eine
@@ -160,31 +173,31 @@ Getestet mit frischem Clone und leerem Datenvolume (22.09.2026).
 ### Was die Compose tut
 
 - Baut und startet das Gateway als Container
-- `./gateway/data` als persistentes Volume fuer `DB_PATH`
+- `./gateway/data` als persistentes Volume für `DB_PATH`
   (`./data/meinhelfer.db` im Container)
-- Uebergibt alle Variablen aus `gateway/.env` an den Container
+- Übergibt alle Variablen aus `gateway/.env` an den Container
 - Restart-Strategie `unless-stopped`
 
 Die zwei Basis-Werkzeuge `fn_find_entities` und `fn_get_entity` sind
 **fest im Gateway-Code eingebaut** (built-in): sie erscheinen bewusst **nicht**
-in der Tab „Funktionen", sind nicht editierbar und werden von keinem Backup,
-Restore oder Paket angefasst - die Lesefaehigkeit des Agenten ist damit
-unzerstoerbar. Die Anbindung an einen Dienst steckt im Entity-Index-Setting
+im Tab „Funktionen", sind nicht editierbar und werden von keinem Backup,
+Restore oder Paket angefasst - die Lesefähigkeit des Agenten ist damit
+unzerstörbar. Die Anbindung an einen Dienst steckt im Entity-Index-Setting
 (Tab „Index-Quellen"), nicht im Werkzeugnamen.
 
 Ebenfalls Grundausstattung ist die generische **Hilfe-Action** `hilfe`
 („was kannst du?", „hilfe"): sie listet die im Tool-Inventory beschriebenen
-Faehigkeiten auf, ohne selbst Tools zu rufen - je nach installierten Paketen
+Fähigkeiten auf, ohne selbst Tools zu rufen - je nach installierten Paketen
 also automatisch passend. Sie ist editierbar und liegt im Seed.
 
 Alles Weitere - MCP-Server, Entity-Index, weitere Funktionen, weitere
-Vorgaenge - kommt bewusst nicht automatisch, sondern ueber die
+Vorgänge - kommt bewusst nicht automatisch, sondern über die
 **Installationspakete** (Tab „Wartung und Pakete") oder manuell.
 
 ### Prüfen
 
 - Monitor-Antwort auf „wie heisst du" korrekt mit dem Assistenten-Namen.
-- Admin-Oberflaeche 401 ohne Session, Login-Seite 200.
+- Admin-Oberfläche 401 ohne Session, Login-Seite 200.
 - Nach `docker compose restart` bleiben die Daten erhalten.
 
 ## LLM-Schnittstelle
@@ -211,19 +224,76 @@ Agent-Vorgänge nicht.
 Der Testmonitor funktioniert lokal. Alexa benötigt einen öffentlich
 erreichbaren HTTPS-Weg zum Skill-Endpunkt.
 
+### Referenzaufbau mit nginx
+
+Bewährtes Muster: Der Reverse-Proxy beendet TLS und trennt öffentlich und
+lokal. Nur `/alexa` ist aus dem Internet erreichbar; Admin-Oberfläche und
+Admin-API bleiben im LAN.
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name <gateway-host>;
+    ssl_certificate     /etc/letsencrypt/live/<gateway-host>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<gateway-host>/privkey.pem;
+
+    # Öffentlicher API-Weg: die Lambda ruft /api/query mit Bearer-Token auf
+    location /api {
+        proxy_pass http://127.0.0.1:8332;
+        proxy_read_timeout 35s;   # Agent-Ketten können 10–15 s dauern
+        proxy_set_header Host $host;
+    }
+
+    # Direkter Skill-Endpunkt (nur für den Betrieb ohne eigene Lambda)
+    location /alexa {
+        proxy_pass http://127.0.0.1:8332;
+        proxy_read_timeout 35s;
+        proxy_set_header Host $host;
+    }
+
+    # Admin-Oberfläche und Admin-API: nur aus dem LAN
+    location /admin {
+        allow 192.168.0.0/16;     # eigenes LAN eintragen
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://127.0.0.1:8332;
+    }
+
+    location /privacy {
+        proxy_pass http://127.0.0.1:8332;
+    }
+}
+```
+
+Hinweise:
+
+- `proxy_read_timeout 35s` ist wichtig: Agent-Antworten mit Websuche können
+  10–15 s dauern; Amazons Standard-Timeout würde vorher abbrechen.
+- `/api` ist bewusst öffentlich erreichbar: Die Lambda ruft aus AWS heraus
+  an und kann nicht auf eine LAN-Allowlist. Die Absicherung übernimmt der
+  Bearer-Token (`AUTH_TOKEN`).
+- TLS-Zertifikate per Let's Encrypt (certbot) oder eigenem Wildcard-Zertifikat.
+- Die Lambda ruft `gateway_url` (Basisadresse) auf und ergänzt selbst den
+  API-Pfad (`/api/query`).
+
 ### Was noch fehlt
 
-- unterstützter Reverse Proxy
-- TLS- und Weiterleitungsbeispiel
-- öffentlicher Pfad für `/alexa`
-- LAN-Beschränkung für Admin-Oberfläche und `/admin/*`
-- Firewall- und Rate-Limit-Regeln
+- Firewall- und Rate-Limit-Regeln für den öffentlichen Host
+- Caddy-/Traefik-Variante des Referenzaufbaus
 
 ### Sicherheitsziel
 
-Nur der Alexa-Endpunkt soll öffentlich erreichbar sein. Admin-Oberfläche und
-Admin-API gehören ins lokale Netz. Für öffentliche Deployments muss die
-Alexa-Signaturprüfung auf `enforce` stehen.
+Öffentlich erreichbar sind nur der API-Weg für die Lambda (`/api`, durch den
+Bearer-Token geschützt) und der Skill-Endpunkt (`/alexa`). Admin-Oberfläche
+und Admin-API gehören ins lokale Netz. Für öffentliche Deployments muss die
+Alexa-Signaturprüfung auf `enforce` stehen (das ist der Code-Default).
+
+## Alexa anbinden
+
+Die Alexa-Anbindung ist ein eigenes Kapitel:
+[Alexa anbinden](ALEXA.md). Es behandelt Skill-Konfiguration,
+Modell-/Manifest-Sync, Lambda-Deployment und Gateway-Härtung. Beginne erst
+damit, wenn die ersten vier Etappen abgeschlossen sind.
 
 ## Abnahme
 
@@ -232,4 +302,5 @@ Alexa-Signaturprüfung auf `enforce` stehen.
 - Admin-Token schützt Oberfläche und API.
 - Testmonitor liefert eine Antwort.
 - Logs zeigen Route, Dauer und Antwort.
-- Bei Alexa-Nutzung ist nur der notwendige Endpoint öffentlich exponiert.
+- Bei Alexa-Nutzung sind nur `/api` und `/alexa` öffentlich exponiert;
+  `/admin/*` bleibt auf das LAN beschränkt.

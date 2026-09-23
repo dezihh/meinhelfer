@@ -17,9 +17,9 @@ hiervon etwas, beginne mit [Installation](INSTALLATION.md).
 
 **Prüfung:** Die Tabs laden ohne Autorisierungsfehler.
 
-> **Noch zu dokumentieren:** Die öffentliche Standardadresse der
-> Admin-Oberfläche ist nicht festgelegt. Lokal verwendet das Gateway
-> standardmäßig Port `3000`.
+Die Standardadresse der Admin-Oberfläche ist `http://<host>:<port>/admin`
+(Login-Seite: `/admin/login.html`). Lokal verwendet das Gateway standardmäßig
+Port `3000`; der Host-Port wird beim Start über `GATEWAY_PORT` gewählt.
 
 ## 2. Home Assistant verbinden
 

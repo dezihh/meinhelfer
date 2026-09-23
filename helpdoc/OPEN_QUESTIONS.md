@@ -3,25 +3,21 @@
 Diese Liste ist kein Restmüllplatz für vage TODOs. Jeder Punkt nennt die
 fehlende Information und eine reproduzierbare Methode, sie zu erheben.
 
+## Erledigt (Stand 23.09.2026)
+
+- **Gateway-Installationsweg**: Docker Compose ist der getestete und
+  dokumentierte Weg ([Installation](INSTALLATION.md), getestet 22.09.2026).
+- **Gateway-Container**: Dockerfile, Compose-Service und Volumes liegen im
+  Repository (`gateway/Dockerfile`, `docker-compose.yaml`).
+- **Reverse Proxy und TLS**: nginx-Referenzaufbau in
+  [Installation](INSTALLATION.md#netzwerk-und-https).
+- **Lambda-Deployment (Workflow-Weg)**: Secrets-Tabelle und Ablauf in
+  [Alexa anbinden](ALEXA.md#lambda-bereitstellen).
+- **Paket-Invalidierung**: Install/Uninstall/Restore verwerfen MCP-Katalog
+  und Entity-Index ([Cache](CACHE.md)).
+- **Alexa-Signatur-Default**: Code und Doku stimmen überein (`enforce`).
+
 ## Priorität 1: Installation
-
-### Offizieller Gateway-Installationsweg
-
-**Fehlt:** Entscheidung, ob Docker Compose, direkter Node.js-Betrieb oder
-beides unterstützt wird.
-
-**Erheben:** Eine Neuinstallation auf einem leeren Zielsystem durchführen und
-alle Befehle, Dateien, Rechte und Neustartschritte protokollieren.
-
-**Erfolg:** Ein Dritter erreicht ohne Vorwissen den funktionierenden Monitor.
-
-### Gateway-Container
-
-**Fehlt:** Dockerfile/Image, Compose-Service, Volumes, Healthcheck,
-Dateirechte und stdio-Pakete.
-
-**Erheben:** Produktive Definition anonymisieren, mit leerem Volume testen und
-anschließend ins Repository aufnehmen.
 
 ### LLM-Server
 
@@ -31,30 +27,17 @@ Hardwarebedarf und getestete Latenzwerte.
 **Erheben:** Für jede unterstützte Variante eine minimale Anfrage, einen
 Tool-Aufruf und finales JSON testen.
 
-### Reverse Proxy und TLS
-
-**Fehlt:** konkrete Referenzkonfiguration und Netzwerkbild.
-
-**Erheben:** Produktiven Proxy anonymisieren; extern `/alexa`, intern
-Admin-UI und API testen; Zertifikatserneuerung dokumentieren.
-
 ## Priorität 2: Alexa und AWS
 
-### Erstmaliges Lambda-Deployment
+### Manuelles Lambda-Deployment
 
-**Fehlt:** Region, Runtime, IAM-Rolle, Trigger, Secrets und manuelle
-Vorarbeiten des Workflows.
+**Fehlt:** vollständige manuelle Anleitung (Region, Runtime, IAM-Rolle,
+Trigger, Secrets) für Betreiber ohne GitHub-Actions-Weg. Die vom Workflow
+automatisierten Schritte sind in [Alexa anbinden](ALEXA.md) als Reihenfolge
+dokumentiert.
 
 **Erheben:** Deployment mit einer neuen Lambda-Funktion durchspielen und jeden
 Schritt bis zum erfolgreichen Simulator-Test festhalten.
-
-### GitHub Actions
-
-**Fehlt:** vollständige Tabelle aller Secrets und Variablen mit Zweck und
-Bezugsquelle.
-
-**Erheben:** Workflow-Dateien auswerten und jeden Wert in einer Testumgebung
-auf Notwendigkeit prüfen. Keine Secret-Werte dokumentieren.
 
 ### Physische Alexa-Einrichtung
 
@@ -82,33 +65,24 @@ und klare Auswahl zwischen SearXNG, Brave und nativer Modellsuche.
 **Erheben:** Je Variante dieselben drei Fragen ausführen und Aufrufzahl,
 Latenz und Ergebnisqualität vergleichen.
 
-### Verkehr
-
-**Fehlt:** konkrete API, URL, Datenfelder und vollständiges Template.
-
-**Erheben:** Öffentlichen Endpoint auswählen, Body-Limit prüfen und ein
-anonymisiertes Rezept mit leerer und langer Meldungsliste testen.
-
 ### Wetter
 
-**Fehlt:** offiziell verwendete API und Lizenz-/Quellenhinweis.
+**Fehlt:** offiziell verwendete API und Lizenz-/Quellenhinweis. Das Paket
+`open-meteo-wetter` nutzt Open-Meteo; das Rezept in
+[Praxisrezepte](RECIPES.md) verwendet noch eine Platzhalter-URL.
 
-**Erheben:** Anbieter festlegen, Beispiel-URL mit Platzhalterkoordinaten testen
-und Wettercode-Mapping vervollständigen.
+**Erheben:** Rezept auf Open-Meteo umstellen und Wettercode-Mapping
+vervollständigen.
 
 ## Widersprüche im aktuellen Bestand
 
-### Alexa-Signaturprüfung
-
-Der bisherige README nennt `off` als Default; der aktuelle Gateway-Code setzt
-`enforce`. Für den Entwurf gilt der Code. Der alte Text muss bei der späteren
-Übernahme korrigiert werden.
-
 ### Modell-Fallback
 
-Die vorhandene Dokumentation sagt, es gebe keine Fallback-Kaskade. Der Code
+Die ältere Fachdokumentation sagt, es gebe keine Fallback-Kaskade. Der Code
 enthält jedoch `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` und
-`LLM_FALLBACK_AFTER_MS`. Verhalten und beabsichtigter Supportstatus klären.
+`LLM_FALLBACK_AFTER_MS` (nur für Anfragen ohne Tools). Verhalten ist in
+[Referenz](REFERENCE.md#laufzeitkonfiguration) beschrieben; der Supportstatus
+als offizielles Feature ist noch zu erklären.
 
 ### Seed-Prompt
 
@@ -121,12 +95,8 @@ oder die Absicht dokumentieren.
 Einige Hilfetexte nennen noch `ha.state`, `ha.call` oder direkte
 Vorgangs-Templates, während die aktuelle Architektur `index.*`, `mcp.call`
 und Funktionen verwendet. UI und Dokumentation gemeinsam angleichen.
-
-### Tool-Auswahl
-
-Texte unterscheiden sich darin, ob eine leere Auswahl „alle“ oder „keine“
-Werkzeuge bedeutet. Backend-Kompatibilitätsverhalten und aktuelle
-UI-Speicherung mit einem Fresh-Install-Test festhalten.
+Zudem nennen UI-Hilfetexte falsche Defaults (4 Tool-Runden / 12000 ms statt
+6 / 9000 ms).
 
 ## Abnahmekriterien für die endgültige Dokumentation
 

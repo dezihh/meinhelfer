@@ -1,7 +1,8 @@
 ﻿# MeinHelfer einrichten und verstehen
 
-Diese Dokumentation ist ein neuer, leichter zugänglicher Entwurf. Sie lässt die
-bisherigen Dateien in `doc/` und den bisherigen `README.md` unverändert.
+Diese Dokumentation ist die maßgebliche Nutzer-Dokumentation des Projekts.
+Die Design-Dokumente in `doc/` bleiben als technischer Hintergrund für
+Entwickler bestehen und werden dort verlinkt, wo sie passen.
 
 Du musst nicht zuerst die gesamte Architektur verstehen. Für den Einstieg
 reichen vier Begriffe und ein vollständiger Einrichtungsweg.
@@ -90,11 +91,10 @@ Die folgenden Angaben lassen sich aus dem Repository derzeit nicht vollständig
 ableiten. Die zugehörigen Kapitel sind trotzdem angelegt und beschreiben
 jeweils, welche Information noch ergänzt und wie sie geprüft werden muss.
 
-- Offiziell unterstützter Installationsweg für das Gateway
-- Vollständige Docker- beziehungsweise Compose-Konfiguration
 - Installation und Betrieb der OpenAI-kompatiblen LLM-Schnittstelle
-- Referenzaufbau für Domain, TLS und Reverse Proxy
+  (unterstützte Anbieter, getestete Modellnamen, Latenzwerte)
 - Vollständiger manueller AWS-Lambda- und Alexa-Deploymentweg
+  (der Workflow-Weg ist dokumentiert, der manuelle Weg fehlt)
 - Unterstützte Host-Betriebssysteme und Mindestanforderungen
 
 Eine zentrale Liste steht in [Offene Angaben](OPEN_QUESTIONS.md).

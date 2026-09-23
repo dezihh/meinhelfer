@@ -13,6 +13,7 @@ dem [Schnellstart](QUICKSTART.md).
 | Funktionen | wiederverwendbare Templates erstellen und testen |
 | Index-Quellen | gecachte Lesesichten konfigurieren |
 | Tool-Registry | MCP-Server verbinden und Werkzeuge abfragen |
+| Wartung und Pakete | Installationspakete, Backup und Restore |
 | Logs | Anfragen, Route, Laufzeit und Verbrauch prüfen |
 
 ## Funktionsfelder
@@ -43,6 +44,13 @@ Argumentierte Funktionen sollten erforderliche Felder in `required` nennen.
 | `fn(name)` | Funktion einbetten | Tiefe 3, Zyklusschutz |
 | `args` | Funktionsargumente | Schema für Agentennutzung nötig |
 | `now` | Stunde, Wochentag, Datum, Zeit | Gateway-Zeitzone |
+
+`web_url_read` ist kein Template-Baustein, sondern ein MCP-Werkzeug des
+SearXNG-stdio-Servers (`mcp-searxng`); es existiert nur, wenn dieser Server
+in der Tool-Registry angebunden ist. Rezepte nutzen es für das Lesen
+konkreter Treffer-URLs und Feeds (`maxLength` begrenzt den Text). Der
+SSRF-Schutz des Gateways gilt für den `http()`-Baustein, nicht für dieses
+MCP-Werkzeug.
 
 Identische vorbereitete Aufrufe werden dedupliziert. Dynamische
 Argumentobjekte von `mcp.call` kennen `args` und `now`, aber keine lokalen
@@ -100,28 +108,34 @@ nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 | `DB_PATH` | `./data/meinhelfer.db` | SQLite-Datei |
 | `LLM_MODEL` | `chat-fast` | Startmodell |
 | `LLM_MAX_TOKENS` | `2000` | Ausgabe-Budget |
-| `LLM_FALLBACK_AFTER_MS` | `7000` | Schwelle eines optionalen Fallbacks |
+| `LLM_REASONING_EFFORT` | leer | Reasoning-Stufe, falls das Modell sie unterstützt |
+| `LLM_FALLBACK_BASE_URL` / `LLM_FALLBACK_MODEL` | leer | optionale Fallback-Schnittstelle (leer = aus) |
+| `LLM_FALLBACK_AFTER_MS` | `7000` | Schwelle des optionalen Fallbacks |
+| `LLM_KEEPALIVE_MS` | `120000` | Modell warm halten; `0` = aus |
 | `AGENT_CLARIFICATION_BUDGET` | `2` | Rückfragebudget |
 | `MAX_TOOL_ITERATIONS` | `6` | maximale Tool-Runden |
 | `LLM_TOOL_DEADLINE_MS` | `9000` | Deadline des Agent-Loops |
-| `ALEXA_VERIFY_MODE` | `enforce` | Signaturprüfung laut aktuellem Code |
+| `ALEXA_SKILL_ID` | leer | erwartete Skill-ID; Prüfung aktiv, sobald gesetzt |
+| `ALEXA_DIRECTIVES_BASE` | `https://api.eu.amazonalexa.com` | Directives-API für Progressive Responses |
+| `ALEXA_VERIFY_MODE` | `enforce` | Signaturprüfung: `off`/`warn`/`enforce` |
+| `GATEWAY_PORT` | `3000` | nur Compose-Host-Mapping (der Code liest `PORT`) |
 
 Pflichtvariablen: `AUTH_TOKEN`, `LLM_BASE_URL`, `LLM_API_KEY`.
 
-Der aktuelle Code enthält optionale LLM-Fallback-Variablen, während die
-bestehende Fachdokumentation von keiner Modell-Fallback-Kaskade spricht. Das
-muss vor Übernahme in die endgültige Dokumentation geklärt werden.
+Der optionale LLM-Fallback (`LLM_FALLBACK_*`) greift nur für Anfragen ohne
+Tool-Aufrufe: überschreitet das Hauptmodell die Schwelle, antwortet der
+Fallback-Endpunkt. Für Agent-Anfragen mit Tools gibt es keinen Fallback.
 
 ## Budgets und Tool-Auswahl
 
-MCP-Budgets werden als JSON-Einstellung gepflegt. Funktionen besitzen ein
-eigenes Budget. Bei Erschöpfung erhält das Modell einen Fehler und der Trace
-einen Budget-Eintrag.
+Funktionen besitzen ein eigenes Budget (Spalte `budget`); die beiden
+built-in-Lesewerkzeuge `fn_find_entities` (Budget 2) und `fn_get_entity`
+(Budget 3) sind fest im Code verdrahtet. Bei Erschöpfung erhält das Modell
+einen Fehler und der Trace einen Budget-Eintrag (`tool.budget_hit`).
 
-Eine explizite Tool-Auswahl reduziert Promptgröße und Fehlwahl. Bei neuen
-Installationen muss geprüft werden, ob eine leere Auswahl „keine Werkzeuge“
-oder ein Kompatibilitäts-Fallback „alle Werkzeuge“ bedeutet; die aktuelle
-Oberfläche beschreibt leer als keine Tool-Schemas.
+Die Agent-Tool-Auswahl (Setting `agent_tools`) begrenzt die rohen
+MCP-Werkzeuge: leer/`alle` = alle Werkzeuge, `keine` = keine, sonst eine
+explizite Liste. Eine explizite Auswahl reduziert Promptgröße und Fehlwahl.
 
 ## Antwortvertrag
 
@@ -146,8 +160,7 @@ Alexa-spezifisches Wrapping und APL liegen im Adapter, nicht in Funktionen.
 
 ## Weiterführende Originaldokumente
 
-Dieser Entwurf ersetzt die Originale noch nicht. Vollständige technische
-Hintergründe stehen weiterhin in:
+Technische Hintergründe und Design-Entscheidungen stehen in:
 
 - `../doc/ARCHITECTURE.md`
 - `../doc/FUNKTIONEN.md`
@@ -155,3 +168,7 @@ Hintergründe stehen weiterhin in:
 - `../doc/DESIGN_DISPLAY.md`
 - `../doc/DESIGN_WEBUI.md`
 - `../doc/EXAMPLES.md`
+
+Hinweis: Diese Originale enthalten teilweise veraltete Beispiele (alte
+`ha.*`-Bausteine, `search_summary`-Modus, `tool_budgets`-Setting). Bei
+Widersprüchen gilt diese Referenz und der Code.

@@ -1,157 +1,135 @@
 # MeinHelfer
 
-**Deine Alexa mit Superkräften.** Stell Fragen, erledige Dinge, bleib natürlich — ein sprachgesteuerter Assistent, der funktioniert, egal ob du es genau wissen willst oder nur mal kurz „Was gibt's Neues?" wirfst.
+**Deine Alexa mit Superkräften.** Ein privat betriebener, deutscher
+Sprachassistent: Amazon Echo fragt, dein eigener Server antwortet — schnell,
+wo es zählt, und klug, wo es drauf ankommt.
 
-- **Schnell, wo es zählt.** Klare, wiederkehrende Fragen — „Hausstatus", „Benzinpreis", „Nachrichten" — beantwortet ein fester Router deterministisch: gleiche Frage, gleiche Antwort, in Sekundenbruchteilen. Keine KI-Lotterie.
-- **Klug, wo es drauf ankommt.** Alles Offene übernimmt dein LLM — mit einstellbarem Kontext aus der Vergangenheit (einstellbar), damit es weiß, was zuletzt war. Unterbrechen? Nachfragen? Jederzeit.
-- **Eingebunden, nicht eingebildet.** Über MCP greift MeinHelfer auf deine echte Welt zu: Smart Home, Websuche, Nachrichtenquellen.
-- **Privat & lokal.** Die Intelligenz läuft auf deiner eigenen Hardware. Deine Fragen bleiben bei dir.
+- **Schnell, wo es zählt.** Klare, wiederkehrende Fragen — „Hausstatus",
+  „Wetter", „Ist jemand zuhause?" — beantwortet ein fester Router
+  deterministisch: gleiche Frage, gleiche Antwort, in Sekundenbruchteilen.
+  Keine KI-Lotterie.
+- **Klug, wo es drauf ankommt.** Alles Offene übernimmt ein LLM mit
+  Werkzeugaufrufen — mit Kurzzeitgedächtnis für Folgefragen und Rückfragen bei
+  Mehrdeutigkeit.
+- **Eingebunden, nicht eingebildet.** Über MCP greift MeinHelfer auf deine
+  echte Welt zu: Smart Home, Websuche, Musik, Verkehr.
+- **Privat & lokal.** Die Intelligenz läuft auf deiner eigenen Hardware. Deine
+  Fragen bleiben bei dir.
 
-## Zwei Modi, ein Flow
-
-Standard ist der **OneShot-Modus**: eine Frage → eine Antwort → Session zu. Kein „Wartet die Alexa noch?"-Gefühl, kein offenes Mikrofon. Der Kontext aus der letzten Frage bleibt aber erhalten.
-
-Möchtest du dranbleiben: **„Mein Helfer, Chat-Modus"** — jetzt bleibt die Session offen, du kannst Folgefragen ganz ohne „Alexa..." anhängen, bis du beendest.
-
-## Architektur
-
-```text
-Alexa (Echo-Geräte)
-  │
-  ▼
-Alexa-Plattform (Amazon Cloud, Skill-Routing)
-  │
-  ▼
-AWS Lambda „meinhelfer-alexa" (eigene AWS-Funktion, Account 837775096857)
-  └─ Thin Adapter: Locale, SSML, APL, Session/Progressive Response
-     (Timeout bis 30 s – statt hartem 8-s-Limit der abgelösten
-      Alexa-hosted-Lambda; Trigger: Alexa-Skills-Kit via add-permission)
-  │ HTTPS (Bearer-Token, optional hinter Reverse-Proxy)
-  ▼
-MeinHelfer Gateway (lokal, Docker, Node.js + TypeScript)
-  ├─ Router: gelenkte Prompt-Actions (deterministische Ausgaben, z. B. „Hausstatus“)
-  ├─ MCP-Client(s): Home-Assistant-MCP, SearXNG-Such-MCP, weitere
-  ├─ LLM-Orchestrierung via litellm (Tool-Calls über MCP)
-  └─ Admin-Web-UI (LAN-only)
-```
-
-Mobil-Effekt „Alexa-hosted": Der Skill wurde ursprünglich als **Alexa-hosted**
-betrieben (Amazon baut/hostet die Lambda in seinem Account); die ausgelieferte
-`Release_0`-Lambda mit hartem 8-s-Function-Timeout und Amazon-eigenem
-`config.json` ist **abgelöst**. Backend-Code und Config liegen im Repo
-(`alexa/lambda/`), deployed per `deploy-aws-lambda.yml` in die eigene AWS-Funktion.
-
-Zentrale Architekturregeln (Adapter-Muster, Auth-/Berechtigungs-Ebenen, Datenmodell): [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
-
-Funktionen-Registry, Template-Bausteine (`index.*`, `mcp.call`, `shell`, `http`, `fn`, `args`) und Vorgänge: [doc/FUNKTIONEN.md](doc/FUNKTIONEN.md)
-
-### Vom Sprachbefehl zur Antwort
+## Wie es funktioniert
 
 ```mermaid
-flowchart TD
-  A[Sprachbefehl] --> B[Alexa-Plattform]
-  B --> C[AWS Lambda<br/>Alexa-Adapter]
-  C -->|VoiceQuery per HTTPS| D[Gateway-Router]
-
-  D -->|Trigger passt| E{Vorgang}
-  D -->|kein Vorgang| F[LLM-Agent]
-  E -->|deterministisch| G[Funktion rendern]
-  E -->|hybrid| G
-  E -->|LLM-Modus| F
-  F -->|fn_-Tool| G
-  F -->|rohes Tool| H[MCP-Registry]
-
-  G --> I{Daten-Bausteine}
-  I -->|index.find / get / state| J[Entity-Index]
-  I -->|mcp.call| H
-  I -->|http| K[REST- oder Web-Dienst]
-  I -->|shell| L[Gateway-Container]
-  I -->|fn| G
-  I -->|now / args| M[Laufzeitdaten]
-
-  H --> N[MCP-Server<br/>Home Assistant, Suche, weitere]
-  N -->|vollstaendiger Snapshot per MCP| J
-  J --> O[TTL-Cache im Gateway]
-  O --> P[Lokale deutsche Suche<br/>Umlaute, Aliase, Raeume, Domain-Hinweise]
-
-  P --> Q[Deterministisch ermittelte Daten]
-  H --> Q
-  K --> Q
-  L --> Q
-  M --> Q
-  Q -->|direkt| R[AssistantResponse]
-  Q -->|hybrid: nur formulieren| S[LLM]
-  S --> R
-  F --> R
-
-  R -->|speech, SSML, display, followUp| C
-  C --> T[Sprachausgabe und Card / APL]
-  T --> U[Echo oder Echo Show]
+flowchart LR
+    E[Echo] --> P[Alexa-Plattform] --> L[AWS Lambda<br/>dünner Adapter]
+    L -->|HTTPS, Bearer-Token| G[MeinHelfer Gateway<br/>lokal, Docker]
+    G --> R{Router}
+    R -->|bekannte Frage| V[Vorgang: Funktion rendern]
+    R -->|offene Frage| A[LLM-Agent mit Tools]
+    V --> M[MCP-Server: Home Assistant,<br/>Websuche, Musik, ...]
+    A --> M
+    G -->|Antwort| L --> P --> E
 ```
 
-**Die Phasen:**
+Zwei Wege, ein Flow: Der **Router** erkennt konfigurierte Vorgänge und
+beantwortet sie ohne LLM (deterministisch) oder mit reiner Formulierung
+(hybrid). Alles andere übernimmt der **Agent** — ein LLM, das selbst entscheidet,
+welche Werkzeuge und Funktionen es braucht. Standard ist der
+**OneShot-Modus** (eine Frage, eine Antwort); mit „Chat-Modus" bleibt die
+Session für Folgefragen offen.
 
-1. **Verstehen und routen:** Der Router erkennt einen konfigurierten Vorgang; andernfalls übernimmt der Agent.
-2. **Daten beschaffen:** Eine Funktion kombiniert kontrolliert `index.*`, `mcp.call`, `http`, `shell`, weitere `fn`-Funktionen sowie `now` und `args`. Home-Assistant-Daten werden ausschließlich über dessen MCP-Server geladen, nicht über direkte HA-REST-Aufrufe.
-3. **Entities finden:** Ein konfigurierbares MCP-Tool liefert periodisch einen Snapshot. Das Gateway cached ihn und führt die deutsche Fuzzy-Suche lokal aus. Für andere Systeme können Index-Tool, Argumente, Aliase und Hinweise ausgetauscht werden.
-4. **Antwort erzeugen:** Deterministische Vorgänge sprechen das Funktionsergebnis direkt. Hybride Vorgänge lassen nur die bereits beschafften Daten vom LLM formulieren; der freie Agent kann Funktionen und freigegebene MCP-Tools selbst wählen.
-5. **Ausgeben:** Das Gateway liefert eine neutrale `AssistantResponse`; erst die Lambda erzeugt Alexa-Sprachausgabe, SSML, Card und die scrollbar dargestellte APL-Ansicht.
+Details: [helpdoc/CONCEPTS.md](helpdoc/CONCEPTS.md) ·
+[doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
 
-`http()` und `shell()` sind bewusst generische Bausteine für Quellen ohne MCP-Fassade. Sie werden nur ausgeführt, wenn eine administrativ gepflegte Funktion sie ausdrücklich verwendet.
+## Schnellstart
 
-## Features
+Voraussetzungen: Docker mit Compose-Plugin und eine OpenAI-kompatible
+LLM-Schnittstelle (mit Tool-Calling).
 
-- **MCP-Integration:** Alexa-Anfragen werden von lokalen MCP-Servern beantwortet (HA, Suche, …)
-- **Gelenkte Prompt-Actions:** definierte Prompts lösen Aktionen aus, die das LLM mit definierten Tools ausführt und nach deterministischem Muster strukturiert zurückgibt (z. B. Hausstatus, Nachrichten zu Thema X)
-- **Funktionen-Registry:** eigene Jinja-Funktionen mit Daten-Bausteinen (`ha.*`, `shell`, `http`, `fn`) — im Admin-UI pflegbar, per „Ausführen" testbar; als deterministische Vorgangs-Quelle und als dynamische LLM-Tools (mit Parametern) nutzbar — neue Domänen ohne Gateway-Code ([doc/FUNKTIONEN.md](doc/FUNKTIONEN.md))
-- **Nachfragen bei Mehrdeutigkeit (Clarification):** bei unklaren Fragen darf das LLM kurz nachfragen – die Session bleibt dafür offen
-- **Kontext & Follow-ups:** jede Antwort wandert ins Kurzzeitgedächtnis, Folgefragen innerhalb einer offenen Session funktionieren ohne Neu-Invocation
-- **Warteton bei längerer Recherche:** dauert eine Antwort länger, meldet sich der Skill nach wenigen Sekunden mit einer kurzen Ansage (Progressive Response), damit Alexa das Antwortfenster nicht abbricht
-- **Echo-Show (APL):** Antworten mit scrollbarem Text auf Geräten mit Bildschirm
-- **Thin Lambda:** AWS-Seite minimal halten (Locale/SSML/APL/Session), gesamte Logik lokal im Gateway
-- **Admin-Web-UI:** LAN-only – Dashboard, Actions-Editor, MCP-Registry, Test-Konsole, Logs (Design in `doc/DESIGN_WEBUI.md`)
-- **Portabel:** Umzug zwischen Umgebungen und Servern – Domain, Ports und Tokens nur über Config/`.env`
+```bash
+git clone https://github.com/dezihh/meinhelfer.git
+cd meinhelfer
+cp gateway/.env.example gateway/.env
+# gateway/.env ausfüllen: AUTH_TOKEN, LLM_BASE_URL, LLM_API_KEY (Pflicht)
+GATEWAY_PORT=8332 docker compose up -d --build
+```
+
+Danach: `http://<host>:8332/admin` öffnen, mit `AUTH_TOKEN` anmelden und im
+Tab **Monitor / Test** die erste Frage stellen.
+
+Die vollständige Anleitung mit allen Etappen, Prüfungen und der
+Alexa-Anbindung: [helpdoc/INSTALLATION.md](helpdoc/INSTALLATION.md)
+
+## Fähigkeiten als Pakete
+
+Neue Systeme (Home Assistant, Music Assistant, Websuche, Wetter, Verkehr,
+System-Info) kommen als **Installationspakete** — Tab „Wartung und Pakete" in
+der Admin-Oberfläche. Ein Paket legt MCP-Server, Entity-Index, Funktionen und
+Vorgänge in einem Rutsch an; du gibst nur Host, Port und Token ein.
+
+- Verfügbare Pakete: [packages/de/index.json](packages/de/index.json)
+- Eigene Pakete schreiben:
+  [packages/README.md](packages/README.md) und
+  [helpdoc/RECIPES.md](helpdoc/RECIPES.md)
+
+## Dokumentation
+
+| Kapitel | Inhalt |
+|---|---|
+| [Schnellstart](helpdoc/QUICKSTART.md) | Erste Antwort im Testmonitor, Schritt für Schritt |
+| [Installation](helpdoc/INSTALLATION.md) | Gateway, Modell, Netzwerk, Alexa — Schritt für Schritt |
+| [Grundbegriffe](helpdoc/CONCEPTS.md) | Werkzeug, Index, Funktion, Vorgang |
+| [Konfiguration](helpdoc/CONFIGURATION.md) | Parametrier-Reihenfolge und Grundeinstellungen |
+| [Praxisrezepte](helpdoc/RECIPES.md) | Home Assistant, Musik, Websuche, Wetter, Berichte |
+| [Cache und Aktualität](helpdoc/CACHE.md) | Wann Daten lokal bleiben und wann Netzwerkverkehr entsteht |
+| [Alexa anbinden](helpdoc/ALEXA.md) | Skill, Lambda, Sync und Härtung |
+| [Fehler beheben](helpdoc/TROUBLESHOOTING.md) | Systematische Fehlersuche von innen nach außen |
+| [Referenz](helpdoc/REFERENCE.md) | Felder, Bausteine, Env-Variablen, Sicherheitsgrenzen |
+
+Design- und Architektur-Dokumente (Hintergrund für Entwickler):
+[doc/](doc/ARCHITECTURE.md)
 
 ## Sicherheit
 
-Das Projekt bringt eigenen Schutz mit, setzt aber **keinen Reverse-Proxy voraus** — wird einer davor betrieben, kann er die genannten Punkte zusätzlich übernehmen (empfohlen).
-
-**Im Projekt selbst:**
-
-- `/alexa` (Skill-Endpoint): vergleicht die `applicationId` mit `ALEXA_SKILL_ID` (aktiv, sobald gesetzt) und verifiziert optional die Alexa-Signatur (Zertifikatskette gemäß Amazon, Timestamp-Toleranz; Modus `off`/`warn`/`enforce` über `.env`, Default `off` – für öffentliche Deployments `enforce` empfohlen)
-- `/api/*` und `/admin/*`: Bearer-Token-Auth (`AUTH_TOKEN`), constant-time verglichen; die Lambda ruft `/api/query` mit demselben Token auf (`gateway_token` in ihrer `config.json`)
-- JSON-Body-Limit (1 MB), Non-Root-Container, gepinnte Dependencies, Secrets nur via `.env` (nie im Repo)
-- Admin-UI: nie im Internet exponieren; im Reverse-Proxy auf LAN-Allowlist legen
-- Prompt-Injection-Schutz: deterministische Ausgabe-Templates, Tool-Allowlist, strikte Antwortvalidierung
-
-**Empfohlen (Reverse-Proxy, z. B. nginx):**
-
-- TLS-Beendigung für den öffentlichen Endpoint
-- Rate-Limiting als zusätzliche Drossel
-- LAN-Allowlist für die Admin-UI
+- `/alexa` (Skill-Endpoint): Skill-ID-Prüfung (`ALEXA_SKILL_ID`) und
+  Alexa-Signaturprüfung — Default `enforce` (Fail-closed), Modi
+  `off`/`warn`/`enforce` über `.env`
+- `/api/*` und `/admin/*`: Bearer-Token (`AUTH_TOKEN`), constant-time
+  verglichen; Admin-UI zusätzlich mit Session-Login und Brute-Force-Schutz
+- JSON-Body-Limit, Non-Root-Container, gepinnte Dependencies, Secrets nur via
+  `.env` (nie im Repo)
+- Admin-UI nie im Internet exponieren; für öffentliche Deployments wird ein
+  Reverse-Proxy mit TLS empfohlen — siehe
+  [helpdoc/INSTALLATION.md](helpdoc/INSTALLATION.md#netzwerk-und-https)
 
 ## Repository-Struktur
 
 ```text
-alexa/           Alexa-Skill-Paket: Lambda-Adapter (ask-sdk, Python), Interaktionsmodell, CI-Workflows
-gateway/         Gateway (Node.js + TypeScript): Router, MCP-Clients, LLM-Orchestrierung, Admin-API
-gateway/web/     Admin-Weboberfläche (vanilla HTML/CSS/JS, LAN-only)
-doc/             Design-Dokumente (DESIGN_WEBUI.md, DESIGN_DISPLAY.md), Deployment
-.github/         CI/CD-Workflows (Smoke-Tests, Alexa: Modell-, Manifest-, Deploy-Sync)
+alexa/           Alexa-Skill: Lambda-Adapter (Python/ask-sdk), Interaktionsmodell, Sync-Skripte
+gateway/         Gateway (Node.js 22 + TypeScript): Router, MCP-Clients, LLM-Agent, Admin-API
+gateway/web/     Admin-Weboberfläche (vanilla HTML/CSS/JS)
+packages/        Installationspakete (Registry + Manifeste)
+helpdoc/         Nutzer-Dokumentation (Einstieg, Installation, Rezepte, Referenz)
+doc/             Design- und Architektur-Dokumente
+.github/         CI/CD: Smoke-Tests, Alexa-Modell-/Manifest-Sync, Lambda-Deployment
 ```
+
+## Entwicklung
+
+```bash
+cd gateway
+npm ci
+npm run build        # TypeScript nach dist/
+npm test             # Unit-Tests (node:test)
+npm run dev          # tsx watch für Entwicklung
+npm run smoke        # E2E-Smoke-Test gegen laufendes Gateway
+```
+
+Node.js ≥ 22 erforderlich. Details zur Architektur:
+[doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
 
 ## Status
 
-**In Entwicklung.** Design-Diskussion: [doc/DESIGN_WEBUI.md](doc/DESIGN_WEBUI.md) + Issues.
-
-- AWS CLI wird für Lambda-Deployment genutzt; dafür nötige lokale Dateien (`.aws/`, Builds, Secrets) sind via `.gitignore` ausgeschlossen.
-
-## Ausblick (Streckliste)
-
-Ideen, die nicht versprochen, aber festgehalten sind — gerne priorisieren:
-
-- **Musik (via MCP):** Music Assistant bietet einen MCP-Server (Player, Suche, Queue, Playlists) → Motivation: MeinHelfer als Sprach-Steuerung. Hinweis: echte Audio-Wiedergabe auf dem Echo läuft über den separaten Alexa-Provider von Music Assistant, nicht über diesen Skill.
-- **Echo-Show Autoscroll:** scrollbaren Text auf Bildschirm-Geräten zusätzlich automatisch weiterlaufen lassen (Barrierefreiheit).
-- **Weitere MCP-Quellen:** z. B. Kalender/Wetter/Verkehr als weitere MCP-Server.
-- **Rückfrage-Budget pro Action:** Nachfragen pro Action konfigurierbar machen und begrenzen (1–2 Nachfragen) – die Nachfrage-Mechanik ist aktiv, Budget- und Pro-Action-Steuerung stehen noch aus.
-- **Mehrsprachigkeit:** Skill-Name und Begrüßung konfigurierbar, sodass z. B. englischsprachige Nutzer den Skill ohne Code-Eingriff umbenennen können.
+**In aktiver Entwicklung.** Der lokale Weg (Gateway + Testmonitor + Pakete)
+ist stabil und getestet (22.09.2026); die Alexa-Anbindung läuft produktiv mit
+eigener AWS-Lambda. Offene Punkte und Roadmap: Issues und
+[doc/DESIGN_WEBUI.md](doc/DESIGN_WEBUI.md).

@@ -1,10 +1,18 @@
 # Praxisbeispiele: Vorgänge, Funktionen und Agent-Kaskaden
 
 Sammlung realer Muster aus dem Betrieb — anonymisiert, so dass nichts auf die
-eigene Infrastruktur rückschließen lässt. Alle Beispiele sind nach
-Grundinstallation **1:1 nachbaubar**: Bei Home Assistant genügen die
-Entities, die jede Basisinstallation mitbringt (`sun.sun`, `weather.home`,
-`zone.home` — siehe Werkzeuge-Kapitel).
+eigene Infrastruktur rückschließen lässt. Die Beispiele bauen auf der
+Grundinstallation auf: Bei Home Assistant genügen die Entities, die jede
+Basisinstallation mitbringt (`sun.sun`, `weather.home`, `zone.home` — siehe
+Werkzeuge-Kapitel). Ausnahmen mit Platzhaltern (z. B. die Wetter-API in 3.3)
+sind als solche gekennzeichnet.
+
+> **Hinweis zur Aktualität:** Design-Archiv. Die Basis-Lesetools heißen
+> `fn_find_entities` / `fn_get_entity` und sind **built-in im Gateway-Code**
+> (seit 22.09.2026) — sie müssen nicht mehr als Funktionen angelegt werden
+> und erscheinen nicht im Tab „Funktionen". Die Grundanbindung der Werkzeuge
+> gibt es außerdem als **Installationspakete** (Tab „Wartung und Pakete").
+> Aktuelle Rezepte: `helpdoc/RECIPES.md`.
 
 Zentraler Zweck dieser Seite: **wo muss was angelegt werden.** Jedes Beispiel
 listet deshalb die Anlage-Schritte (welcher Tab, welche Felder). Die
@@ -492,11 +500,12 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 - **Werkzeuge**: MCP Home-Assistant (`fn_find_entities` + Service-Call).
 - **Modus**: `llm` — der Agent ermittelt entity_id und Service-Call.
 - **Anlegen**:
-  1. Funktionen `find_entities`/`get_entity` existieren nach Grundinstallation
-     (Schema-Basis); bei Bedarf eigene Lesefunktionen mit `parameters`-Schema
-     (`query`) anlegen — das Schema macht sie zu Agent-Tools mit Argumenten.
+  1. Die Basis-Lesetools `fn_find_entities`/`fn_get_entity` sind built-in im
+     Gateway-Code und brauchen keine Anlage; bei Bedarf eigene Lesefunktionen
+     mit `parameters`-Schema (`query`) anlegen — das Schema macht sie zu
+     Agent-Tools mit Argumenten.
   2. Die Schalten-Kaskade im **Agent-Inventory-Prompt** des HA-MCP-Servers (Tab
-     Systeme) pflegen — Beispieltext: „Schalten: zuerst fn_find_entities mit
+     Tool-Registry) pflegen — Beispieltext: „Schalten: zuerst fn_find_entities mit
      dem Namen (liefert entity_id), dann ha_call_service mit passendem
      domain/service. Mehrdeutigkeit: NIEMALS raten — im Echo nachfragen."
   3. Allowlist: Grundeinstellungen → Agent-Tool-Allowlist (anhaken, was der
@@ -594,9 +603,9 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 - **Alexa-Frage**: „Alexa, frag MeinHelfer, wie hell ist es im Wohnzimmer?"
 - **Werkzeuge**: MCP Home-Assistant + Entity-Index via `fn_find_entities`.
 - **Modus**: `llm` — kein Trigger deckt die Phrasenvielfalt ab.
-- **Anlegen**: nur Werkzeuge (2.1) + Allowlist; die Lesefunktionen existieren
-  nach Grundinstallation; Regeln in der `find_entities`-Note (Tab Funktionen
-  → Feld Agent-Inventory-Prompt).
+- **Anlegen**: nur Werkzeuge (2.1) + Allowlist; die Lesetools
+  `fn_find_entities`/`fn_get_entity` sind built-in; Regeln im
+  Agent-Inventory-Prompt des HA-MCP-Servers (Tab Tool-Registry).
 - **Ablauf (warum)**: 1. `fn_find_entities` mit Stichworten — weil die
   Treffer den aktuellen Zustand enthalten und die Suche Fuzzy/Aliase/Räume
   bereits behandelt. 2. SOFORT aus dem Treffer antworten (max. 1 Aufruf) —

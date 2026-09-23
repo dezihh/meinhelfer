@@ -4,6 +4,12 @@ Dokumentiert das Funktionen-/Template-System des Gateways: die Bausteine, die
 Funktionen-Registry, parameterisierte LLM-Tools und die Vorgänge. Beispiele
 sind anonymisiert (`sensor.wohnzimmer_temperatur`, `sensor.tankstelle_e10`, …).
 
+> **Hinweis zur Aktualität:** Design-Archiv. Das Setting `tool_budgets`
+> existiert nicht mehr — Budgets liegen in der `budget`-Spalte der Funktionen
+> bzw. sind für die built-in-Lesetools fest verdrahtet. Die Basis-Werkzeuge
+> heißen `fn_find_entities` / `fn_get_entity` und sind built-in (keine
+> DB-Zeilen). Bei Widersprüchen gilt der Code und `helpdoc/REFERENCE.md`.
+
 ## Die drei Ebenen (Mentalmodell)
 
 ```text
@@ -261,8 +267,9 @@ Das LLM sieht pro Frage:
 
 Budgets pro Frage verhindern Schleifen:
 
-- **MCP-Tools**: Setting `tool_budgets` (JSON), z. B.
-  `{"searxng_web_search":3,"brave_web_search":2,"web_url_read":3}`
+- **MCP-Tools**: Budgets liegen in der `budget`-Spalte der Funktionen; die
+  built-in-Lesetools haben feste Budgets (`fn_find_entities`: 2,
+  `fn_get_entity`: 3). Das frühere JSON-Setting `tool_budgets` wurde entfernt.
 - **Funktionen**: Spalte `budget` in der Funktionen-Registry
 - Erschöpft = `tool.budget_hit` im Trace, das Tool liefert einen
   Budget-Fehler ans Modell statt still weiterzulaufen
