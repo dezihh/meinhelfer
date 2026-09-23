@@ -1,5 +1,5 @@
 import { getDb } from './schema.js';
-import type { McpServerRow } from '../types.js';
+import type { McpServerRow, SideEffect } from '../types.js';
 
 export interface McpServerInput {
   name: string;
@@ -10,6 +10,7 @@ export interface McpServerInput {
   args: string | null;
   env: string | null;
   inventory_prompt: string | null;
+  side_effect?: SideEffect;
   enabled: number;
 }
 
@@ -25,10 +26,10 @@ export function getMcpServer(id: number): McpServerRow | undefined {
 
 export function createMcpServer(data: McpServerInput): McpServerRow {
   const info = getDb().prepare(
-      `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, enabled)
-       VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_prompt, @enabled)`
+      `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, side_effect, enabled)
+       VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_prompt, @side_effect, @enabled)`
     )
-    .run(data);
+    .run({ ...data, side_effect: data.side_effect ?? 'write' });
   return getMcpServer(Number(info.lastInsertRowid)) as McpServerRow;
 }
 
@@ -38,8 +39,8 @@ export function updateMcpServer(id: number, data: McpServerInput): McpServerRow 
   getDb().prepare(
     `UPDATE mcp_servers SET name = @name, url = @url,
      auth_token = COALESCE(@auth_token, auth_token), transport = @transport,
-     command = @command, args = @args, env = @env, inventory_prompt = @inventory_prompt, enabled = @enabled WHERE id = @id`
-  ).run({ ...data, id });
+     command = @command, args = @args, env = @env, inventory_prompt = @inventory_prompt, side_effect = @side_effect, enabled = @enabled WHERE id = @id`
+  ).run({ ...data, side_effect: data.side_effect ?? 'write', id });
   return getMcpServer(id);
 }
 

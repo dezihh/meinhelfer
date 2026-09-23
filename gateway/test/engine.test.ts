@@ -361,4 +361,15 @@ test('Index-Cache: nach Funktions-/MCP-Call invalidiert, nach Basis-Lesetool nic
   llmScript = [toolCalls([{ name: 'fn_find_entities', args: '{"query":"x"}' }]), content('ok')];
   await q('suche x', 'inv-index');
   assert.equal(indexInvalidationsForTests(), nachFn, 'Basis-Lesetool invalidiert nicht');
+
+  // Explizit lesende Funktion (side_effect 'read') verwirft den Cache nicht.
+  getDb().prepare("UPDATE tpl_functions SET side_effect = 'read' WHERE name = 'test_echo'").run();
+  try {
+    const nachRead = indexInvalidationsForTests();
+    llmScript = [toolCalls([{ name: 'fn_test_echo', args: '{"x":"a"}' }]), content('ok')];
+    await q('echo lesend', 'inv-read');
+    assert.equal(indexInvalidationsForTests(), nachRead, 'read-Funktion invalidiert nicht');
+  } finally {
+    getDb().prepare("UPDATE tpl_functions SET side_effect = 'write' WHERE name = 'test_echo'").run();
+  }
 });

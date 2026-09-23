@@ -49,6 +49,7 @@ function serverContent(s: PackageServer): Record<string, unknown> {
     args: s.transport === 'stdio' && s.args?.length ? JSON.stringify(s.args) : null,
     env: s.transport === 'stdio' && s.env ? JSON.stringify(s.env) : null,
     inventory_prompt: s.inventory_prompt ?? null,
+    side_effect: s.sideEffect === 'read' ? 'read' : 'write',
     enabled: s.enabled === false ? 0 : 1,
   };
 }
@@ -61,6 +62,7 @@ function functionContent(f: PackageFunction): Record<string, unknown> {
     parameters: typeof f.parameters === 'object' && f.parameters ? JSON.stringify(f.parameters) : (f.parameters ?? null),
     budget: f.budget ?? 1,
     inventory_prompt: f.inventory_prompt ?? null,
+    side_effect: f.sideEffect === 'read' ? 'read' : 'write',
     enabled: 1,
   };
 }
@@ -97,14 +99,14 @@ export function installPackage(
       if (existing) {
         db.prepare(
           `UPDATE mcp_servers SET name = @name, url = @url, auth_token = @auth_token, transport = @transport,
-           command = @command, args = @args, env = @env, inventory_prompt = @inventory_prompt, enabled = @enabled
+           command = @command, args = @args, env = @env, inventory_prompt = @inventory_prompt, side_effect = @side_effect, enabled = @enabled
            WHERE id = @id`
         ).run({ ...content, id: existing.id });
         report.updated.push(`server:${s.name}`);
       } else {
         db.prepare(
-          `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, enabled)
-           VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_prompt, @enabled)`
+          `INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, side_effect, enabled)
+           VALUES (@name, @url, @auth_token, @transport, @command, @args, @env, @inventory_prompt, @side_effect, @enabled)`
         ).run(content);
         report.created.push(`server:${s.name}`);
       }
@@ -117,14 +119,14 @@ export function installPackage(
       if (existing) {
         db.prepare(
           `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
-           parameters = @parameters, budget = @budget, inventory_prompt = @inventory_prompt, enabled = @enabled,
+           parameters = @parameters, budget = @budget, inventory_prompt = @inventory_prompt, side_effect = @side_effect, enabled = @enabled,
            updated_at = datetime('now') WHERE id = @id`
         ).run({ ...content, id: existing.id });
         report.updated.push(`function:${f.name}`);
       } else {
         db.prepare(
-          `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, enabled)
-           VALUES (@name, @description, @template, @parameters, @budget, @inventory_prompt, @enabled)`
+          `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, side_effect, enabled)
+           VALUES (@name, @description, @template, @parameters, @budget, @inventory_prompt, @side_effect, @enabled)`
         ).run(content);
         report.created.push(`function:${f.name}`);
       }
@@ -174,7 +176,7 @@ function serverRowContent(name: string): Record<string, unknown> | null {
   if (!row) return null;
   return {
     name: row.name, url: row.url, auth_token: row.auth_token, transport: row.transport,
-    command: row.command, args: row.args, env: row.env, inventory_prompt: row.inventory_prompt, enabled: row.enabled,
+    command: row.command, args: row.args, env: row.env, inventory_prompt: row.inventory_prompt, side_effect: row.side_effect, enabled: row.enabled,
   };
 }
 
@@ -183,7 +185,7 @@ function functionRowContent(name: string): Record<string, unknown> | null {
   if (!row) return null;
   return {
     name: row.name, description: row.description, template: row.template, parameters: row.parameters,
-    budget: row.budget, inventory_prompt: row.inventory_prompt, enabled: row.enabled,
+    budget: row.budget, inventory_prompt: row.inventory_prompt, side_effect: row.side_effect, enabled: row.enabled,
   };
 }
 
@@ -223,8 +225,21 @@ export function uninstallPackage(id: string): { removed: string[]; kept: string[
         continue;
       }
       if (item.kind === 'index') {
-        db.prepare('DELETE FROM settings WHERE key = ?').run(item.name);
-        report.removed.push(`index:${item.name}`);
+        // Index-Setting nur entfernen, wenn es unveraendert ist (wie Server/
+        // Funktionen) - sonst bliebe eine lokal angepasste Config nicht erhalten.
+        const current = getSetting(item.name);
+        if (current === undefined) {
+          report.removed.push(`index:${item.name}`);
+          continue;
+        }
+        let parsed: unknown = current;
+        try { parsed = JSON.parse(current); } catch { /* Rohwert vergleichen */ }
+        if (hashContent('index', item.name, parsed) === item.content_hash) {
+          db.prepare('DELETE FROM settings WHERE key = ?').run(item.name);
+          report.removed.push(`index:${item.name}`);
+        } else {
+          report.kept.push(`index:${item.name} (lokal geaendert - nicht geloescht)`);
+        }
         continue;
       }
       const kind = item.kind as 'server' | 'function';

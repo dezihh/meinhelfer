@@ -3,6 +3,7 @@
 // bzw. kommen per Offline-Import; installiert werden sie nur mit Vorschau +
 // Bestaetigung. Konvention: nur generische Inhalte (keine Infra-Spezifika).
 import { createHash } from 'node:crypto';
+import type { SideEffect } from '../types.js';
 
 export interface PackageParam {
   key: string;
@@ -23,6 +24,7 @@ export interface PackageServer {
   args?: string[];
   env?: Record<string, string>;
   inventory_prompt?: string;
+  sideEffect?: SideEffect;
   enabled?: boolean;
 }
 
@@ -33,6 +35,7 @@ export interface PackageFunction {
   parameters?: string | Record<string, unknown>;
   budget?: number;
   inventory_prompt?: string;
+  sideEffect?: SideEffect;
 }
 
 export interface PackageIndex {
@@ -86,6 +89,7 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
         if (s?.transport !== 'http' && s?.transport !== 'stdio') errors.push(`server "${s?.name}": transport muss http oder stdio sein`);
         if (s?.transport === 'http' && !s.url) errors.push(`server "${s.name}": url erforderlich`);
         if (s?.transport === 'stdio' && !s.command) errors.push(`server "${s.name}": command erforderlich`);
+        if (s?.sideEffect !== undefined && s.sideEffect !== 'read' && s.sideEffect !== 'write') errors.push(`server "${s.name}": sideEffect muss read oder write sein`);
       }
     }
   }
@@ -95,6 +99,7 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
       for (const f of m.functions) {
         if (!f?.name || !/^[a-z0-9_]{1,60}$/.test(f.name)) errors.push(`function-Name ungueltig: ${f?.name ?? '(leer)'}`);
         if (f && typeof f.template !== 'string') errors.push(`function "${f.name}": template fehlt`);
+        if (f?.sideEffect !== undefined && f.sideEffect !== 'read' && f.sideEffect !== 'write') errors.push(`function "${f.name}": sideEffect muss read oder write sein`);
       }
     }
   }

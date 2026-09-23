@@ -3,6 +3,7 @@ import {
   addLog,
   listActions,
   listFunctions,
+  getFunctionByName,
   getPrompt,
   getSetting,
   getSettingNum,
@@ -175,10 +176,10 @@ async function runToolLoop(
                   : await route.client.callTool(route.toolName, args);
           result = JSON.stringify(out).slice(0, 2000);
           // Schreibvorgaenge koennen den Index-Zustand veraendern (z. B.
-          // ha_call_service): nach jedem MCP-/Funktions-Call den Index-Cache
-          // verwerfen, damit das naechste Lesen frisch ist. Die Basis-Lesetools
-          // (index_find/index_get) sind ausgenommen - sie haben gerade gelesen.
-          if (route.kind === 'mcp' || route.kind === 'function') invalidateIndex();
+          // ha_call_service): nach jedem schreibenden MCP-/Funktions-Call den
+          // Index-Cache verwerfen. Lesende Tools (side_effect 'read') und die
+          // Basis-Lesetools (index_find/index_get) lassen den Cache unberuehrt.
+          if ((route.kind === 'mcp' || route.kind === 'function') && route.sideEffect === 'write') invalidateIndex();
           trace.push({ ts: Date.now(), step: 'tool.call', detail: { tool: call.function.name, args } });
         } catch (e) {
           result = `ERROR: ${String(e)}`;
@@ -280,6 +281,9 @@ async function executeAction(
     return { speech: 'Dieser Vorgang ist nicht richtig eingerichtet: Es ist keine Funktion zugewiesen.' };
   }
   const rendered = await renderFunction(action.function_ref, mcp, trace, action.functionArgs ?? {});
+  // Auch ein direkter Funktionsaufruf (deterministic/hybrid) kann via mcp.call
+  // den Index-Zustand veraendern - schreibende Funktionen verwerfen den Cache.
+  if (getFunctionByName(action.function_ref)?.side_effect === 'write') invalidateIndex();
   if (action.mode === 'deterministic') return rendered;
   const system = action.system_prompt?.replaceAll('{assistant_name}', assistantName()) ?? agentSystemPrompt(mcp, action.toolList);
   const messages: ChatMessage[] = [

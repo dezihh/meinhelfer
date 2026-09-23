@@ -47,8 +47,11 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   const titles = { settings: 'Grundeinstellungen', monitor: 'Monitor / Test', actions: 'Vorgänge', functions: 'Funktionen', indexes: 'Index-Quellen', mcp: 'Tool-Registry', maintenance: 'Wartung und Pakete', logs: 'Logs' };
   $('tab-title').textContent = titles[name] ?? '';
+  // Sicht beim Wechsel immer frisch aus dem Backend laden - sonst sind
+  // Aenderungen (z. B. durch Pakete) erst nach manuellem Browser-Reload sichtbar.
   if (name === 'logs') loadLogs();
-  if (name === 'maintenance') loadMaintenance();
+  else if (name === 'maintenance') loadMaintenance();
+  else if (name !== 'monitor') loadBootstrap();
 }
 
 const SETTINGS_FIELDS = [
@@ -479,6 +482,7 @@ function openFunctionEditor(id) {
   $('fn-name').value = f?.name ?? '';
   $('fn-description').value = f?.description ?? '';
   $('fn-inventory-prompt').value = f?.inventory_prompt ?? '';
+  $('fn-side-effect').value = f?.side_effect ?? 'write';
   $('fn-template').value = f?.template ?? '';
   $('fn-enabled').checked = f ? !!f.enabled : true;
 }
@@ -489,6 +493,7 @@ function functionPayload() {
     description: $('fn-description').value.trim() || null,
     template: $('fn-template').value.trim(),
     inventory_prompt: $('fn-inventory-prompt').value.trim() || null,
+    side_effect: $('fn-side-effect').value === 'read' ? 'read' : 'write',
     enabled: $('fn-enabled').checked,
   };
 }
@@ -763,6 +768,7 @@ function openServerEditor(id) {
   $('mcp-args').value = argsText;
   $('mcp-env').value = envText;
   $('mcp-inventory-prompt').value = s?.inventory_prompt ?? '';
+  $('mcp-side-effect').value = s?.side_effect ?? 'write';
   $('mcp-enabled').checked = s ? !!s.enabled : true;
   $('mcp-tools').innerHTML = '';
   toggleMcpTransportFields($('mcp-transport').value);
@@ -774,6 +780,7 @@ async function saveServer() {
     name: $('mcp-name').value.trim(),
     transport,
     inventory_prompt: $('mcp-inventory-prompt').value.trim() || null,
+    side_effect: $('mcp-side-effect').value === 'read' ? 'read' : 'write',
     enabled: $('mcp-enabled').checked,
   };
   if (transport === 'stdio') {

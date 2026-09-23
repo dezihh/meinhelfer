@@ -177,6 +177,14 @@
             <textarea id="fn-inventory-prompt" rows="2" class="span-full"></textarea>
           </div>
           <div class="field">
+            <div class="field-head"><label>Wirkung auf den Index</label><button type="button" class="help" data-help="Bestimmt, ob der Agent nach dieser Funktion den Index-Cache neu laedt. 'schreibend' bei Funktionen, die Zustaende aendern (z. B. via mcp.call); 'nur lesend' spart das Neuladen bei reinen Abfragen." aria-label="Hilfe zu Wirkung auf den Index">?</button></div>
+            <div class="field-help hidden">Schreibende Funktionen veraendern den Index-Zustand - der Agent verwirft danach seinen Index-Cache und liest frisch. Reine Lesefunktionen auf 'nur lesend' stellen: das vermeidet unnoetiges Neuladen.</div>
+            <select id="fn-side-effect">
+              <option value="write">schreibend (Index nach dem Aufruf neu laden)</option>
+              <option value="read">nur lesend (Index-Cache behalten)</option>
+            </select>
+          </div>
+          <div class="field">
             <div class="field-head"><label>Template</label><button type="button" class="help" data-help="Wie Vorgangs-Templates: ha.state('entity'), ha.entities('domain'), ha.call('toolname'), shell('befehl') + Jinja. Der gerenderte Text ist das Ergebnis der Funktion." aria-label="Hilfe zu Template">?</button></div>            <div class="field-help hidden">
               Gleiches Repertoire wie Vorgangs-Templates:
               {{ ha.state('sensor.x') }} → Zustand einer Entität,
@@ -280,6 +288,11 @@
           <textarea id="mcp-env" class="hidden" rows="3" placeholder="SEARXNG_URL=http://<searxng-host>:8003"></textarea>
           <label>Agent-Inventory-Prompt (Systeme-Katalog)</label>
           <textarea id="mcp-inventory-prompt" rows="3" placeholder="Wann nutzt der Agent dieses System und wie (Kaskaden, Eigenheiten)?"></textarea>
+          <label>Wirkung auf den Index</label>
+          <select id="mcp-side-effect">
+            <option value="write">schreibend (Index nach dem Aufruf neu laden)</option>
+            <option value="read">nur lesend (Index-Cache behalten)</option>
+          </select>
           <label class="check"><input id="mcp-enabled" type="checkbox" checked> Aktiv</label>
           <div class="toolbar">
             <button id="mcp-save" class="btn primary">Speichern</button>

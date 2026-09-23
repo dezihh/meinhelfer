@@ -100,6 +100,7 @@ db.exec(`
     command TEXT,
     args TEXT,
     env TEXT,
+    side_effect TEXT NOT NULL DEFAULT 'write',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -128,6 +129,7 @@ db.exec(`
     parameters TEXT,
     budget INTEGER,
     inventory_prompt TEXT,
+    side_effect TEXT NOT NULL DEFAULT 'write',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -206,6 +208,8 @@ for (const stmt of [
   'ALTER TABLE tpl_functions ADD COLUMN budget INTEGER',
   'ALTER TABLE tpl_functions ADD COLUMN inventory_prompt TEXT',
   'ALTER TABLE mcp_servers ADD COLUMN inventory_prompt TEXT',
+  "ALTER TABLE mcp_servers ADD COLUMN side_effect TEXT NOT NULL DEFAULT 'write'",
+  "ALTER TABLE tpl_functions ADD COLUMN side_effect TEXT NOT NULL DEFAULT 'write'",
 ]) {
   try {
     db.exec(stmt);

@@ -1,11 +1,12 @@
 import { listMcpServers } from '../db.js';
-import type { ToolDef } from '../types.js';
+import type { SideEffect, ToolDef } from '../types.js';
 import { McpClient, type McpTransport } from './client.js';
 import { McpStdioClient } from './stdio.js';
 
 export interface McpServerContext {
   id: number;
   name: string;
+  sideEffect: SideEffect;
   client: McpTransport;
   tools: ToolDef[];
 }
@@ -103,14 +104,14 @@ export async function getMcpContext(): Promise<McpContext> {
           // serve-stale: sofort liefern, Refresh im Hintergrund -> naechste Anfrage frisch
           void refreshLater(row.id, row);
         }
-        return { id: row.id, name: row.name, client: entry.client, tools: entry.tools };
+        return { id: row.id, name: row.name, sideEffect: row.side_effect, client: entry.client, tools: entry.tools };
       }
       // Kaltstart: erstmalig laden (blockierend, da Daten zwingend noetig),
       // aber ueber alle Rows parallel statt sequenziell.
       try {
         const fresh = await loadServer(row);
         cache.set(row.id, fresh);
-        return { id: row.id, name: row.name, client: fresh.client, tools: fresh.tools };
+        return { id: row.id, name: row.name, sideEffect: row.side_effect, client: fresh.client, tools: fresh.tools };
       } catch (e) {
         console.error(`MCP-Init ${row.id} fehlgeschlagen:`, e);
         return null;

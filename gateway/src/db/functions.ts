@@ -1,4 +1,5 @@
 import { getDb } from './schema.js';
+import type { SideEffect } from '../types.js';
 
 export interface ParsedFunction {
   id: number;
@@ -8,6 +9,7 @@ export interface ParsedFunction {
   parameters: unknown | null;
   budget: number | null;
   inventory_prompt: string | null;
+  side_effect: SideEffect;
   enabled: boolean;
 }
 
@@ -18,6 +20,7 @@ export interface FunctionInput {
   parameters: string | null;
   budget: number | null;
   inventory_prompt: string | null;
+  side_effect?: SideEffect;
   enabled: number;
 }
 
@@ -29,6 +32,7 @@ interface FunctionRow {
   parameters: string | null;
   budget: number | null;
   inventory_prompt: string | null;
+  side_effect: SideEffect | null;
   enabled: number;
 }
 
@@ -47,6 +51,7 @@ function parseFunction(row: FunctionRow): ParsedFunction {
     parameters,
     budget: row.budget ?? null,
     inventory_prompt: row.inventory_prompt ?? null,
+    side_effect: row.side_effect ?? 'write',
     enabled: !!row.enabled,
   };
 }
@@ -70,10 +75,10 @@ export function getFunctionByName(name: string): ParsedFunction | undefined {
 
 export function createFunction(data: FunctionInput): ParsedFunction {
   const info = getDb().prepare(
-      `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, enabled)
-       VALUES (@name, @description, @template, @parameters, @budget, @inventory_prompt, @enabled)`
+      `INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, side_effect, enabled)
+       VALUES (@name, @description, @template, @parameters, @budget, @inventory_prompt, @side_effect, @enabled)`
     )
-    .run(data);
+    .run({ ...data, side_effect: data.side_effect ?? 'write' });
   const row = getFunction(Number(info.lastInsertRowid));
   if (!row) throw new Error('Funktion konnte nicht gelesen werden');
   return row;
@@ -82,8 +87,8 @@ export function createFunction(data: FunctionInput): ParsedFunction {
 export function updateFunction(id: number, data: FunctionInput): ParsedFunction | undefined {
   getDb().prepare(
     `UPDATE tpl_functions SET name = @name, description = @description, template = @template,
-     parameters = @parameters, budget = @budget, inventory_prompt = @inventory_prompt, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
-  ).run({ ...data, id });
+     parameters = @parameters, budget = @budget, inventory_prompt = @inventory_prompt, side_effect = @side_effect, enabled = @enabled, updated_at = datetime('now') WHERE id = @id`
+  ).run({ ...data, side_effect: data.side_effect ?? 'write', id });
   return getFunction(id);
 }
 

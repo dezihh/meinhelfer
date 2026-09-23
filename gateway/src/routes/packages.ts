@@ -21,6 +21,7 @@ import {
   type PackageManifest,
 } from '../db.js';
 import { invalidateMcpCache } from '../mcp/registry.js';
+import { invalidateIndex } from '../core/entityIndex.js';
 
 export const packagesRoutes = Router();
 
@@ -143,6 +144,7 @@ packagesRoutes.post('/admin/api/packages/:id/install', requireAuth, async (req, 
       dangerousAck: body.dangerousAck,
     });
     invalidateMcpCache();
+    invalidateIndex();
     res.json({ report });
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
@@ -153,6 +155,7 @@ packagesRoutes.post('/admin/api/packages/:id/uninstall', requireAuth, (req, res)
   try {
     res.json({ report: uninstallPackage(String(req.params.id)) });
     invalidateMcpCache();
+    invalidateIndex();
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
   }
@@ -241,5 +244,6 @@ packagesRoutes.post('/admin/api/backup/restore', requireAuth, (req, res) => {
     }
   })();
   invalidateMcpCache();
+  invalidateIndex();
   res.json({ ok: true });
 });

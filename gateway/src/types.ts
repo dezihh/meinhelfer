@@ -1,5 +1,9 @@
 export type ActionMode = 'deterministic' | 'llm' | 'hybrid';
 
+// Ob ein Tool/Server/funktion den Aussenwelt-Zustand veraendern kann. 'write'
+// (Default) verwirft den Entity-Index-Cache nach dem Aufruf, 'read' nicht.
+export type SideEffect = 'read' | 'write';
+
 export interface VoiceQuery {
   sessionId: string;
   userId?: string;
@@ -52,6 +56,7 @@ export interface McpServerRow {
   args: string | null;
   env: string | null;
   inventory_prompt: string | null;
+  side_effect: SideEffect;
   enabled: number;
 }
 

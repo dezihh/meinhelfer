@@ -62,6 +62,7 @@ function normalizeServerInput(body: Record<string, unknown>): McpServerInput {
     args,
     env,
     inventory_prompt: body.inventory_prompt == null ? null : String(body.inventory_prompt).trim() || null,
+    side_effect: body.side_effect === 'read' ? 'read' : 'write',
     enabled: body.enabled === false ? 0 : 1,
   };
 }

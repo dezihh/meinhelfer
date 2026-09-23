@@ -2,11 +2,12 @@
 // Namens-Kollisionen, Budgets). Reine Bau-Funktion - kein LLM-Kontext.
 import type { McpContext } from '../mcp/registry.js';
 import type { ToolSpec } from '../llm/client.js';
+import type { SideEffect } from '../types.js';
 import { listFunctions } from '../db/functions.js';
 
 export type ToolRoute =
-  | { kind: 'mcp'; client: McpContext['servers'][number]['client']; toolName: string }
-  | { kind: 'function'; name: string }
+  | { kind: 'mcp'; client: McpContext['servers'][number]['client']; toolName: string; sideEffect: SideEffect }
+  | { kind: 'function'; name: string; sideEffect: SideEffect }
   | { kind: 'index_find' }
   | { kind: 'index_get' };
 
@@ -35,7 +36,7 @@ export function buildMcpTools(
       if (used.has(name)) continue;
       if (allowlist && !allowlist.includes(def.name) && !allowlist.includes(name)) continue;
       used.add(name);
-      routes.set(name, { kind: 'mcp', client: server.client, toolName: def.name });
+      routes.set(name, { kind: 'mcp', client: server.client, toolName: def.name, sideEffect: server.sideEffect });
       specs.push({
         type: 'function',
         function: {
@@ -113,7 +114,7 @@ export function buildTools(
     const toolName = `fn_${fn.name}`;
     if (routes.has(toolName)) continue; // Basis-Werkzeuge gewinnen
     if (allowlist && !allowlist.includes(fn.name) && !allowlist.includes(toolName)) continue;
-    routes.set(toolName, { kind: 'function', name: fn.name });
+    routes.set(toolName, { kind: 'function', name: fn.name, sideEffect: fn.side_effect });
     if (fn.budget && fn.budget > 0) budgets.set(toolName, fn.budget);
     specs.push({
       type: 'function',

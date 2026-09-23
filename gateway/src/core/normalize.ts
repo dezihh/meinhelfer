@@ -72,6 +72,8 @@ export function normalizeFunctionInput(body: Record<string, unknown>): FunctionI
     parameters,
     budget,
     inventory_prompt: body.inventory_prompt == null ? null : String(body.inventory_prompt).trim() || null,
+    // Default 'write' (konservativ): nur explizites 'read' verwirft den Index-Cache nicht.
+    side_effect: body.side_effect === 'read' ? 'read' : 'write',
     enabled: body.enabled === false ? 0 : 1,
   };
 }
