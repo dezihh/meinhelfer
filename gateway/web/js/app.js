@@ -68,6 +68,12 @@ const SETTINGS_FIELDS = [
     help: 'Überschrift des APL-Displays auf Echo-Show-Geräten. Wirkt ab der nächsten Anfrage, kein Neustart nötig.',
   },
   {
+    key: 'registry_language',
+    label: 'Paket-Registry-Sprache',
+    type: 'text',
+    help: 'Sprachordner in der Paket-Registry (Standard: de). Die Installation sucht Pakete unter packages/<Sprache>/ im MeinHelfer-Repo.',
+  },
+  {
     key: 'llm_model',
     label: 'LLM-Modell',
     type: 'text',
@@ -978,7 +984,7 @@ init();
 
 // ---- Wartung und Pakete ----
 
-let pkgState = { registry: [], installed: [], selected: null, preview: null };
+let pkgState = { registry: [], installed: [], selected: null, preview: null, language: 'de' };
 
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -986,6 +992,7 @@ async function loadMaintenance() {
   try {
     const data = await api('/packages');
     pkgState.installed = data.installed ?? [];
+    pkgState.language = data.language ?? 'de';
     pkgState.registry = data.registry ?? [];
     renderPackages();
   } catch (e) {
@@ -998,7 +1005,7 @@ function renderPackages() {
   const installedIds = new Set(pkgState.installed.map((p) => p.id));
   const avail = pkgState.registry.map((p) => {
     const inst = installedIds.has(p.id) ? '<span class="chip ok">installiert</span>' : '';
-    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)} <a href="https://github.com/dezihh/meinhelfer/blob/main/packages/${escHtml(p.id)}/README.md" target="_blank" rel="noopener">Installations-Doku</a></div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
+    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)} <a href="https://github.com/dezihh/meinhelfer/blob/main/packages/${escHtml(pkgState.language ?? 'de')}/${escHtml(p.id)}/README.md" target="_blank" rel="noopener">Installations-Doku</a></div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
   });
   $('pkg-available').innerHTML = avail.length ? avail.join('') : '<div class="field-help">Registry leer oder nicht erreichbar — „Aktualisieren“ versucht es erneut.</div>';
   const inst = pkgState.installed.map((p) => {
@@ -1044,6 +1051,15 @@ async function showInstallForm(id, manifestFromImport) {
     const danger = preview.dangerous ? `<div class="error-text pkg-danger">⚠️ Gefährliche Aktion: ${(preview.dangerousItems ?? []).map((i) => escHtml(i)).join(' · ')}</div>` : '';
     const info = (preview.infoItems ?? []).length ? `<div class="field-help">${(preview.infoItems ?? []).map((i) => escHtml(i)).join(' · ')}</div>` : '';
     const items = (preview.items ?? []).map((i) => `<li>${escHtml(i.kind)}: ${escHtml(i.name)}</li>`).join('');
+    const meta = [
+      m.author ? `Autor: ${escHtml(m.author)}` : '',
+      m.license ? `Lizenz: ${escHtml(m.license)}` : '',
+      m.language ? `Sprache: ${escHtml(m.language)}` : '',
+      m.minGatewayVersion ? `min. Gateway ${escHtml(m.minGatewayVersion)}` : '',
+    ].filter(Boolean).join(' · ');
+    const metaHtml = meta ? `<p class="field-help">${meta}</p>` : '';
+    const securityHtml = `<p class="field-help">Sicherheit: ${preview.dangerous ? '⚠️ führt Shell-Befehle aus (Bestätigung nötig)' : (preview.infoItems ?? []).length ? 'ruft externe Dienste auf (Info)' : 'nur lesend / unkritisch'}</p>`;
+    const changelogHtml = m.changelog ? `<details><summary>Changelog</summary><pre class="pkg-docs">${escHtml(m.changelog)}</pre></details>` : '';
     const conflictsHtml = conflicts.length ? `
       <div class="pkg-items pkg-conflicts">
         <strong>Lokale Änderungen erkannt:</strong>
@@ -1058,11 +1074,14 @@ async function showInstallForm(id, manifestFromImport) {
     $('pkg-install-form').innerHTML = `
       <h3>${escHtml(m.name)} <span class="pkg-version">v${escHtml(m.version)}</span></h3>
       <p class="field-help">${escHtml(m.description ?? '')}</p>
+      ${metaHtml}
+      ${securityHtml}
       ${m.requires ? `<p class="field-help"><strong>Benötigt:</strong> ${escHtml(m.requires)}</p>` : ''}
       ${danger}${info}
       ${conflictsHtml}
       <div class="pkg-items"><strong>Enthält:</strong><ul>${items}</ul></div>
       ${preview.setupDocs ? `<details><summary>Einrichtung Gegenseite</summary><pre class="pkg-docs">${escHtml(preview.setupDocs)}</pre></details>` : ''}
+      ${changelogHtml}
       <div class="form-grid">${paramForm(m)}</div>
       <div class="toolbar">
         <button id="pkg-install-go" class="btn primary">${installed ? 'Aktualisieren' : 'Installieren'}</button>

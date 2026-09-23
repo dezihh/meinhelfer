@@ -1,13 +1,27 @@
 {
   "id": "home-assistant",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": "Home Assistant Anbindung",
   "summary": "MCP-Server (ha-mcp), Entity-Index (alle HA-States) und Schalten-Kaskade.",
   "description": "Legt den Registry-Eintrag fuer den ha-mcp-Server (Streamable HTTP) an, konfiguriert den Entity-Index (Standard-Index liest alle HA-States als Pipe-Zeilen) und haekt die HA-Werkzeuge in der Agent-Tool-Allowlist an. Die Schalten-Kaskade (Name -> entity_id -> Service-Call) kommt als Agent-Inventory-Prompt mit.",
+  "author": "dezihh",
+  "license": "MIT",
+  "language": "de",
+  "homepage": "https://github.com/dezihh/meinhelfer",
   "requires": "Home Assistant erreichbar; ha-mcp als Container (ha-mcp-web, HTTP-Modus) oder als HA-MCP Custom Component. Das Home-Assistant-Long-Lived-Access-Token liegt nur in der Container-Env (mcp.env) - das Gateway-Feld Auth-Token bleibt leer.",
+  "minGatewayVersion": "0.1.0",
   "params": [
-    { "key": "ha_host", "label": "HA-Host", "placeholder": "192.168.1.10", "required": true },
-    { "key": "ha_port", "label": "HA-MCP-Port", "default": "8086" }
+    {
+      "key": "ha_host",
+      "label": "HA-Host",
+      "placeholder": "192.168.1.10",
+      "required": true
+    },
+    {
+      "key": "ha_port",
+      "label": "HA-MCP-Port",
+      "default": "8086"
+    }
   ],
   "servers": [
     {
@@ -32,29 +46,97 @@
         },
         "ttlMs": 60000,
         "aliases": {
-          "licht": "light", "lampe": "light", "steckdose": "switch",
-          "temperatur": "temperature", "heizung": "climate", "klimaanlage": "climate",
-          "fenster": "window", "tuer": "door", "fernseher": "media_player",
-          "musik": "media_player", "rolladen": "cover", "garage": "cover",
-          "kamera": "camera", "bewegung": "motion", "luftfeuchtigkeit": "humidity",
-          "batterie": "battery", "draussen": "aussen", "drinnen": "innen",
-          "oben": "upstairs", "unten": "downstairs"
+          "licht": "light",
+          "lampe": "light",
+          "steckdose": "switch",
+          "temperatur": "temperature",
+          "heizung": "climate",
+          "klimaanlage": "climate",
+          "fenster": "window",
+          "tuer": "door",
+          "fernseher": "media_player",
+          "musik": "media_player",
+          "rolladen": "cover",
+          "garage": "cover",
+          "kamera": "camera",
+          "bewegung": "motion",
+          "luftfeuchtigkeit": "humidity",
+          "batterie": "battery",
+          "draussen": "aussen",
+          "drinnen": "innen",
+          "oben": "upstairs",
+          "unten": "downstairs"
         },
         "domainHints": [
-          { "re": "temperatur|warm|kalt|grad", "domains": ["sensor", "climate", "weather"] },
-          { "re": "feucht", "domains": ["sensor"] },
-          { "re": "verbrauch|leistung|energie|strom|kwh|watt", "domains": ["sensor"] },
-          { "re": "fullstand|zisterne|tank", "domains": ["sensor"] },
-          { "re": "licht|lampe|leuchte", "domains": ["light"] },
-          { "re": "steckdose|schalter", "domains": ["switch", "light"] },
-          { "re": "rolladen|raffstore|jalousie", "domains": ["cover"] },
-          { "re": "thermostat|heizung|heizen", "domains": ["climate"] },
-          { "re": "lautsta|musik|radio|sprecher", "domains": ["media_player"] }
+          {
+            "re": "temperatur|warm|kalt|grad",
+            "domains": [
+              "sensor",
+              "climate",
+              "weather"
+            ]
+          },
+          {
+            "re": "feucht",
+            "domains": [
+              "sensor"
+            ]
+          },
+          {
+            "re": "verbrauch|leistung|energie|strom|kwh|watt",
+            "domains": [
+              "sensor"
+            ]
+          },
+          {
+            "re": "fullstand|zisterne|tank",
+            "domains": [
+              "sensor"
+            ]
+          },
+          {
+            "re": "licht|lampe|leuchte",
+            "domains": [
+              "light"
+            ]
+          },
+          {
+            "re": "steckdose|schalter",
+            "domains": [
+              "switch",
+              "light"
+            ]
+          },
+          {
+            "re": "rolladen|raffstore|jalousie",
+            "domains": [
+              "cover"
+            ]
+          },
+          {
+            "re": "thermostat|heizung|heizen",
+            "domains": [
+              "climate"
+            ]
+          },
+          {
+            "re": "lautsta|musik|radio|sprecher",
+            "domains": [
+              "media_player"
+            ]
+          }
         ]
       }
     }
   ],
-  "allowTools": ["ha_call_service", "ha_list_services", "ha_eval_template", "fn_find_entities", "fn_get_entity", "web_url_read"],
+  "allowTools": [
+    "ha_call_service",
+    "ha_list_services",
+    "ha_eval_template",
+    "fn_find_entities",
+    "fn_get_entity",
+    "web_url_read"
+  ],
   "setupDocs": "Server-Seite (Docker, HTTP-Modus):\n\n  ha-mcp:\n    image: ghcr.io/homeassistant-ai/ha-mcp:latest\n    container_name: ha-mcp\n    restart: unless-stopped\n    command: ha-mcp-web\n    ports:\n      - \"8086:8086\"\n    env_file:\n      - ./mcp.env   # enthaelt das Home-Assistant-Long-Lived-Access-Token\n    volumes:\n      - ./data:/home/mcpuser/.ha-mcp\n    environment:\n      - TZ=Europe/Berlin\n\nAlternative (Home Assistant OS/Supervised): HA-MCP Custom Component via HACS - laeuft in-process, ohne Token-Verwaltung. Nur eine Methode gleichzeitig betreiben.\nDetails: https://github.com/homeassistant-ai/ha-mcp",
-  "changelog": "1.0.1: Platzhalter-Syntax in der Server-URL korrigiert; domainHints in die Index-Konfiguration aufgenommen (der Code-Default ist jetzt systemneutral/leer).\n1.0.0: Erste Fassung (Server, Index, Kaskade, Allowlist)."
+  "changelog": "1.0.2: Registry-Layout packages/de/<id>/; Manifest um Vertrauens-/Sprachfelder (author, license, language, homepage, minGatewayVersion) und sideEffect ergaenzt.\n1.0.1: Platzhalter-Syntax in der Server-URL korrigiert; domainHints in die Index-Konfiguration aufgenommen (der Code-Default ist jetzt systemneutral/leer).\n1.0.0: Erste Fassung (Server, Index, Kaskade, Allowlist)."
 }

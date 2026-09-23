@@ -17,6 +17,7 @@ import {
   parseManifest,
   validateManifest,
   substituteParams,
+  meetsMinVersion,
   manifestDangerous,
   manifestItems,
   paramValues,
@@ -233,6 +234,36 @@ test('Backup/Restore: Paket-Provenienz wird mitgesichert und wiederhergestellt',
     });
     assert.equal(restore2.status, 200);
     assert.equal(listInstalledPackages().length, 0, 'ohne Provenienz verworfen');
+  } finally {
+    server.close();
+  }
+});
+
+test('Vertrauens-/Sprachfelder: semver-Vergleich + Manifest-Validierung', () => {
+  assert.equal(meetsMinVersion('0.1.0', '0.1.0'), true);
+  assert.equal(meetsMinVersion('0.1.0', '0.2.0'), false);
+  assert.equal(meetsMinVersion('1.2.3', '1.2.2'), true);
+  assert.equal(meetsMinVersion('0.1.0', undefined), true);
+  assert.equal(validateManifest({ ...OK_MANIFEST, author: 'x', license: 'MIT', language: 'de', homepage: 'https://x', minGatewayVersion: '0.1.0' }).ok, true);
+  assert.equal(validateManifest({ ...OK_MANIFEST, language: 'DEUTSCH' }).ok, false);
+  assert.equal(validateManifest({ ...OK_MANIFEST, minGatewayVersion: 'v1' }).ok, false);
+});
+
+test('Install: zu altes Gateway wird abgelehnt (minGatewayVersion)', async () => {
+  const app = express();
+  app.use(express.json({ limit: '1mb' }));
+  app.use(packagesRoutes);
+  const server = app.listen(0);
+  const port = (server.address() as AddressInfo).port;
+  const auth = { Authorization: `Bearer ${config.authToken}`, 'Content-Type': 'application/json' };
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/admin/api/packages/future/install`, {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ manifest: { ...OK_MANIFEST, id: 'future', minGatewayVersion: '99.0.0' }, params: { host: 'h' } }),
+    });
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { error?: string };
+    assert.match(body.error ?? '', /benoetigt Gateway/);
   } finally {
     server.close();
   }

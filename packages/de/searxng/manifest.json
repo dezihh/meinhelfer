@@ -1,24 +1,40 @@
 {
   "id": "searxng",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": "Websuche SearXNG",
   "summary": "Metasuche ueber eine selbst gehostete SearXNG-Instanz (stdio-Bruecke mcp-searxng).",
   "description": "Legt den Registry-Eintrag fuer die mcp-searxng-stdio-Bruecke an (laeuft im Gateway-Container) und hakt die Such-Werkzeuge in der Allowlist an. Die Lese-Regel (nur konkrete Treffer-URLs/Feeds) kommt als Agent-Inventory-Prompt mit.",
+  "author": "dezihh",
+  "license": "MIT",
+  "language": "de",
+  "homepage": "https://github.com/dezihh/meinhelfer",
   "requires": "Eine SearXNG-Instanz mit freigeschalteter JSON-API (settings.yml: search.formats muss json enthalten, sonst liefert die Bruecke nur Fehler).",
+  "minGatewayVersion": "0.1.0",
   "params": [
-    { "key": "searxng_url", "label": "SearXNG-URL (/search)", "placeholder": "http://192.168.1.20:8080/search", "required": true }
+    {
+      "key": "searxng_url",
+      "label": "SearXNG-URL (/search)",
+      "placeholder": "http://192.168.1.20:8080/search",
+      "required": true
+    }
   ],
   "servers": [
     {
       "name": "SearXNG",
       "transport": "stdio",
       "command": "node_modules/.bin/mcp-searxng",
-      "env": { "SEARXNG_URL": "${searxng_url}" },
+      "env": {
+        "SEARXNG_URL": "${searxng_url}"
+      },
       "inventory_prompt": "Websuche: searxng_web_search (language \"de\", num_results 5; time_range \"week\" bei Nachrichten; bei konkreter Quelle direkt darauf zielen). Konkrete Seite/URL lesen: web_url_read - nur auf ausdruecklichen Wunsch des Nutzers. NIEMALS Nachrichtenseiten oder Portale lesen, die die Suche nicht geliefert hat.",
-      "enabled": true
+      "enabled": true,
+      "sideEffect": "read"
     }
   ],
-  "allowTools": ["searxng_web_search", "web_url_read"],
+  "allowTools": [
+    "searxng_web_search",
+    "web_url_read"
+  ],
   "setupDocs": "Server-Seite (Docker):\n\n  searxng:\n    image: searxng/searxng:latest\n    container_name: searxng\n    restart: unless-stopped\n    ports:\n      - \"8080:8080\"\n    volumes:\n      - ./searxng:/etc/searxng\n\nWICHTIG: in searxng/settings.yml die JSON-API freischalten:\n\n  search:\n    formats:\n      - html\n      - json\n\nDetails: https://docs.searxng.org",
-  "changelog": "1.0.1: Platzhalter-Syntax korrigiert (ueberzaehlige schliessende Klammer in ${...}).\n1.0.0: Erste Fassung (stdio-Bruecke, Lese-Regel, Allowlist)."
+  "changelog": "1.0.2: Registry-Layout packages/de/<id>/; Manifest um Vertrauens-/Sprachfelder (author, license, language, homepage, minGatewayVersion) und sideEffect ergaenzt.\n1.0.1: Platzhalter-Syntax korrigiert (ueberzaehlige schliessende Klammer in ${...}).\n1.0.0: Erste Fassung (stdio-Bruecke, Lese-Regel, Allowlist)."
 }

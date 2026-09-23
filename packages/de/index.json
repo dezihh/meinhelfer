@@ -1,0 +1,47 @@
+{
+  "registryVersion": 1,
+  "packages": [
+    {
+      "id": "home-assistant",
+      "name": "Home Assistant Anbindung",
+      "summary": "MCP-Server (ha-mcp), Entity-Index (alle HA-States) und Schalten-Kaskade",
+      "version": "1.0.2"
+    },
+    {
+      "id": "music-assistant",
+      "name": "Music Assistant Anbindung",
+      "summary": "MCP-Server (ma-provider-mcp), Player-Liste und Wiedergabe-Kaskade",
+      "version": "1.0.2"
+    },
+    {
+      "id": "searxng",
+      "name": "Websuche SearXNG",
+      "summary": "Metasuche ueber eine selbst gehostete SearXNG-Instanz (stdio-Bruecke)",
+      "version": "1.0.2"
+    },
+    {
+      "id": "brave-search",
+      "name": "Websuche Brave",
+      "summary": "Brave Search API als Such-Connector inkl. Recherche-Funktion",
+      "version": "1.0.2"
+    },
+    {
+      "id": "system-info",
+      "name": "System-Info (Shell)",
+      "summary": "Gateway-Uptime und CPU-Typ via shell() - gefaehrliche Aktion",
+      "version": "1.0.2"
+    },
+    {
+      "id": "open-meteo-wetter",
+      "name": "Wetter (Open-Meteo)",
+      "summary": "Aktuelles Wetter und 3-Tage-Vorhersage via Open-Meteo, koordinaten-basiert",
+      "version": "1.0.1"
+    },
+    {
+      "id": "autobahn",
+      "name": "Autobahn-Verkehr",
+      "summary": "Baustellen und Verkehrsmeldungen der Autobahnen (oeffentliche API, ohne Key)",
+      "version": "1.0.1"
+    }
+  ]
+}

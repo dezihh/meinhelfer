@@ -1,10 +1,15 @@
 {
   "id": "open-meteo-wetter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Wetter (Open-Meteo)",
   "summary": "Aktuelles Wetter und 3-Tage-Vorhersage via Open-Meteo (oeffentliche API, ohne Key), Koordinaten-Parameter.",
   "description": "Legt die Funktion wetter an: aktuelles Wetter und 3-Tage-Vorhersage aus der Open-Meteo-Forecast-API (Modell ICON, Wettercodes als sprechbare Texte). Koordinaten und Zeitzone werden beim Install abgefragt. Oeffentliche API - kein Key, keine Gegenseite.",
+  "author": "dezihh",
+  "license": "MIT",
+  "language": "de",
+  "homepage": "https://github.com/dezihh/meinhelfer",
   "requires": "Internetzugang des Gateway-Containers zu api.open-meteo.com.",
+  "minGatewayVersion": "0.1.0",
   "params": [
     {
       "key": "latitude",
@@ -34,12 +39,13 @@
         "properties": {}
       },
       "budget": 1,
-      "inventory_prompt": "Wetter (aktuell + 3-Tage-Vorhersage für Zuhause): fn_wetter (fertiger Bericht, Open-Meteo). Keine Websuche nötig."
+      "inventory_prompt": "Wetter (aktuell + 3-Tage-Vorhersage für Zuhause): fn_wetter (fertiger Bericht, Open-Meteo). Keine Websuche nötig.",
+      "sideEffect": "read"
     }
   ],
   "allowTools": [
     "fn_wetter"
   ],
   "setupDocs": "Keine Gegenseite - Open-Meteo ist eine oeffentliche API (https://open-meteo.com). Die Koordinaten kommen aus den Install-Parametern; die Standard-Koordinaten stehen fuer das Referenz-Haus - bitte eigene Koordinaten eintragen.",
-  "changelog": "1.0.0: Erste Fassung (wetter-Funktion mit Koordinaten-Parametern)."
+  "changelog": "1.0.1: Registry-Layout packages/de/<id>/; Manifest um Vertrauens-/Sprachfelder (author, license, language, homepage, minGatewayVersion) und sideEffect ergaenzt.\n1.0.0: Erste Fassung (wetter-Funktion mit Koordinaten-Parametern)."
 }

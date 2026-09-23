@@ -24,11 +24,15 @@ import {
 } from '../db.js';
 import { invalidateMcpCache } from '../mcp/registry.js';
 import { invalidateIndex } from '../core/entityIndex.js';
+import { meetsMinVersion } from '../core/packages.js';
+import { GATEWAY_VERSION } from '../version.js';
 
 export const packagesRoutes = Router();
 
 // Registry-URL: hart auf unser Repo (kein Produktkonfigurationsfeld - die
 // Paketquelle ist Teil der Installation, nicht eine Nutzer-Einstellung).
+// Pakete liegen sprachspezifisch unter packages/<lang>/<id>/; die Sprache kommt
+// aus dem Setting registry_language (Default "de").
 const REGISTRY_URL = 'https://raw.githubusercontent.com/dezihh/meinhelfer/main/packages';
 const REGISTRY_CACHE_MS = 60_000;
 
@@ -45,8 +49,13 @@ interface RegistryIndex {
 
 let registryCache: { at: number; data: RegistryIndex } | null = null;
 
+function registryLanguage(): string {
+  const v = (getSetting('registry_language') ?? 'de').trim().toLowerCase();
+  return /^[a-z]{2}(-[a-z]{2})?$/.test(v) ? v : 'de';
+}
+
 function registryUrl(): string {
-  return REGISTRY_URL;
+  return `${REGISTRY_URL.replace(/\/$/, '')}/${registryLanguage()}`;
 }
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -91,6 +100,8 @@ packagesRoutes.get('/admin/api/packages/manifest/:id', requireAuth, async (req, 
       manifest: {
         id: m.id, version: m.version, name: m.name, summary: m.summary,
         description: m.description, requires: m.requires, setupDocs: m.setupDocs, params: m.params ?? [],
+        author: m.author, license: m.license, language: m.language ?? 'de', homepage: m.homepage,
+        minGatewayVersion: m.minGatewayVersion, changelog: m.changelog,
       },
       items: manifestItems(m),
       dangerous: danger.dangerous,
@@ -114,6 +125,8 @@ packagesRoutes.post('/admin/api/packages/preview', requireAuth, (req, res) => {
       manifest: {
         id: m.id, version: m.version, name: m.name, summary: m.summary,
         description: m.description, requires: m.requires, setupDocs: m.setupDocs, params: m.params ?? [],
+        author: m.author, license: m.license, language: m.language ?? 'de', homepage: m.homepage,
+        minGatewayVersion: m.minGatewayVersion, changelog: m.changelog,
       },
       items: manifestItems(m),
       dangerous: danger.dangerous,
@@ -137,6 +150,9 @@ packagesRoutes.post('/admin/api/packages/:id/install', requireAuth, async (req, 
       manifest = parsed.manifest;
     } else {
       manifest = await fetchManifest(String(req.params.id ?? ''));
+    }
+    if (!meetsMinVersion(GATEWAY_VERSION, manifest.minGatewayVersion)) {
+      return res.status(400).json({ error: `Paket ${manifest.id} benoetigt Gateway >= ${manifest.minGatewayVersion} (installiert: ${GATEWAY_VERSION}). Bitte zuerst das Gateway aktualisieren.` });
     }
     const values = paramValues(manifest, body.params ?? {});
     const report = installPackage(manifest, {
@@ -179,7 +195,7 @@ packagesRoutes.get('/admin/api/packages', requireAuth, async (_req, res) => {
   } catch {
     registry = null;
   }
-  res.json({ installed, registry });
+  res.json({ installed, registry, language: registryLanguage() });
 });
 
 // Lokale Abweichungen eines installierten Pakets (Diff vor dem Reinstall).

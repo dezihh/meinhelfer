@@ -49,7 +49,17 @@ export interface PackageManifest {
   name: string;
   summary: string;
   description: string;
+  /** Herkunft/Autor des Pakets (Community-Vertrauensmodell). */
+  author?: string;
+  /** Lizenz-Kennung, z. B. "MIT". */
+  license?: string;
+  /** Sprache des Pakets (BCP-47-Kuerzel, z. B. "de"). Default: de. */
+  language?: string;
+  /** Projekt-/Doku-Link. */
+  homepage?: string;
   requires?: string;
+  /** Getestete Gateway-Mindestversion (semver); Installation wird sonst abgelehnt. */
+  minGatewayVersion?: string;
   params?: PackageParam[];
   servers?: PackageServer[];
   functions?: PackageFunction[];
@@ -57,7 +67,22 @@ export interface PackageManifest {
   allowTools?: string[];
   setupDocs?: string;
   changelog?: string;
-  minGatewayVersion?: string;
+}
+
+// Zahl-fuer-Zahl-Vergleich zweier "x.y.z"-Versionen: <0, 0, >0.
+export function compareSemver(a: string, b: string): number {
+  const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+export function meetsMinVersion(current: string, min: string | undefined): boolean {
+  if (!min) return true;
+  return compareSemver(current, min) >= 0;
 }
 
 // "gefaehrliche Aktion": Templates, die shell() mitbringen (Befehle im
@@ -81,6 +106,10 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
   if (!m.version || !/^\d+\.\d+\.\d+$/.test(m.version)) errors.push('version fehlt oder kein semver');
   if (!m.name || typeof m.name !== 'string') errors.push('name fehlt');
   if (!m.summary || typeof m.summary !== 'string') errors.push('summary fehlt');
+  if (m.language !== undefined && (typeof m.language !== 'string' || !/^[a-z]{2}(-[A-Za-z]{2})?$/.test(m.language))) errors.push('language muss ein Sprachkuerzel wie "de" sein');
+  if (m.author !== undefined && typeof m.author !== 'string') errors.push('author muss ein String sein');
+  if (m.license !== undefined && typeof m.license !== 'string') errors.push('license muss ein String sein');
+  if (m.minGatewayVersion !== undefined && (typeof m.minGatewayVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(m.minGatewayVersion))) errors.push('minGatewayVersion muss semver (x.y.z) sein');
   if (m.servers !== undefined) {
     if (!Array.isArray(m.servers)) errors.push('servers muss ein Array sein');
     else {

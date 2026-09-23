@@ -1,10 +1,15 @@
 {
   "id": "autobahn",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Autobahn-Verkehr",
   "summary": "Baustellen und Verkehrsmeldungen der Autobahnen (oeffentliche Autobahn-App-API, ohne Key) mit Geo-Filter.",
   "description": "Legt die Funktion autobahn an: Stau, Baustellen und Warnungen je Autobahn aus der oeffentlichen Autobahn-App-API des Bundes (keyless), gefiltert auf eine Geo-Box um Zuhause. Die Highways-Liste und die Geo-Box sind auf die Referenz-Region eingestellt und muessen nach der Installation gemaess README auf die eigene Region angepasst werden (Funktionen-UI, Template).",
+  "author": "dezihh",
+  "license": "MIT",
+  "language": "de",
+  "homepage": "https://github.com/dezihh/meinhelfer",
   "requires": "Internetzugang des Gateway-Containers zu verkehr.autobahn.de. Oeffentliche API, ohne Key.",
+  "minGatewayVersion": "0.1.0",
   "params": [],
   "functions": [
     {
@@ -14,14 +19,20 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "road": { "type": "string", "description": "Autobahn (optional); fehlt = alle Heimautobahnen" }
+          "road": {
+            "type": "string",
+            "description": "Autobahn (optional); fehlt = alle Heimautobahnen"
+          }
         }
       },
       "budget": 2,
-      "inventory_prompt": "Verkehr auf den Heimautobahnen (Baustellen, Stau, Sperrungen): fn_autobahn (oeffentliche API). Optional args.road fuer eine einzelne Autobahn."
+      "inventory_prompt": "Verkehr auf den Heimautobahnen (Baustellen, Stau, Sperrungen): fn_autobahn (oeffentliche API). Optional args.road fuer eine einzelne Autobahn.",
+      "sideEffect": "read"
     }
   ],
-  "allowTools": ["fn_autobahn"],
+  "allowTools": [
+    "fn_autobahn"
+  ],
   "setupDocs": "Keine Gegenseite - die Autobahn-App-API des Bundes ist oeffentlich (https://verkehr.autobahn.de). ANPASSUNG AUF DIE EIGENE REGION (nach dem Install im Funktionen-Editor): (1) die Autobahn-Nummern in den http()-URLs und pick()-Aufrufen, (2) die Geo-Box (lat/long-Grenzen) im block()-Makro auf die eigene Region. Defaults: Raum Hamburg (A1, A7, A20, A24, A25). Technische Begrenzung: max. 3 Meldungen je Autobahn, Budget 2.",
-  "changelog": "1.0.0: Erste Fassung (autobahn-Funktion, Referenz-Region Hamburg)."
+  "changelog": "1.0.1: Registry-Layout packages/de/<id>/; Manifest um Vertrauens-/Sprachfelder (author, license, language, homepage, minGatewayVersion) und sideEffect ergaenzt.\n1.0.0: Erste Fassung (autobahn-Funktion, Referenz-Region Hamburg)."
 }
