@@ -34,6 +34,10 @@ export function listPackageItems(id: string): PackageItemRow[] {
   return getDb().prepare('SELECT * FROM package_items WHERE package_id = ? ORDER BY kind, name').all(id) as PackageItemRow[];
 }
 
+export function listAllPackageItems(): PackageItemRow[] {
+  return getDb().prepare('SELECT * FROM package_items ORDER BY package_id, kind, name').all() as PackageItemRow[];
+}
+
 function hashContent(kind: string, name: string, content: unknown): string {
   return createHash('sha256').update(JSON.stringify({ kind, name, content })).digest('hex').slice(0, 16);
 }

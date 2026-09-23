@@ -1112,7 +1112,7 @@ $('backup-restore').onclick = async () => {
   if (!file) { alert('Bitte Sicherungsdatei wählen.'); return; }
   let backup;
   try { backup = JSON.parse(await file.text()); } catch { alert('Keine gültige JSON-Datei.'); return; }
-  if (!confirm('Achtung: Die aktuelle Konfiguration (Settings, Prompts, Server, Funktionen, Vorgänge) wird KOMPLETT ersetzt. Fortfahren?')) return;
+  if (!confirm('Achtung: Die aktuelle Konfiguration (Settings, Prompts, Server, Funktionen, Vorgänge, Paket-Provenienz) wird KOMPLETT ersetzt. Fortfahren?')) return;
   try {
     await api('/backup/restore', { method: 'POST', body: { backup, confirm: true } });
     alert('Rücksicherung abgeschlossen.');

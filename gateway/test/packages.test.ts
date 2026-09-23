@@ -1,13 +1,18 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
+import express from 'express';
+import type { AddressInfo } from 'node:net';
 import { initDb, closeDb, getDb } from '../src/db/schema.js';
 import {
   installPackage,
   uninstallPackage,
   listInstalledPackages,
   listPackageItems,
+  listAllPackageItems,
   conflictItems,
 } from '../src/db/packages.js';
+import { packagesRoutes } from '../src/routes/packages.js';
+import { config } from '../src/config.js';
 import {
   parseManifest,
   validateManifest,
@@ -38,13 +43,13 @@ const OK_MANIFEST = {
 
 before(() => {
   closeDb();
-  initDb('/tmp/opencode/test-meinhelfer.db');
+  initDb('/tmp/opencode/test-packages.db');
   const db = getDb();
   db.exec("DELETE FROM packages WHERE id = 'test-package'");
   db.exec("DELETE FROM package_items WHERE package_id = 'test-package'");
   db.exec("DELETE FROM mcp_servers WHERE name = 'Test MCP'");
   db.exec("DELETE FROM tpl_functions WHERE name = 'test_fn'");
-  db.exec("DELETE FROM settings WHERE key = 'entity_index_test'");
+  db.exec("DELETE FROM settings WHERE key IN ('entity_index_test', 'entity_index', 'agent_tools')");
 });
 
 test('Manifest-Validierung: korrekt + ungueltig', () => {
@@ -184,4 +189,51 @@ test('Reinstall-Diff: lokal geaenderte Zeile wird gemeldet; Entscheidung take/ke
   const nach = db.prepare("SELECT template FROM tpl_functions WHERE name = 'test_fn'").get() as { template: string };
   assert.equal(nach.template, 'LOKAL2', 'dryRun schreibt nicht');
   assert.deepEqual(dry.conflicts, ['function:test_fn']);
+});
+
+test('Backup/Restore: Paket-Provenienz wird mitgesichert und wiederhergestellt', async () => {
+  const app = express();
+  app.use(express.json({ limit: '1mb' }));
+  app.use(packagesRoutes);
+  const server = app.listen(0);
+  const port = (server.address() as AddressInfo).port;
+  const auth = { Authorization: `Bearer ${config.authToken}`, 'Content-Type': 'application/json' };
+  const base = `http://127.0.0.1:${port}`;
+  try {
+    const install = await fetch(`${base}/admin/api/packages/test-package/install`, {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ manifest: OK_MANIFEST, params: { host: '10.0.0.5', token: 'tok' } }),
+    });
+    assert.equal(install.status, 200);
+    assert.equal(listInstalledPackages().length, 1);
+    setSetting('probe_restore', 'BACKUP');
+
+    const backup = (await (await fetch(`${base}/admin/api/backup`, { headers: auth })).json()) as Record<string, unknown>;
+    assert.equal((backup.packages as unknown[]).length, 1, 'Backup enthaelt Paket-Provenienz');
+    const itemCount = (backup.package_items as unknown[]).length;
+    assert.ok(itemCount >= 3, 'Backup enthaelt package_items');
+
+    setSetting('probe_restore', 'GEAENDERT');
+    getDb().prepare('DELETE FROM packages').run();
+    getDb().prepare('DELETE FROM package_items').run();
+    const restore = await fetch(`${base}/admin/api/backup/restore`, {
+      method: 'POST', headers: auth, body: JSON.stringify({ backup, confirm: true }),
+    });
+    assert.equal(restore.status, 200, await restore.text());
+    assert.equal(listInstalledPackages().length, 1, 'Provenienz restauriert');
+    assert.equal(listAllPackageItems().length, itemCount);
+    assert.equal(getSetting('probe_restore'), 'BACKUP', 'Settings restauriert');
+
+    // Sicherung ohne Provenienz-Felder -> bewusst verworfen
+    const ohneProvenienz = { ...backup };
+    delete ohneProvenienz.packages;
+    delete ohneProvenienz.package_items;
+    const restore2 = await fetch(`${base}/admin/api/backup/restore`, {
+      method: 'POST', headers: auth, body: JSON.stringify({ backup: ohneProvenienz, confirm: true }),
+    });
+    assert.equal(restore2.status, 200);
+    assert.equal(listInstalledPackages().length, 0, 'ohne Provenienz verworfen');
+  } finally {
+    server.close();
+  }
 });

@@ -4,6 +4,7 @@ import {
   installPackage,
   listInstalledPackages,
   listPackageItems,
+  listAllPackageItems,
   uninstallPackage,
   conflictItems,
   parseManifest,
@@ -77,7 +78,7 @@ packagesRoutes.get('/admin/api/packages/registry', requireAuth, async (_req, res
   try {
     res.json({ packages: await registryEntries(true) });
   } catch (e) {
-    res.status(502).json({ error: `Registry nicht erreichbar (${String(e instanceof Error ? e.message : e)})` });
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
   }
 });
 
@@ -203,8 +204,10 @@ packagesRoutes.get('/admin/api/backup', requireAuth, (req, res) => {
     settings: getSettings(),
     prompts: listPrompts(),
     servers: listMcpServers(false).map((s) => ({ ...s, auth_token: includeTokens ? s.auth_token : null })),
-    functions: listFunctions(false),
+    functions: listFunctions(false).map((f) => ({ ...f, enabled: f.enabled ? 1 : 0, parameters: f.parameters ? JSON.stringify(f.parameters) : null })),
     actions: listActions(false),
+    packages: listInstalledPackages(),
+    package_items: listAllPackageItems(),
   });
 });
 
@@ -216,11 +219,16 @@ packagesRoutes.post('/admin/api/backup/restore', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Keine gueltige Sicherung (kind fehlt)' });
   }
   const db = getDb();
+  try {
   db.transaction(() => {
-    if (Array.isArray(backup.settings)) {
+    if (backup.settings && typeof backup.settings === 'object') {
       db.prepare('DELETE FROM settings').run();
-      for (const s of backup.settings as { key: string; value: string }[]) {
-        db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(s.key, s.value);
+      // Export liefert ein Objekt {key: value}; aeltere/externe Sicherungen ggf. ein Array.
+      const entries = Array.isArray(backup.settings)
+        ? (backup.settings as { key: string; value: string }[])
+        : Object.entries(backup.settings as Record<string, string>).map(([key, value]) => ({ key, value }));
+      for (const s of entries) {
+        db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(s.key, String(s.value));
       }
     }
     if (Array.isArray(backup.prompts)) {
@@ -234,17 +242,19 @@ packagesRoutes.post('/admin/api/backup/restore', requireAuth, (req, res) => {
       for (const s of backup.servers as Record<string, unknown>[]) {
         if (!s.name) continue;
         db.prepare(
-          'INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).run(s.name as string, (s.url as string) ?? '', (s.auth_token as string | null) ?? null, (s.transport as string) ?? 'http', (s.command as string | null) ?? null, (s.args as string | null) ?? null, (s.env as string | null) ?? null, (s.inventory_prompt as string | null) ?? null, (s.enabled as number) ?? 1);
+          'INSERT INTO mcp_servers (name, url, auth_token, transport, command, args, env, inventory_prompt, side_effect, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(s.name as string, (s.url as string) ?? '', (s.auth_token as string | null) ?? null, (s.transport as string) ?? 'http', (s.command as string | null) ?? null, (s.args as string | null) ?? null, (s.env as string | null) ?? null, (s.inventory_prompt as string | null) ?? null, (s.side_effect as string) ?? 'write', (s.enabled as number) ?? 1);
       }
     }
     if (Array.isArray(backup.functions)) {
       db.prepare('DELETE FROM tpl_functions').run();
       for (const f of backup.functions as Record<string, unknown>[]) {
         if (!f.name || !f.template) continue;
+        const params = f.parameters == null ? null : typeof f.parameters === 'object' ? JSON.stringify(f.parameters) : String(f.parameters);
+        const fnEnabled = f.enabled === false || f.enabled === 0 ? 0 : 1;
         db.prepare(
-          'INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run(f.name as string, (f.description as string | null) ?? null, f.template as string, (f.parameters as string | null) ?? null, (f.budget as number | null) ?? null, (f.inventory_prompt as string | null) ?? null, (f.enabled as number) ?? 1);
+          'INSERT INTO tpl_functions (name, description, template, parameters, budget, inventory_prompt, side_effect, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(f.name as string, (f.description as string | null) ?? null, f.template as string, params, (f.budget as number | null) ?? null, (f.inventory_prompt as string | null) ?? null, (f.side_effect as string) ?? 'write', fnEnabled);
       }
     }
     if (Array.isArray(backup.actions)) {
@@ -256,8 +266,28 @@ packagesRoutes.post('/admin/api/backup/restore', requireAuth, (req, res) => {
         ).run(a.name as string, (a.mode as string) ?? 'llm', (a.trigger_phrases as string | null) ?? null, (a.fuzzy_threshold as number | null) ?? null, (a.system_prompt as string | null) ?? null, (a.template as string | null) ?? null, (a.function_ref as string | null) ?? null, (a.tools as string | null) ?? null, (a.handler_config as string | null) ?? null, (a.enabled as number) ?? 1);
       }
     }
+    // Paket-Provenienz: mit der Konfiguration ersetzen. Alte Sicherungen ohne
+    // diese Felder: die Metadaten passen nicht mehr zur ersetzten Konfiguration
+    // und werden bewusst verworfen.
+    db.prepare('DELETE FROM packages').run();
+    db.prepare('DELETE FROM package_items').run();
+    for (const p of (backup.packages as Record<string, unknown>[] | undefined) ?? []) {
+      if (!p.id) continue;
+      db.prepare(
+        'INSERT INTO packages (id, version, source, registry_url, params, manifest_hash, installed_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(p.id as string, (p.version as string) ?? '', (p.source as string) ?? 'registry', (p.registry_url as string | null) ?? null, (p.params as string | null) ?? null, (p.manifest_hash as string | null) ?? null, (p.installed_at as string) ?? new Date().toISOString());
+    }
+    for (const i of (backup.package_items as Record<string, unknown>[] | undefined) ?? []) {
+      if (!i.package_id || !i.kind || !i.name) continue;
+      db.prepare(
+        'INSERT INTO package_items (package_id, kind, name, row_id, content_hash) VALUES (?, ?, ?, ?, ?)'
+      ).run(i.package_id as string, i.kind as string, i.name as string, (i.row_id as number | null) ?? null, (i.content_hash as string) ?? '');
+    }
   })();
   invalidateMcpCache();
   invalidateIndex();
   res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
 });

@@ -48,6 +48,7 @@ export {
   listInstalledPackages,
   getInstalledPackage,
   listPackageItems,
+  listAllPackageItems,
   installPackage,
   uninstallPackage,
   conflictItems,
