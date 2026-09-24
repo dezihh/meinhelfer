@@ -402,6 +402,22 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
     );
   }
 }
+// Bestands-DBs: die Hilfe soll auch die freie Unterhaltung nennen (einzelne
+// Frage ohne Kommando bzw. laufender Dialog per "starte chat modus"). Nur echte
+// Seed-Prompts (Marker "Hilfe-Anfrage") ergaenzen, eigene Nutzer-Texte bleiben
+// unangetastet. Einen evtl. vorhandenen alten Hinweis ersetzen.
+{
+  const row = db.prepare("SELECT system_prompt FROM actions WHERE name = 'hilfe'").get() as { system_prompt?: string } | undefined;
+  const sp = row?.system_prompt;
+  if (sp && sp.includes('Hilfe-Anfrage') && !sp.includes('starte chat modus')) {
+    const hint = 'Erwaehne zusaetzlich die freie Unterhaltung: einzelne freie Fragen ohne Kommando ("frage mein helfer warum ist der himmel blau") sowie den Chat-Modus fuer ein laufendes Gespraech - Start mit "starte chat modus", Ende mit "chat beenden". ';
+    const base = sp.replace(/Erwaehne zusaetzlich die freie Unterhaltung:.*?chat beenden"\)\.\s*/s, '');
+    const neu = base.includes('Am Ende von speech')
+      ? base.replace('Am Ende von speech', hint + 'Am Ende von speech')
+      : `${base.trim()}\n\n${hint.trim()}`;
+    db.prepare("UPDATE actions SET system_prompt = ?, updated_at = datetime('now') WHERE name = 'hilfe'").run(neu);
+  }
+}
 // (Die Referenz-Defaults der Settings werden weiter unten ueber SEED_SETTINGS
 // gesetzt - einzeln geseedete Settings gab es nur in frueheren Stadien.)
 

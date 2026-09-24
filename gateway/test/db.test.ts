@@ -8,7 +8,7 @@ import { addLog, listLogs, recentAgentTurns, summarizeUsage } from '../src/db/lo
 
 before(() => {
   closeDb(); // hermetisch: Container-DB durch Temp-DB ersetzen
-  initDb('/tmp/opencode/test-meinhelfer.db');
+  initDb('/tmp/opencode/test-meinhelfer.db', true);
   // Hermetisch: Test-Reststaende entfernen (Datei kann von Vorlaeufen existieren)
   const db = getDb();
   db.exec("DELETE FROM actions WHERE name LIKE 'test_action%'");
