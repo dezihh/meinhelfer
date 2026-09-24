@@ -1,0 +1,72 @@
+name: Build Lambda Zip
+
+# Baut das Deployment-Zip der Alexa-Lambda.
+# - Push auf main, wenn sich alexa/lambda/** aendert -> Zip als Actions-Artifact
+#   und Rollen-Release "latest" (stabiler Anwender-Link:
+#   releases/download/latest/meinhelfer-alexa-lambda.zip)
+# - Push eines Tags v* -> zusaetzlich GitHub-Release mit dem Zip als Asset
+# - workflow_call: Wiederverwendung durch deploy-aws-lambda.yml
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'alexa/lambda/**'
+      - '.github/workflows/lambda-zip.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Abhaengigkeiten sammeln
+        run: |
+          rm -rf build
+          mkdir -p build
+          python -m pip install --quiet --target build -r alexa/lambda/requirements.txt
+
+      - name: Zip bauen (nur Funktion + Abhaengigkeiten)
+        run: |
+          cp alexa/lambda/lambda_function.py build/
+          ( cd build && zip -r -q ../meinhelfer-alexa-lambda.zip . )
+          echo "=== Inhalt (Auszug) ==="
+          unzip -l meinhelfer-alexa-lambda.zip | head -20
+          echo "=== Groesse ==="
+          du -h meinhelfer-alexa-lambda.zip
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: meinhelfer-alexa-lambda
+          path: meinhelfer-alexa-lambda.zip
+          retention-days: 30
+
+      - name: Rolling release "latest" aktualisieren
+        if: >-
+          (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) ||
+          github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          prerelease: false
+          make_latest: true
+          files: meinhelfer-alexa-lambda.zip
+
+      - name: Release-Asset anhaengen (Tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: meinhelfer-alexa-lambda.zip
