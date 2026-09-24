@@ -19,7 +19,6 @@ die zugrunde liegende Konfiguration bleibt in SQLite erhalten.
 | HTTP-Cache | Antwort einer URL | nur bei `http()` und fehlendem gültigem Eintrag | bedarfsgesteuert |
 | MCP-Katalog | Clients und Tool-Definitionen | Kaltstart oder Zugriff nach Frischegrenze | bedarfsgesteuert, im Hintergrund |
 | Paket-Registry | Liste verfügbarer Pakete | Öffnen/Aktualisieren der Paketansicht | bedarfsgesteuert |
-| Alexa-Zertifikate | Zertifikatsketten zur Signaturprüfung | Alexa-Anfrage mit unbekannter oder abgelaufener Kette | bedarfsgesteuert |
 | LLM-Provider-Cache | gegebenenfalls Promptdaten beim Anbieter | vom Anbieter bestimmt | kein Gateway-Cache |
 
 ## Entity-Index
@@ -139,16 +138,6 @@ erzwungener Netzwerk-Refresh.
 
 Agent, Vorgänge und normale Sprachfragen greifen nicht auf die Paket-Registry
 zu. Für den üblichen Betrieb ist dieser Traffic vernachlässigbar.
-
-## Alexa-Zertifikate
-
-Bei aktivierter Alexa-Signaturprüfung lädt das Gateway die von Amazon
-angegebene Zertifikatskette. Dieselbe erlaubte Zertifikat-URL wird eine Stunde
-lang im Arbeitsspeicher gehalten.
-
-Nach Ablauf der Stunde erfolgt erst mit der nächsten passenden Alexa-Anfrage
-ein neuer Abruf. Auch hier gibt es kein Polling. Der Cache reduziert externe
-Amazon-Aufrufe, ohne die Gültigkeitsprüfung des Zertifikats zu ersetzen.
 
 ## LLM-Provider-Cache
 

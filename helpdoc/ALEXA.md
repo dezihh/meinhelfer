@@ -38,16 +38,18 @@ bleiben im Gateway.
 
 ### Lokale Skill-Zuordnung
 
-Kopiere die Struktur aus `alexa/skill.local.json.example` in die ignorierte
-lokale Datei `alexa/skill.local.json` und ersetze:
+Lege die ignorierte lokale Datei `alexa/skill.local.json` mit folgendem Inhalt
+an:
 
 ```json
 {
-  "skill_id": "amzn1.ask.skill.<deine-id>",
-  "endpoint_url": "https://<gateway-host>/alexa",
-  "privacy_url": "https://<gateway-host>/privacy"
+   "skill_id": "amzn1.ask.skill.<deine-id>"
 }
 ```
+
+Die Skill-ID wird für die Synchronisierung und zur Beschränkung des
+Alexa-Skills-Kit-Triggers der Lambda verwendet. Sie ist kein Geheimnis und
+ersetzt nicht den Gateway-Token.
 
 ### Lambda-Konfiguration
 
@@ -70,30 +72,26 @@ ihrer Implementierung. `gateway_token` muss mit `AUTH_TOKEN` übereinstimmen.
 ## Skill-Modell synchronisieren
 
 Das vorhandene Skript verwendet die ASK-CLI-Anmeldedaten und die lokale
-Skill-Zuordnung:
+Skill-Zuordnung, um das Interaktionsmodell zu synchronisieren:
 
 1. ASK CLI installieren und einmal mit `ask configure` anmelden.
 2. `alexa/skill.local.json` anlegen.
 3. Im Repository `python alexa/scripts/sync_skill.py` ausführen.
-4. Den gemeldeten Build-Status für Interaction Model und Manifest prüfen.
+4. Den gemeldeten Build-Status des Interaction Model prüfen.
 
 Optionen:
 
-- `--model-only`: nur Interaktionsmodell
-- `--manifest-only`: nur Manifest
 - `--force`: auch ohne erkannte Änderung synchronisieren
 
-## Gateway absichern
+## Gateway-Zugriff
 
-Setze im Gateway:
+Die Lambda ruft ausschließlich `POST /api/query` auf und sendet dabei
+`gateway_token` als Bearer-Token. Das Gateway prüft diesen Wert gegen
+`AUTH_TOKEN`. Die Skill-ID wird nicht an das Gateway übertragen; Amazon
+begrenzt bereits den Aufruf der Lambda auf den konfigurierten Skill.
 
-```dotenv
-ALEXA_SKILL_ID=amzn1.ask.skill.<deine-id>
-ALEXA_VERIFY_MODE=enforce
-```
-
-Der Skill-Endpunkt muss über HTTPS öffentlich erreichbar sein. Admin-UI und
-Admin-API sollen nicht öffentlich erreichbar sein.
+Öffentlich erreichbar ist nur `/api/query`. Admin-UI und Admin-API bleiben im
+internen Netz.
 
 ## Lambda bereitstellen
 

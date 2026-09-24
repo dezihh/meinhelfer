@@ -90,11 +90,12 @@ Design- und Architektur-Dokumente (Hintergrund für Entwickler):
 
 ## Sicherheit
 
-- `/alexa` (Skill-Endpoint): Skill-ID-Prüfung (`ALEXA_SKILL_ID`) und
-  Alexa-Signaturprüfung — Default `enforce` (Fail-closed), Modi
-  `off`/`warn`/`enforce` über `.env`
-- `/api/*` und `/admin/*`: Bearer-Token (`AUTH_TOKEN`), constant-time
-  verglichen; Admin-UI zusätzlich mit Session-Login und Brute-Force-Schutz
+- Alexa → AWS Lambda: Aufrufberechtigung auf die konfigurierte Skill-ID
+  beschränkt
+- AWS Lambda → `/api/query`: Bearer-Token (`AUTH_TOKEN`), constant-time
+  verglichen
+- `/admin/*`: Bearer-Token beziehungsweise Session-Login mit
+  Brute-Force-Schutz
 - JSON-Body-Limit, Non-Root-Container, gepinnte Dependencies, Secrets nur via
   `.env` (nie im Repo)
 - Admin-UI nie im Internet exponieren; für öffentliche Deployments wird ein

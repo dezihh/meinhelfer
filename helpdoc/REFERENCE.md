@@ -56,8 +56,8 @@ Identische vorbereitete Aufrufe werden dedupliziert. Dynamische
 Argumentobjekte von `mcp.call` kennen `args` und `now`, aber keine lokalen
 `set`-Variablen des Templates.
 
-Eine vollständige Übersicht über Entity-Index, HTTP-, MCP-, Paket- und
-Zertifikatscache steht unter [Cache und Aktualität](CACHE.md).
+Eine vollständige Übersicht über Entity-Index, HTTP-, MCP- und Paketcache
+steht unter [Cache und Aktualität](CACHE.md).
 
 ## Index-Konfiguration
 
@@ -115,9 +115,6 @@ nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 | `AGENT_CLARIFICATION_BUDGET` | `2` | Rückfragebudget |
 | `MAX_TOOL_ITERATIONS` | `6` | maximale Tool-Runden |
 | `LLM_TOOL_DEADLINE_MS` | `9000` | Deadline des Agent-Loops |
-| `ALEXA_SKILL_ID` | leer | erwartete Skill-ID; Prüfung aktiv, sobald gesetzt |
-| `ALEXA_DIRECTIVES_BASE` | `https://api.eu.amazonalexa.com` | Directives-API für Progressive Responses |
-| `ALEXA_VERIFY_MODE` | `enforce` | Signaturprüfung: `off`/`warn`/`enforce` |
 | `GATEWAY_PORT` | `3000` | nur Compose-Host-Mapping (der Code liest `PORT`) |
 
 Pflichtvariablen: `AUTH_TOKEN`, `LLM_BASE_URL`, `LLM_API_KEY`.
@@ -146,12 +143,14 @@ Der Core liefert eine neutrale Antwort mit:
 - `display`: optionaler Display-Inhalt
 - `followUp` beziehungsweise `keepOpen`: Session für Rückfrage offen halten
 
-Alexa-spezifisches Wrapping und APL liegen im Adapter, nicht in Funktionen.
+Alexa-spezifisches Wrapping und APL liegen in der AWS Lambda, nicht in
+Funktionen des Gateways.
 
 ## Sicherheitsgrenzen
 
 - Admin-Oberfläche und `/admin/*` nur im vertrauenswürdigen Netz anbieten.
-- Öffentlichen Alexa-Endpunkt mit Skill-ID und Signaturprüfung schützen.
+- Öffentlich nur `/api/query` anbieten und mit `AUTH_TOKEN` schützen.
+- Den Alexa-Trigger der Lambda auf die eigene Skill-ID beschränken.
 - Secrets nur über lokale Konfiguration oder Secret Store übergeben.
 - Dynamische HTTP-URLs nicht ins private Netz erlauben.
 - Shell-Templates nur administrativ pflegen.

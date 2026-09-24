@@ -121,12 +121,13 @@ nötig.
 
 ### Monitor funktioniert, Alexa nicht
 
-1. Prüfe `ALEXA_SKILL_ID` gegen die tatsächliche Skill-ID.
-2. Prüfe öffentlichen HTTPS-Endpoint und Zertifikat.
-3. Prüfe Lambda-`gateway_url` und `gateway_token`.
-4. Vergleiche Lambda- und Gateway-Logs anhand des Zeitpunkts.
-5. Prüfe Skill-Manifest und Interaction-Model-Buildstatus.
-6. Bei `ALEXA_VERIFY_MODE=enforce` Signaturfehler gezielt auswerten.
+1. Prüfe, ob das Skill-Manifest auf die richtige Lambda-ARN zeigt.
+2. Prüfe, ob die Trigger-Permission der Lambda auf die tatsächliche Skill-ID
+   beschränkt ist.
+3. Prüfe öffentlichen HTTPS-Endpunkt und Zertifikat.
+4. Prüfe Lambda-`gateway_url` und `gateway_token`.
+5. Vergleiche Lambda- und Gateway-Logs anhand des Zeitpunkts.
+6. Prüfe den Buildstatus des Interaction Model und des Manifests.
 
 ### Antwort kommt zu spät
 
