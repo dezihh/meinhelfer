@@ -7,6 +7,11 @@ on:
         description: "Lambda-Timeout in Sekunden (> 8 noetig, um hosted-Limit zu sprengen)"
         default: "30"
 
+# Der aufgerufene Build-Workflow (lambda-zip.yml) deklariert contents: write
+# (fuer das rollende "latest"-Release) - der Caller muss das erlauben.
+permissions:
+  contents: write
+
 jobs:
   build:
     # Zip zentral bauen (dieselbe Build-Definition wie das Latest-Release)
