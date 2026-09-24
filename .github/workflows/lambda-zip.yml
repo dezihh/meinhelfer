@@ -35,12 +35,12 @@ jobs:
         run: |
           rm -rf build
           mkdir -p build
-          python -m pip install --quiet --target build -r alexa/lambda/requirements.txt
+          python -m pip install --quiet --no-compile --target build -r alexa/lambda/requirements.txt
 
       - name: Zip bauen (nur Funktion + Abhaengigkeiten)
         run: |
           cp alexa/lambda/lambda_function.py build/
-          ( cd build && zip -r -q ../meinhelfer-alexa-lambda.zip . )
+          ( cd build && zip -r -q ../meinhelfer-alexa-lambda.zip . -x '*/__pycache__/*' '*.pyc' )
           echo "=== Inhalt (Auszug) ==="
           unzip -l meinhelfer-alexa-lambda.zip | head -20
           echo "=== Groesse ==="
