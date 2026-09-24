@@ -91,7 +91,7 @@ jobs:
           fi
 
           # 3) Timeout + Env setzen (als volles Operations-JSON, sicher für Sonderzeichen im Token)
-          python3 -c 'import json,sys; t,u,g=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":"MeinHelfer","assistant_name":"Dein Helfer","apl_exit_delay_ms":"90000"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}"
+          python3 -c 'import json,sys; t,u,g,s=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"alexa_skill_id":s,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":"MeinHelfer","assistant_name":"Dein Helfer","apl_exit_delay_ms":"90000"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}" "${SKILL_ID}"
           for attempt in $(seq 1 6); do
             if aws lambda update-function-configuration --cli-input-json file:///tmp/cfg.json
             then
@@ -106,28 +106,25 @@ jobs:
           # 3b) Alexa-Skill-Trigger (Invocation-Permission) setzen
           #     Ohne diesen Trigger lehnt Amazon den ARN-Endpoint ab:
           #     "The trigger setting for the Lambda ... is invalid" (SkillManifestError)
-          #     Quelle: develoer.amazon.com "Host a Custom Skill as an AWS Lambda Function"
+          #     Quelle: developer.amazon.com "Host a Custom Skill as an AWS Lambda Function"
+          #     Vorhandene Permission zuerst entfernen, damit eine geaenderte
+          #     ALEXA_SKILL_ID die alte Permission wirklich ersetzt statt an einem
+          #     Statement-ID-Konflikt uebersprungen zu werden.
           if [ -z "${SKILL_ID}" ]; then
             echo "!! Secret ALEXA_SKILL_ID fehlt -> Alexa-Trigger kann nicht gesetzt werden"
-          else
-            echo "Setze Alexa-Skill-Trigger (InvokePermission fuer ${SKILL_ID}) ..."
-            if aws lambda add-permission \
-                --function-name meinhelfer-alexa \
-                --statement-id alexa-skill \
-                --action lambda:InvokeFunction \
-                --principal alexa-appkit.amazon.com \
-                --event-source-token "${SKILL_ID}" 2>/tmp/perm.err
-            then
-              echo "Alexa-Trigger OK"
-            else
-              if grep -qiE "already exists|duplicate|conflict" /tmp/perm.err; then
-                echo "Alexa-Trigger war bereits vorhanden"
-              else
-                cat /tmp/perm.err
-                exit 1
-              fi
-            fi
+            exit 1
           fi
+          echo "Setze Alexa-Skill-Trigger (InvokePermission fuer ${SKILL_ID}) ..."
+          aws lambda remove-permission \
+            --function-name meinhelfer-alexa \
+            --statement-id alexa-skill >/dev/null 2>&1 || true
+          aws lambda add-permission \
+            --function-name meinhelfer-alexa \
+            --statement-id alexa-skill \
+            --action lambda:InvokeFunction \
+            --principal alexa-appkit.amazon.com \
+            --event-source-token "${SKILL_ID}"
+          echo "Alexa-Trigger OK"
 
           # 4) ARN ausgeben (Lambda-Funktions-ARN ist deterministisch aufgebaut)
           REGION="${AWS_DEFAULT_REGION:-eu-west-1}"

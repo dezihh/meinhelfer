@@ -3,30 +3,76 @@ name: External Endpoint Check
 on:
   workflow_dispatch:
 
-# Requires the repository variables EXTERNAL_BASE_URL (e.g. https://gateway.example.com)
-# and ALEXA_SKILL_ID. The job is skipped when they are not configured.
+# Requires the repository variable EXTERNAL_BASE_URL (e.g. https://gateway.example.com)
+# and the secret GATEWAY_TOKEN (must equal the gateway AUTH_TOKEN). The job is
+# skipped when EXTERNAL_BASE_URL is not configured.
+#
+# Verbindliche Architektur: Alexa Skill -> AWS Lambda -> POST /api/query -> Gateway.
+# Es werden keine direkten Alexa-Requests an das Gateway gesendet.
 jobs:
   extcheck:
-    if: vars.EXTERNAL_BASE_URL != '' && vars.ALEXA_SKILL_ID != ''
+    if: vars.EXTERNAL_BASE_URL != ''
     runs-on: ubuntu-latest
     env:
       EXTERNAL_BASE_URL: ${{ vars.EXTERNAL_BASE_URL }}
-      ALEXA_SKILL_ID: ${{ vars.ALEXA_SKILL_ID }}
+      GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
     steps:
-      - name: Oeffentliche Erreichbarkeit des externen Endpoints pruefen
+      - name: Voraussetzungen pruefen
+        run: |
+          if [ -z "${GATEWAY_TOKEN}" ]; then
+            echo "::error::Secret GATEWAY_TOKEN fehlt - /api/query kann nicht geprueft werden"
+            exit 1
+          fi
+
+      - name: TLS und Erreichbarkeit pruefen
         run: |
           BASE="${EXTERNAL_BASE_URL%/}"
+          case "${BASE}" in
+            https://*) ;;
+            *) echo "::error::EXTERNAL_BASE_URL muss mit https:// beginnen"; exit 1 ;;
+          esac
           HOST="${BASE#https://}"
           HOST="${HOST%%/*}"
           echo "=== Runner-IP:"
           curl -s https://checkip.amazonaws.com || true
           echo "=== DNS:"
           getent hosts "$HOST" || nslookup "$HOST" 2>&1 | tail -3
-          echo "=== TLS-Handshake + GET /privacy:"
-          curl -sS -m 20 -o /dev/null -w "GET /privacy -> HTTP %{http_code}, tls_verify=%{ssl_verify_result}, total=%{time_total}s\n" "${BASE}/privacy" 2>&1
-          echo "=== POST /alexa (LaunchRequest, korrekte appId):"
-          BODY=$(printf '{"version":"1.0","session":{"new":true,"sessionId":"amzn1.echo-api.session.extcheck","application":{"applicationId":"%s"}},"context":{"System":{"application":{"applicationId":"%s"}}},"request":{"type":"LaunchRequest","requestId":"amzn1.echo-external.request.extcheck"}}' "$ALEXA_SKILL_ID" "$ALEXA_SKILL_ID")
-          curl -sS -m 20 -o /tmp/resp.json -w "POST /alexa -> HTTP %{http_code}, total=%{time_total}s\n" -X POST -H "Content-Type: application/json" --data-binary "${BODY}" "${BASE}/alexa" 2>&1
-          head -c 400 /tmp/resp.json; echo ""
-          echo "=== TLS-Details:"
+          echo "=== TLS-Handshake (ssl_verify_result muss 0 sein):"
+          verify=$(curl -sS -m 20 -o /dev/null -w "%{ssl_verify_result}" "${BASE}/" 2>/dev/null || echo "fehler")
+          echo "TLS ssl_verify_result=${verify} (0 = Kette valide)"
+          [ "${verify}" = "0" ] || { echo "::error::TLS-Verifikation fehlgeschlagen (${verify})"; exit 1; }
           echo | openssl s_client -connect "${HOST}:443" -servername "$HOST" 2>/dev/null | grep -E "subject=|issuer=|Verify return" || true
+
+      - name: POST /api/query mit GATEWAY_TOKEN pruefen
+        run: |
+          BASE="${EXTERNAL_BASE_URL%/}"
+          body=$(curl -sS -m 30 -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${GATEWAY_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"sessionId":"extcheck","text":"Hallo"}' \
+            "${BASE}/api/query") || { echo "::error::POST /api/query nicht erreichbar"; exit 1; }
+          code=$(printf '%s' "$body" | tail -n1)
+          payload=$(printf '%s' "$body" | sed '$d')
+          echo "POST /api/query -> HTTP ${code}"
+          echo "${payload}" | head -c 400; echo ""
+          [ "${code}" = "200" ] || { echo "::error::POST /api/query erwartet 200, war ${code}"; exit 1; }
+
+      - name: Oeffentliche Sperren pruefen (/alexa, /privacy, /admin)
+        run: |
+          BASE="${EXTERNAL_BASE_URL%/}"
+          fail=0
+          for path in /alexa /privacy; do
+            code=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "${BASE}${path}" 2>/dev/null || echo "000")
+            echo "GET ${path} -> HTTP ${code}"
+            if [ "${code}" != "404" ]; then
+              echo "::error::${path} ist oeffentlich erreichbar (HTTP ${code}, erwartet 404)"
+              fail=1
+            fi
+          done
+          code=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "${BASE}/admin/" 2>/dev/null || echo "000")
+          echo "GET /admin/ -> HTTP ${code}"
+          if [ "${code}" = "200" ]; then
+            echo "::error::/admin/ ist oeffentlich erreichbar (HTTP 200)"
+            fail=1
+          fi
+          [ "${fail}" = "0" ] || exit 1

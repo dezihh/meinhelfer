@@ -36,6 +36,7 @@ def install_stubs():
     class CustomSkillBuilder:
         def __init__(self, api_client=None):
             self.handlers = []
+            self.skill_id = None
 
         def add_request_handler(self, h):
             self.handlers.append(h)
@@ -46,7 +47,20 @@ def install_stubs():
             return h
 
         def lambda_handler(self):
-            return lambda event, context: {"stub": True}
+            # bildet den eingebauten Skill-ID-Verifier des ask-sdk nach
+            # (CustomSkill.invoke): gesetzte skill_id -> applicationId muss passen
+            def handler(event, context):
+                if self.skill_id is not None:
+                    app_id = (
+                        ((event.get("context") or {}).get("System") or {})
+                        .get("application", {})
+                        .get("applicationId")
+                    )
+                    if app_id != self.skill_id:
+                        raise RuntimeError("Skill ID Verification failed!!")
+                return {"stub": True}
+
+            return handler
 
     core = _stub_module("ask_sdk_core")
     _stub_module("ask_sdk_core.skill_builder", CustomSkillBuilder=CustomSkillBuilder)
@@ -92,6 +106,7 @@ os.environ.setdefault("watchdog_delay", "0.1")
 os.environ.setdefault("gateway_timeout", "0.4")
 os.environ.setdefault("warteton_enabled", "true")
 os.environ.setdefault("acknowledgment_enabled", "false")
+os.environ.setdefault("alexa_skill_id", "amzn1.ask.skill.test")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lambda_function  # noqa: E402
@@ -362,6 +377,29 @@ class SupportsAplTest(unittest.TestCase):
         lambda_function._RAW_ENVELOPE.value = {}
         hi = FakeHandlerInput()
         self.assertFalse(lambda_function.supports_apl(hi))
+
+
+class SkillIdVerificationTest(unittest.TestCase):
+    def _event(self, app_id):
+        return {
+            "context": {"System": {"application": {"applicationId": app_id}}},
+            "request": {"type": "LaunchRequest"},
+        }
+
+    def test_skill_id_wird_aus_env_konfiguriert(self):
+        self.assertEqual(lambda_function.sb.skill_id, "amzn1.ask.skill.test")
+
+    def test_passende_application_id_wird_akzeptiert(self):
+        result = lambda_function.lambda_handler(
+            self._event("amzn1.ask.skill.test"), None
+        )
+        self.assertEqual(result, {"stub": True})
+
+    def test_abweichende_application_id_wird_abgelehnt(self):
+        with self.assertRaises(RuntimeError):
+            lambda_function.lambda_handler(
+                self._event("amzn1.ask.skill.fremd"), None
+            )
 
 
 if __name__ == "__main__":

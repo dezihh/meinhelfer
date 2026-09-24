@@ -48,6 +48,7 @@ warteton_enabled = os.environ.get("warteton_enabled", "true").lower() == "true"
 warteton_phrase = os.environ.get("warteton_phrase", "Einen Moment, ich schaue das kurz nach.")
 watchdog_delay = float(os.environ.get("watchdog_delay", "6.5"))
 gateway_timeout = float(os.environ.get("gateway_timeout", "28"))
+alexa_skill_id = os.environ.get("alexa_skill_id", "")
 ALEXA_WINDOW = 8.0
 
 SPEAK_WELCOME = "Hallo, ich bin " + os.environ.get("assistant_name", "Ihr Voice-Assistent") + ". Was kann ich für Sie tun?"
@@ -416,6 +417,11 @@ class CatchAllExceptionHandler(AbstractExceptionHandler):
 
 
 sb = CustomSkillBuilder(api_client=DefaultApiClient())
+# Eingebauter Skill-ID-Verifier des ASK SDK: ist sb.skill_id gesetzt, lehnt
+# CustomSkill.invoke jeden Request mit abweichender applicationId ab.
+sb.skill_id = alexa_skill_id or None
+if not alexa_skill_id:
+    logger.warning("alexa_skill_id nicht gesetzt - applicationId wird nicht geprueft")
 sb.add_request_handler(LaunchRequestHandler())
 sb.add_request_handler(GptQueryIntentHandler())
 sb.add_request_handler(HelpIntentHandler())

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Synchronisiert Interaction Model + Manifest eines Alexa-Skills per SMAPI.
+"""Synchronisiert das Interaction Model eines Alexa-Skills per SMAPI.
 
 Nutzung (lokal, keine GitHub-Secrets noetig):
   1. ask-cli einmal konfigurieren:  ask configure   (oder ~/.ask/ von einem
      bestehenden Rechner uebernehmen)
   2. alexa/skill.local.json anlegen (Vorlage: alexa/skill.local.json.example)
-  3. Ausfuehren:  python3 alexa/scripts/sync_skill.py [--model-only|--manifest-only] [--force]
+  3. Ausfuehren:  python3 alexa/scripts/sync_skill.py [--force]
 
-Die Dateien alexa/skill-package/{skill.json,interactionModels/custom/de-DE.json}
-im Repo sind die Quelle der Wahrheit; das Skript laedt sie per SMAPI in den
-development-Stage des Skills.
+Die Datei alexa/skill-package/interactionModels/custom/de-DE.json im Repo ist
+die Quelle der Wahrheit; das Skript laedt sie per SMAPI in den
+development-Stage des Skills. Das Skill-Manifest wird hier NICHT verwaltet;
+es wird ausschliesslich ueber sync-manifest.yml auf die Lambda-ARN gesetzt.
 """
 
 import argparse
@@ -27,7 +28,6 @@ from typing import Any, Optional
 REPO = Path(__file__).resolve().parents[2]
 ASK_DIR = Path.home() / ".ask"
 LOCAL_CFG = REPO / "alexa" / "skill.local.json"
-SKILL_JSON = REPO / "alexa" / "skill-package" / "skill.json"
 MODEL_JSON = REPO / "alexa" / "skill-package" / "interactionModels" / "custom" / "de-DE.json"
 
 MODEL_MARKER = "zum thema {query}"  # NEED_SYNC-Marker wie im CI-Workflow
@@ -117,38 +117,8 @@ def sync_model(auth, access, skill_id, force):
     return poll_status(auth, access, skill_id, "interactionModel") == "SUCCEEDED"
 
 
-def sync_manifest(auth, access, skill_id, endpoint, privacy_url, force):
-    path = "stages/development/manifest"
-    code, etag, body = smapi(auth, access, skill_id, path)
-    if code == 200 and not force:
-        try:
-            if body.get("manifest", {}).get("apis", {}).get("custom", {}) \
-                   .get("endpoint", {}).get("uri") == endpoint:
-                print("Manifest: Endpoint bereits korrekt, kein PUT.")
-                return True
-        except Exception:
-            pass
-    manifest = json.loads(SKILL_JSON.read_text())
-    raw = (
-        json.dumps(manifest, ensure_ascii=False)
-        .replace("__ALEXA_ENDPOINT__", endpoint)
-        .replace("__ALEXA_PRIVACY_URL__", privacy_url)
-    )
-    if "__ALEXA_" in raw:
-        print("FEHLER: Nicht alle Manifest-Platzhalter wurden ersetzt.")
-        return False
-    code, _, body = smapi(auth, access, skill_id, path, "PUT", raw.encode(), etag)
-    print("Manifest-PUT -> HTTP {}".format(code))
-    if code not in (200, 202):
-        print(json.dumps(body, ensure_ascii=False)[:1000] if body else body)
-        return False
-    return poll_status(auth, access, skill_id, "manifest") == "SUCCEEDED"
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--model-only", action="store_true")
-    ap.add_argument("--manifest-only", action="store_true")
     ap.add_argument("--force", action="store_true", help="PUT auch ohne erkannte Aenderung")
     args = ap.parse_args()
 
@@ -156,22 +126,12 @@ def main():
         sys.exit("Fehlt: {} (Vorlage: skill.local.json.example)".format(LOCAL_CFG))
     cfg = json.loads(LOCAL_CFG.read_text())
     skill_id = cfg["skill_id"]
-    endpoint = cfg["endpoint_url"]
-    endpoint_parts = urllib.parse.urlsplit(endpoint)
-    privacy_url = cfg.get(
-        "privacy_url",
-        urllib.parse.urlunsplit((endpoint_parts.scheme, endpoint_parts.netloc, "/privacy", "", "")),
-    )
 
     auth, refresh = read_ask_files()
     access = lwa_token(auth, refresh)
     print("SMAPI-Token geholt ({}).".format(auth["ask_smapi_api"]))
 
-    ok = True
-    if not args.manifest_only:
-        ok &= sync_model(auth, access, skill_id, args.force)
-    if not args.model_only:
-        ok &= sync_manifest(auth, access, skill_id, endpoint, privacy_url, args.force)
+    ok = sync_model(auth, access, skill_id, args.force)
     sys.exit(0 if ok else 1)
 
 

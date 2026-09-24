@@ -2,10 +2,6 @@
   "manifest": {
     "apis": {
       "custom": {
-        "endpoint": {
-          "uri": "__ALEXA_ENDPOINT__",
-          "sslCertificateType": "Trusted"
-        },
         "interfaces": [
           {
             "type": "ALEXA_PRESENTATION_APL",
@@ -52,9 +48,7 @@
       "isExportCompliant": true,
       "containsAds": false,
       "locales": {
-        "de-DE": {
-          "privacyPolicyUrl": "__ALEXA_PRIVACY_URL__"
-        }
+        "de-DE": {}
       }
     }
   }
