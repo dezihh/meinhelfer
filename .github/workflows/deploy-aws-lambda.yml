@@ -8,11 +8,19 @@ on:
         default: "30"
 
 jobs:
+  build:
+    # Zip zentral bauen (dieselbe Build-Definition wie das Latest-Release)
+    uses: ./.github/workflows/lambda-zip.yml
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Lambda-Zip aus dem Build-Job laden
+        uses: actions/download-artifact@v4
+        with:
+          name: meinhelfer-alexa-lambda
+          path: .
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -21,7 +29,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION || 'eu-west-1' }}
 
-      - name: Paket bauen + Funktion deployen (einfacher Weg, kein Layer-Stack)
+      - name: Funktion deployen (einfacher Weg, kein Layer-Stack)
         env:
           GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
           GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
@@ -30,6 +38,10 @@ jobs:
           SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
         run: |
           set -e
+          ZIP="meinhelfer-alexa-lambda.zip"
+          [ -f "${ZIP}" ] || { echo "FEHLER: ${ZIP} fehlt (Build-Job?)"; exit 1; }
+          ls -la "${ZIP}"
+
           # 0) Account-ID + Execution-Rolle sicherstellen (falls nicht via Secret gesetzt)
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           echo "AWS Account: ${ACCOUNT_ID}"
@@ -56,27 +68,17 @@ jobs:
             echo "!! put-role-policy fehlgeschlagen (Rechte des Deploy-Users?) - Logs bleiben aus"
           fi
 
-          # 1) Deployment-Zip: lambda_function.py + requirements.txt
-          cd alexa/lambda
-          mkdir -p pkg
-          cp lambda_function.py requirements.txt pkg/
-          cd pkg
-          # ask-sdk + requests im Zip (so kein Layer nötig)
-          python3 -m pip install --quiet --target=./ -r ../requirements.txt
-          zip -qr ../meinhelfer-alexa.zip . && cd ..
-          cd ../..
-
-          # 2) Funktion anlegen oder aktualisieren
+          # 1) Funktion anlegen oder aktualisieren (Zip kommt aus dem Build-Job)
           if aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null 2>&1; then
             echo "bestehende Funktion aktualisieren..."
-            aws lambda update-function-code --function-name meinhelfer-alexa --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip
+            aws lambda update-function-code --function-name meinhelfer-alexa --zip-file "fileb://${ZIP}"
           else
             echo "Funktion neu anlegen..."
             # IAM-Propagation: Rolle ist gerade erst angelegt -> 6 Versuche mit 10s Pause
             for attempt in $(seq 1 6); do
               if aws lambda create-function --function-name meinhelfer-alexa \
                 --runtime python3.14 --handler lambda_function.lambda_handler \
-                --zip-file fileb://alexa/lambda/meinhelfer-alexa.zip \
+                --zip-file "fileb://${ZIP}" \
                 --timeout "${TIMEOUT}" --memory-size 512 \
                 --role "${ROLE_ARN}"
               then
@@ -90,7 +92,7 @@ jobs:
             aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null
           fi
 
-          # 3) Timeout + Env setzen (als volles Operations-JSON, sicher für Sonderzeichen im Token)
+          # 2) Timeout + Env setzen (als volles Operations-JSON, sicher für Sonderzeichen im Token)
           python3 -c 'import json,sys; t,u,g,s=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"alexa_skill_id":s,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":"MeinHelfer","assistant_name":"Dein Helfer","apl_exit_delay_ms":"90000"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}" "${SKILL_ID}"
           for attempt in $(seq 1 6); do
             if aws lambda update-function-configuration --cli-input-json file:///tmp/cfg.json
@@ -103,7 +105,7 @@ jobs:
             fi
           done
 
-          # 3b) Alexa-Skill-Trigger (Invocation-Permission) setzen
+          # 3) Alexa-Skill-Trigger (Invocation-Permission) setzen
           #     Ohne diesen Trigger lehnt Amazon den ARN-Endpoint ab:
           #     "The trigger setting for the Lambda ... is invalid" (SkillManifestError)
           #     Quelle: developer.amazon.com "Host a Custom Skill as an AWS Lambda Function"
