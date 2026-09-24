@@ -49,8 +49,7 @@ an:
 
 Die Skill-ID wird für die Synchronisierung und zur Beschränkung des
 Alexa-Skills-Kit-Triggers der Lambda verwendet. Sie ist kein Geheimnis und
-ersetzt nicht den Gateway-Token. Für die automatisierten Deploy-Wege siehe
-[Deployment und CI/CD](DEPLOYMENT.md).
+ersetzt nicht den Gateway-Token.
 
 ### Lambda-Konfiguration
 
@@ -101,10 +100,6 @@ begrenzt bereits den Aufruf der Lambda auf den konfigurierten Skill.
 internen Netz.
 
 ## Lambda bereitstellen
-
-Für die automatisierten Deploy-Wege über GitHub Actions sowie die
-AWS-/Alexa-Interna siehe [Deployment und CI/CD](DEPLOYMENT.md)
-(Betreiber/Entwickler, ohne Secret-Werte).
 
 ### Manuell (Kurzfassung)
 
