@@ -1,19 +1,15 @@
 import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chatCompletion, type ChatMessage } from '../src/llm/client.js';
-import { initDb, closeDb, getDb } from '../src/db/schema.js';
-import { setSetting, deleteSetting } from '../src/db/settings.js';
-import { config } from '../src/config.js';
+import { initDb, closeDb } from '../src/db/schema.js';
 
 const originalFetch = globalThis.fetch;
-const savedLlm = { ...config.llm };
 
 interface LlmStub {
-  // Antwort je nach URL ('primary'/'fallback') und Aufruf-Index
-  respond?: (url: string, body: Record<string, unknown>) => { status?: number; data?: unknown } | 'hang';
+  respond?: (url: string, body: Record<string, unknown>) => { status?: number; data?: unknown };
 }
 
-let calls: { url: string; model?: string; tools?: number }[] = [];
+let calls: { url: string; model?: string; tools?: number; signal?: AbortSignal }[] = [];
 let stub: LlmStub = {};
 
 function chatJson(model: string, content: string | null): unknown {
@@ -29,16 +25,12 @@ function stubFetchLlm(): void {
     const u = String(url);
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
     calls.push({
-      url: u.includes('fallback') ? 'fallback' : 'primary',
+      url: u,
       model: body.model as string,
       tools: Array.isArray(body.tools) ? (body.tools as unknown[]).length : undefined,
+      signal: init?.signal as AbortSignal | undefined,
     });
     const r = stub.respond?.(u, body) ?? { status: 500, data: {} };
-    if (r === 'hang') {
-      return new Promise<never>((_resolve, reject) => {
-        (init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => reject(new Error('aborted')));
-      });
-    }
     const res = {
       ok: (r.status ?? 200) >= 200 && (r.status ?? 200) < 300,
       status: r.status ?? 200,
@@ -54,11 +46,6 @@ const msgs: ChatMessage[] = [{ role: 'user', content: 'frage' }];
 before(() => {
   closeDb();
   initDb('/tmp/opencode/test-llmclient.db');
-  // Fallback-Kette fuer Tests aktivieren (Container .env hat keinen Fallback)
-  config.llm.baseUrl = 'https://primary.example.org/v1';
-  config.llm.fallbackBaseUrl = 'https://fallback.example.org/v1';
-  config.llm.fallbackModel = 'fallback-modell';
-  setSetting('llm_fallback_after_ms', '100');
 });
 
 beforeEach(() => {
@@ -72,8 +59,6 @@ afterEach(() => {
 });
 
 after(() => {
-  deleteSetting('llm_fallback_after_ms');
-  Object.assign(config.llm, savedLlm);
   globalThis.fetch = originalFetch;
 });
 
@@ -98,34 +83,20 @@ test('chatCompletion: ohne usage bleibt usage undefined', async () => {
   assert.equal(r.usage, undefined);
 });
 
-test('Tool-Runden bleiben am Primaermodell (kein Fallback-Race)', async () => {
+test('Tool-Runden gehen ans Primaermodell', async () => {
   stub.respond = () => ({ data: chatJson('primary', 'tool-antwort') });
   await chatCompletion(msgs, [{ type: 'function', function: { name: 'x', parameters: {} } }], 1000);
-  assert.deepEqual(calls.map((c) => c.url), ['primary']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].tools, 1);
 });
 
-test('Primaerfehler -> Fallback uebernimmt, via_fallback markiert', async () => {
-  stub.respond = (url) => (url.includes('primary') ? { status: 500, data: {} } : { data: chatJson('fb', 'vom fallback') });
-  const r = await chatCompletion(msgs, undefined, 5000);
-  assert.equal(r.message.content, 'vom fallback');
-  assert.equal(r.usage?.via_fallback, true);
-  assert.equal(r.usage?.model, 'fallback-modell');
-  assert.deepEqual(calls.map((c) => c.url), ['primary', 'fallback']);
-});
-
-test('haengendes Primaermodell -> Fallback nach Fallback-Schwelle', async () => {
-  stub.respond = (url) => (url.includes('primary') ? 'hang' : { data: chatJson('fb', 'fallback gewinnt') });
-  const r = await chatCompletion(msgs, undefined, 3000);
-  assert.equal(r.message.content, 'fallback gewinnt');
-  assert.deepEqual(calls.map((c) => c.url), ['primary', 'fallback']);
-});
-
-test('beide Modelle im Fehler -> klare Rejection, kein Crash', async () => {
+test('Primaerfehler -> klare Rejection', async () => {
   stub.respond = () => ({ status: 500, data: {} });
-  await assert.rejects(() => chatCompletion(msgs, undefined, 3000), /beide Modelle/);
+  await assert.rejects(() => chatCompletion(msgs, undefined, 3000), /LLM 500/);
 });
 
-test('haengende Primaer-Timeouts geben Abbruch-Signal an fetch weiter', async () => {
-  stub.respond = () => 'hang';
-  await assert.rejects(() => chatCompletion(msgs, undefined, 100), /beide Modelle/);
+test('chatCompletion reicht bei Timeout ein Abbruch-Signal an fetch weiter', async () => {
+  stub.respond = () => ({ data: chatJson('m', 'ok') });
+  await chatCompletion(msgs, undefined, 1000);
+  assert.ok(calls[0].signal instanceof AbortSignal);
 });

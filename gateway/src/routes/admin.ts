@@ -43,7 +43,6 @@ adminRoutes.get('/admin/api/bootstrap', requireAuth, (req, res) => {
       max_tool_iterations: String(config.maxToolIterations),
       http_timeout_ms: String(HTTP_TIMEOUT_MS),
       http_body_cap: String(HTTP_BODY_CAP),
-      alexa_progress_after_ms: '6500',
       ...Object.fromEntries(SEED_SETTINGS),
     },
     actions: listActions(false),

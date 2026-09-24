@@ -16,17 +16,8 @@ export const config = {
     model: process.env.LLM_MODEL ?? 'chat-fast',
     maxTokens: Number(process.env.LLM_MAX_TOKENS ?? 2000),
     reasoningEffort: process.env.LLM_REASONING_EFFORT,
-    // Lokaler Fallback, wenn die primäre LLM-Antwort zu lange dauert
-    // (Ausreißer > LLM_FALLBACK_AFTER_MS). Macht Reasoner-Antworten < 8 s zuverlässig.
-    fallbackBaseUrl: (process.env.LLM_FALLBACK_BASE_URL ?? '').replace(/\/+$/, ''),
-    fallbackModel: process.env.LLM_FALLBACK_MODEL ?? '',
-    fallbackAfterMs: Number(process.env.LLM_FALLBACK_AFTER_MS ?? 7000),
   },
   agentClarificationBudget: Number(process.env.AGENT_CLARIFICATION_BUDGET ?? 2),
   maxToolIterations: Number(process.env.MAX_TOOL_ITERATIONS ?? 6),
   toolDeadlineMs: Number(process.env.LLM_TOOL_DEADLINE_MS ?? 9000),
-  alexaSkillId: process.env.ALEXA_SKILL_ID,
-  alexaDirectivesBase: process.env.ALEXA_DIRECTIVES_BASE ?? 'https://api.eu.amazonalexa.com',
-  // Fail-closed: ohne explizite Env-Var gilt Signatur-Pflicht, nicht Auslassung.
-  alexaVerifyMode: process.env.ALEXA_VERIFY_MODE ?? 'enforce',
 };

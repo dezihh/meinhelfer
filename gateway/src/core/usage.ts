@@ -13,7 +13,6 @@ export function traceUsage(trace: TraceEvent[], model: string, result: ChatCompl
       completion_tokens: result.usage.completion_tokens,
       total_tokens: result.usage.total_tokens,
       cached: result.usage.cached,
-      via_fallback: result.usage.via_fallback,
     },
   });
 }

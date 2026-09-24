@@ -18,7 +18,6 @@ export interface LlmUsage {
   completion_tokens?: number;
   total_tokens?: number;
   cached?: boolean;
-  via_fallback?: boolean;
   model?: string;
 }
 
@@ -41,77 +40,7 @@ export async function chatCompletion(
 ): Promise<ChatCompletionResult> {
   // Betriebs-Tuning via Web-UI-Settings; .env/Code liefert die Defaults
   const primaryModel = modelOverride ?? (getSetting('llm_model')?.trim() || config.llm.model);
-  const fallbackBase = modelOverride ? '' : config.llm.fallbackBaseUrl;
-  const fallbackModel = modelOverride ? '' : config.llm.fallbackModel;
-  const useFallback = Boolean(fallbackBase && fallbackModel);
-
-  // Tool-Roundtrips brauchen Tool- und JSON-Faehigkeit -> nur Primaermodell
-  if (!useFallback || (tools && tools.length > 0)) {
-    return callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs, maxTokensOverride);
-  }
-
-  // Timeout-Deckel: Primaermodell hat volle Chance bis zur Schwelle;
-  // erst danach (oder bei Primaerfehler) uebernimmt der lokale Fallback.
-  // Alle Rejections werden gefangen -> niemals unhandled rejection (Prozess-Crash).
-  const primaryOk = callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs, maxTokensOverride).then(
-    (res) => ({ res }),
-    () => ({ err: true })
-  );
-  const fallbackOk = callLlm(fallbackBase, '', fallbackModel, messages, tools, timeoutMs, maxTokensOverride).then(
-    (fb) => ({ fb: fb.usage ? { ...fb, usage: { ...fb.usage, via_fallback: true, model: fallbackModel } } : fb }),
-    () => ({ err: true })
-  );
-  return await new Promise<ChatCompletionResult>((resolve, reject) => {
-    let settled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const clearTimers = () => {
-      for (const t of timers) clearTimeout(t);
-      timers.length = 0;
-    };
-    const done = (v: ChatCompletionResult) => {
-      if (!settled) {
-        settled = true;
-        clearTimers();
-        resolve(v);
-      }
-    };
-    const fail = (msg: string) => {
-      if (!settled) {
-        settled = true;
-        clearTimers();
-        reject(new Error(msg));
-      }
-    };
-    // Primary hat bis fallbackAfterMs Zeit; danach (oder bei Fehler) uebernimmt
-    // der lokale Fallback. Overall = harte Gesamt-Deadline, damit nie gehaengt
-    // wird (weder bei Timerlossen noch bei beiden Modellen, die nicht antworten).
-    const fallbackAfter = getSettingNum('llm_fallback_after_ms', config.llm.fallbackAfterMs);
-    timers.push(
-      setTimeout(
-        () => fail('LLM: Gesamt-Deadline überschritten'),
-        fallbackAfter + (timeoutMs ?? fallbackAfter) + 5000
-      )
-    );
-    primaryOk.then((r) => {
-      if ('res' in r) {
-        done(r.res);
-      } else if ('err' in r && !settled) {
-        // Primaerfehler: haengende fallbackOk-Reihe sofort abloesen
-        fallbackOk.then((fb) => {
-          if ('fb' in fb) done(fb.fb);
-          else fail('LLM: beide Modelle nicht rechtzeitig antworteten');
-        });
-      }
-    });
-    timers.push(
-      setTimeout(() => {
-        fallbackOk.then((r) => {
-          if ('fb' in r) done(r.fb);
-          else fail('LLM: beide Modelle nicht rechtzeitig antworteten');
-        });
-      }, fallbackAfter)
-    );
-  });
+  return callLlm(config.llm.baseUrl, config.llm.apiKey, primaryModel, messages, tools, timeoutMs, maxTokensOverride);
 }
 
 async function callLlm(

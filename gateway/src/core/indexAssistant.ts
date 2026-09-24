@@ -189,10 +189,8 @@ export async function assistIndex(goal: string, indexKey = ''): Promise<AssistRe
   let validation: DraftValidation | null = null;
   const MAX_ITERATIONS = 3;
   for (let i = 1; i <= MAX_ITERATIONS; i++) {
-    // Bewusst NUR das Primaermodell (modelOverride schaltet den 7-s-Fallback-
-    // Wettlauf ab): der Katalog-Prompt ist gross, der lokale Fallback wuerde
-    // stattdessen unbrauchbares JSON liefern. Grosszuegiges Token-Budget,
-    // weil das Draft das komplette Extraktions-Template enthaelt.
+    // Bewusst ein festes, grosszuegiges Token-Budget: der Katalog-Prompt ist
+    // gross und das Draft enthaelt das komplette Extraktions-Template.
     const result = await chatCompletion(messages, undefined, 90_000, config.llm.model, 4000);
     const text = result.message.content ?? '';
     const candidate = extractJson(text);

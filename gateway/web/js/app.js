@@ -150,12 +150,6 @@ const SETTINGS_FIELDS = [
     help: 'Wie weit beim Wiedereinstieg (neue Session, z. B. nach Pause oder Gateway-Neustart) aus dem Log zurückgelesen wird. Innerhalb der Zeit gilt die Frage-Antwort-Historie als „frühere Unterhaltung", danach nicht mehr. Leer = Default 30.',
   },
   {
-    key: 'alexa_progress_after_ms',
-    label: 'Alexa-Warteton ab (ms)',
-    type: 'number',
-    help: 'Ab wann das Gateway „Einen Moment, ich schaue das kurz nach." als Progressive Directive an Alexa sendet. Laut Doku verlängert das das Antwortfenster (~8 s) nicht, praktisch überbrückt es die Wartezeit akustisch. 0 = Warteton aus. Default 6500.',
-  },
-  {
     key: 'http_timeout_ms',
     label: 'http()-Timeout (ms)',
     type: 'number',

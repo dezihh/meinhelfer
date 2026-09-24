@@ -1,27 +1,18 @@
-import express, { type Request } from 'express';
+import express from 'express';
 import { join } from 'node:path';
 import { config } from './config.js';
-import { requireAuth, createSession, sessionValid, cookieFor } from './auth.js';
+import { createSession, sessionValid, cookieFor } from './auth.js';
 import { checkRateLimit } from './rateLimit.js';
 import { chatCompletion } from './llm/client.js';
-import { alexaRoutes } from './routes/alexa.js';
 import { queryRoutes } from './routes/query.js';
 import { adminRoutes } from './routes/admin.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { packagesRoutes } from './routes/packages.js';
 
 const app = express();
-app.use(
-  express.json({
-    limit: '1mb',
-    verify: (req, _res, buf) => {
-      (req as Request & { rawBody?: Buffer }).rawBody = buf;
-    },
-  })
-);
+app.use(express.json({ limit: '1mb' }));
 
 // Feature-Routen (je eine Datei in src/routes/)
-app.use(alexaRoutes);
 app.use(queryRoutes);
 app.use(adminRoutes);
 app.use(mcpRoutes);

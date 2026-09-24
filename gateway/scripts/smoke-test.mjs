@@ -72,8 +72,6 @@ async function main() {
     check('  /api/query ohne Bearer → 401', noAuth.status === 401, `HTTP ${noAuth.status}`);
     const wrongAuth = await post('/api/query', { text: 'test' }, 'falscher-token');
     check('  /api/query mit falschem Bearer → 401', wrongAuth.status === 401, `HTTP ${wrongAuth.status}`);
-    const alexaNoAuth = await post('/alexa', { version: '1.0', request: { type: 'LaunchRequest' } }, '');
-    check('  /alexa ohne Bearer → 401', alexaNoAuth.status === 401, `HTTP ${alexaNoAuth.status}`);
     const adminNoCookie = await get('/admin/', TOKEN);
     check('  /admin ohne Session → 4xx', adminNoCookie.status >= 400, `HTTP ${adminNoCookie.status}`);
     const loginWrong = await post('/admin/login', { token: 'falsch' }, '');
