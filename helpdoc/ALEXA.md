@@ -43,13 +43,14 @@ an:
 
 ```json
 {
-   "skill_id": "amzn1.ask.skill.<deine-id>"
+  "skill_id": "amzn1.ask.skill.<deine-id>"
 }
 ```
 
 Die Skill-ID wird für die Synchronisierung und zur Beschränkung des
 Alexa-Skills-Kit-Triggers der Lambda verwendet. Sie ist kein Geheimnis und
-ersetzt nicht den Gateway-Token.
+ersetzt nicht den Gateway-Token. Für die automatisierten Deploy-Wege siehe
+[Deployment und CI/CD](DEPLOYMENT.md).
 
 ### Lambda-Konfiguration
 
@@ -62,12 +63,15 @@ Die Vorlage `alexa/lambda/config.json.example` verlangt:
   "watchdog_delay": "5",
   "gateway_timeout": "28",
   "skill_name": "MeinHelfer",
-  "assistant_name": "Dein Helfer"
+  "assistant_name": "Dein Helfer",
+  "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
 }
 ```
 
 `gateway_url` ist die Basisadresse; die Lambda ergänzt den API-Pfad gemäß
 ihrer Implementierung. `gateway_token` muss mit `AUTH_TOKEN` übereinstimmen.
+`alexa_skill_id` ist die Skill-ID, gegen die die Lambda eingehende
+Alexa-Events prüft; abweichende `applicationId`s werden abgelehnt.
 
 ## Skill-Modell synchronisieren
 
@@ -83,6 +87,9 @@ Optionen:
 
 - `--force`: auch ohne erkannte Änderung synchronisieren
 
+Das Skill-Manifest wird hier nicht verwaltet; es wird ausschließlich über den
+Workflow `sync-manifest.yml` auf die Lambda-ARN gesetzt.
+
 ## Gateway-Zugriff
 
 Die Lambda ruft ausschließlich `POST /api/query` auf und sendet dabei
@@ -95,68 +102,24 @@ internen Netz.
 
 ## Lambda bereitstellen
 
-### Weg 1: GitHub-Workflow (dokumentiert und getestet)
+Für die automatisierten Deploy-Wege über GitHub Actions sowie die
+AWS-/Alexa-Interna siehe [Deployment und CI/CD](DEPLOYMENT.md)
+(Betreiber/Entwickler, ohne Secret-Werte).
 
-Der Workflow `deploy-aws-lambda.yml` (manueller Start, `workflow_dispatch`)
-erledigt alles in einem Durchlauf:
+### Manuell (Kurzfassung)
 
-1. Baut das Zip aus `alexa/lambda/` (lambda_function.py + ask-sdk/requests)
-2. Legt die Funktion `meinhelfer-alexa` an oder aktualisiert sie
-   (Python 3.14, 512 MB, Timeout konfigurierbar, Default 30 s)
-3. Legt bei Bedarf die IAM-Ausführungsrolle
-   `meinhelfer-lambda-execution` automatisch an (inkl. CloudWatch-Logs-Policy)
-4. Setzt die Env-Variablen: `gateway_url` und `gateway_token` kommen aus
-   GitHub-Secrets — nie ins Repo; `watchdog_delay`, `gateway_timeout`,
-   `skill_name`, `assistant_name` und `apl_exit_delay_ms` setzt der Workflow
-   auf feste Werte.
-5. Setzt den Alexa-Skills-Kit-Trigger (`aws lambda add-permission` mit der
-   Skill-ID als `event-source-token`). Ohne diesen Trigger lehnt Amazon den
-   ARN-Endpoint ab: „The trigger setting for the Lambda … is invalid".
-
-**Erforderliche GitHub-Secrets:**
-
-| Secret | Zweck |
-|---|---|
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS-Deploy-Benutzer |
-| `AWS_REGION` | Region, Default `eu-west-1` |
-| `AWS_LAMBDA_ROLE` | optional: bestehende Rollen-ARN überspringt die Auto-Anlage |
-| `GATEWAY_URL` | öffentliche Basisadresse des Gateways |
-| `GATEWAY_TOKEN` | muss mit `AUTH_TOKEN` des Gateways übereinstimmen |
-| `ALEXA_SKILL_ID` | Skill-ID für den Trigger |
-
-**Nach dem Workflow:** Das Skill-Manifest muss einmalig auf die neue
-Lambda-ARN umgestellt werden (Workflow `sync-manifest.yml` oder
-Alexa-Console). Wichtig: Amazon prüft alle Regions-Endpoints — nur das
-Top-Level-`endpoint` zu setzen reicht nicht; der Workflow schreibt
-`regions.EU.endpoint` mit.
-
-### Weg 2: Manuell (noch nicht vollständig dokumentiert)
-
-Eine vollständige manuelle Anleitung einschließlich erstmaliger
-AWS-Ressourcen fehlt noch. Die vom Workflow automatisierten Schritte geben
-die Reihenfolge vor:
-
-- Region und Runtime (Python 3.14) wählen
-- Ausführungsrolle mit Lambda-Basic-Execution-Trust und
-  CloudWatch-Logs-Policy anlegen
-- Zip aus `alexa/lambda/` bauen (lambda_function.py + Abhängigkeiten)
-- Funktion `meinhelfer-alexa` erstellen (Handler
-  `lambda_function.lambda_handler`, Timeout > 8 s, 512 MB)
-- Env-Variablen setzen (`gateway_url`, `gateway_token`, `watchdog_delay=5`,
-  `gateway_timeout=max(9, timeout-3)`, `skill_name`, `assistant_name`,
-  `apl_exit_delay_ms=90000`)
-- Alexa-Skills-Kit-Trigger mit Skill-ID-Beschränkung hinzufügen
-- Skill-Manifest-Endpoint auf den Funktions-ARN umstellen
-- Rollback: vorheriges Zip erneut hochladen; Logs in CloudWatch auswerten
-
-### So wird das nachgebildet
-
-1. Den Workflow von einem leeren AWS-Konto beziehungsweise einer neuen
-   Funktion ausführen.
-2. Jeden vorher manuell notwendigen AWS-Schritt protokollieren.
-3. Secrets nur mit Namen und Zweck dokumentieren, niemals mit Werten.
-4. Einen LaunchRequest und eine freie Frage testen.
-5. CloudWatch- und Gateway-Trace derselben Anfrage gegenüberstellen.
+1. In AWS eine Lambda-Funktion `meinhelfer-alexa` anlegen (Handler
+   `lambda_function.lambda_handler`, Timeout > 8 s, 512 MB) und eine
+   Ausführungsrolle mit Lambda-Basic-Execution-Trust und CloudWatch-Logs-Policy
+   verwenden.
+2. Zip aus `alexa/lambda/` bauen (`lambda_function.py` + Abhängigkeiten) und
+   hochladen.
+3. Env-Variablen setzen: `gateway_url`, `gateway_token`, `alexa_skill_id`,
+   `watchdog_delay=5`, `gateway_timeout=max(9, timeout-3)`, `skill_name`,
+   `assistant_name`, `apl_exit_delay_ms=90000`.
+4. Alexa-Skills-Kit-Trigger mit Skill-ID-Beschränkung hinzufügen.
+5. Skill-Manifest-Endpoint auf den Funktions-ARN umstellen.
+6. Rollback: vorheriges Zip erneut hochladen; Logs in CloudWatch auswerten.
 
 ## End-to-End-Prüfung
 

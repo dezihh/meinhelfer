@@ -88,6 +88,9 @@ Vorgänge in einem Rutsch an; du gibst nur Host, Port und Token ein.
 Design- und Architektur-Dokumente (Hintergrund für Entwickler):
 [doc/](doc/ARCHITECTURE.md)
 
+Betriebs-/CI-CD-Doku (Deployments, Workflows, Secrets-Namen):
+[helpdoc/DEPLOYMENT.md](helpdoc/DEPLOYMENT.md)
+
 ## Sicherheit
 
 - Alexa → AWS Lambda: Aufrufberechtigung auf die konfigurierte Skill-ID

@@ -109,8 +109,6 @@ nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 | `LLM_MODEL` | `chat-fast` | Startmodell |
 | `LLM_MAX_TOKENS` | `2000` | Ausgabe-Budget |
 | `LLM_REASONING_EFFORT` | leer | Reasoning-Stufe, falls das Modell sie unterstützt |
-| `LLM_FALLBACK_BASE_URL` / `LLM_FALLBACK_MODEL` | leer | optionale Fallback-Schnittstelle (leer = aus) |
-| `LLM_FALLBACK_AFTER_MS` | `7000` | Schwelle des optionalen Fallbacks |
 | `LLM_KEEPALIVE_MS` | `120000` | Modell warm halten; `0` = aus |
 | `AGENT_CLARIFICATION_BUDGET` | `2` | Rückfragebudget |
 | `MAX_TOOL_ITERATIONS` | `6` | maximale Tool-Runden |
@@ -118,10 +116,6 @@ nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 | `GATEWAY_PORT` | `3000` | nur Compose-Host-Mapping (der Code liest `PORT`) |
 
 Pflichtvariablen: `AUTH_TOKEN`, `LLM_BASE_URL`, `LLM_API_KEY`.
-
-Der optionale LLM-Fallback (`LLM_FALLBACK_*`) greift nur für Anfragen ohne
-Tool-Aufrufe: überschreitet das Hauptmodell die Schwelle, antwortet der
-Fallback-Endpunkt. Für Agent-Anfragen mit Tools gibt es keinen Fallback.
 
 ## Budgets und Tool-Auswahl
 

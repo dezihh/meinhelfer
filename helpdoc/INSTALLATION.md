@@ -89,7 +89,7 @@ Diese Variablen liest der Gateway-Code beim Start:
 | `LLM_MODEL` | nein | Name des LLM-Modells, Standard `chat-fast`  |
 | `LLM_MAX_TOKENS` | nein | Ausgabe-Budget, Standard `2000` |
 
-Weitere optionale Variablen (Tool-Runden, Deadline, Keepalive, Fallback) sind
+Weitere optionale Variablen (Tool-Runden, Deadline, Keepalive) sind
 in der [Referenz](REFERENCE.md#laufzeitkonfiguration) aufgelistet. Für die
 Alexa-Anbindung über AWS Lambda benötigt das Gateway keine Alexa-spezifischen
 Umgebungsvariablen. Die Lambda greift mit `AUTH_TOKEN` auf `/api/query` zu.

@@ -284,7 +284,6 @@ Weitere Laufzeit-Schrauben (Settings, Admin-UI):
 | `max_tool_iterations` | Runden gesamt; die **letzte Runde** bekommt eine „formuliere jetzt"-Anweisung (Formulierungs-Garantie) |
 | `tool_deadline_ms` | Deadline für den Agent-Loop |
 | `http_timeout_ms` / `http_body_cap` | Grenzen des http()-Bausteins |
-| `alexa_progress_after_ms` | Warteton-Grenze beim Alexa-Einstieg |
 
 Die Prompts (`agent_system`, `agent_inventory`) werden zu
 `## Tool-Inventory` zusammengeführt und lehren das Modell die Nutzung;
@@ -430,8 +429,8 @@ die Session offen (`keep_open`), damit Detailfragen im Folgeturn laufen.
 
 | Ebene | Was liegt dort | Beispiele |
 |-------|----------------|-----------|
-| `.env` | Secrets + Start-Infra (nur was vor dem Prozessstart feststeht) | `AUTH_TOKEN`, `ALEXA_SKILL_ID`, `LLM_BASE_URL`/`LLM_API_KEY`, `LLM_MODEL` (Fallback-Default) |
-| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `agent_tools`, `http_timeout_ms`, `http_body_cap`, `alexa_progress_after_ms` (Budgets steuern die `budget`-Spalte der Funktionen); Index-Quellen über den eigenen Tab (nicht mehr als Settings-Felder) |
+| `.env` | Secrets + Start-Infra (nur was vor dem Prozessstart feststeht) | `AUTH_TOKEN`, `LLM_BASE_URL`/`LLM_API_KEY`, `LLM_MODEL` (Fallback-Default) |
+| Settings (Admin-UI) | Betriebs-Tuning zur Laufzeit | `llm_model`, `llm_max_tokens`, `tool_model`, `max_tool_iterations`, `tool_deadline_ms`, `agent_tools`, `http_timeout_ms`, `http_body_cap` (Budgets steuern die `budget`-Spalte der Funktionen); Index-Quellen über den eigenen Tab (nicht mehr als Settings-Felder) |
 | DB-Tabellen | Inhalte | `actions` (Vorgänge), `tpl_functions` (Funktionen), `prompts` (`agent_system`, `agent_inventory`), `mcp_servers`, `logs` |
 
 Settings mit leerem Wert fallen auf `.env`-/Code-Default zurück

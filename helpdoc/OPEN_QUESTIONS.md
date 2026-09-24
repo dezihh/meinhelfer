@@ -76,14 +76,6 @@ vervollständigen.
 
 ## Widersprüche im aktuellen Bestand
 
-### Modell-Fallback
-
-Die ältere Fachdokumentation sagt, es gebe keine Fallback-Kaskade. Der Code
-enthält jedoch `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` und
-`LLM_FALLBACK_AFTER_MS` (nur für Anfragen ohne Tools). Verhalten ist in
-[Referenz](REFERENCE.md#laufzeitkonfiguration) beschrieben; der Supportstatus
-als offizielles Feature ist noch zu erklären.
-
 ### Seed-Prompt
 
 Der Kommentar bezeichnet den Installationsprompt als neutral; sein Inhalt
