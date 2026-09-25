@@ -37,7 +37,6 @@ jobs:
           SKILL_ID: ${{ inputs.skill_id || secrets.ALEXA_SKILL_ID }}
           ADD_APL: ${{ inputs.add_apl }}
           ENDPOINT_ARN: ${{ inputs.endpoint_arn }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           source ~/.ask/auth_info
@@ -48,12 +47,12 @@ jobs:
           BASE="${ask_smapi_api}/v1/skills/${SKILL_ID}/stages/development/manifest"
           HTTP=$(curl -s -D /tmp/h.txt -o /tmp/m.json -w "%{http_code}" -H "Authorization: Bearer ${ACCESS}" "${BASE}")
           echo "GET -> HTTP ${HTTP}"
-          python3 - "$ADD_APL" "$ENDPOINT_ARN" "$AWS_REGION" "$DRY_RUN" <<'PYEOF'
+          python3 - "$ADD_APL" "$ENDPOINT_ARN" "$DRY_RUN" <<'PYEOF'
           import json, sys
           m = json.load(open("/tmp/m.json"))
           manifest = m.get("manifest", {})
           need_put = False
-          dry_run = sys.argv[4] == "1"
+          dry_run = sys.argv[3] == "1"
           cur_ep = manifest.get("apis", {}).get("custom", {}).get("endpoint", {})
           print("AKTUELLER Live-Endpoint (vor evtl. Aenderung):", json.dumps(cur_ep))
           print("DRY_RUN:", dry_run)
@@ -84,8 +83,8 @@ jobs:
               need_put = True
               print("supportedViewports gesetzt/aktualisiert")
           endpoint_arn = sys.argv[2]
-          if not endpoint_arn and sys.argv[3]:
-              endpoint_arn = "arn:aws:lambda:{}:837775096857:function:meinhelfer-alexa".format(sys.argv[3])
+          if not endpoint_arn:
+              print("endpoint_arn leer: Endpoint bleibt unveraendert (ARN aus deploy-aws-lambda.yml als Input setzen).")
           if endpoint_arn:
               custom = manifest.get("apis", {}).get("custom", {})
               ep = custom.get("endpoint", {})
