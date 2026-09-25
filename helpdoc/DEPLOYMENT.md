@@ -2,7 +2,6 @@
 
 > Zielgruppe: Betreiber und Entwickler. Diese Datei beschreibt die
 > automatisierten Deploy-Wege über GitHub Actions sowie die AWS-/Alexa-Interna.
-> Sie enthält bewusst **keine Secret-Werte** – nur Namen und Zwecke.
 > Für die klassische Installation durch Anwender siehe [Alexa anbinden](ALEXA.md).
 
 ## Architektur
