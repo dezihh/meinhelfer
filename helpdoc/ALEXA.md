@@ -150,9 +150,12 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 1. Fertiges Zip laden (jeweils der letzte Build):
    `https://github.com/dezihh/meinhelfer/releases/download/latest/meinhelfer-alexa-lambda.zip`
 2. In AWS eine Lambda-Funktion `meinhelfer-alexa` anlegen:
-   - Runtime Python 3.x, Handler `lambda_function.lambda_handler`
-   - Timeout **größer als 8 Sekunden** (z. B. 30), 512 MB
+   - Region **Europa (Irland) `eu-west-1`** (die Alexa-Konsole trägt den ARN
+     als Default-Region ein)
+   - Runtime **Python 3.14**, Handler `lambda_function.lambda_handler`
+   - Timeout **30 s** (muss größer als 8 s sein), Memory **512 MB**
    - Ausführungsrolle mit Lambda-Basic-Execution-Trust und CloudWatch-Logs
+     (z. B. `meinhelfer-lambda-execution`)
    - Das geladene Zip als Code hochladen
 3. Umgebungsvariablen setzen:
 
@@ -169,14 +172,18 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 
 ### 4.2 Alexa-Trigger setzen
 
-In der Lambda einen Trigger vom Typ **Alexa Skills Kit** hinzufügen und auf die
-Skill-ID beschränken.
+In der Lambda einen Trigger (Auslöser) vom Typ **Alexa Skills Kit** hinzufügen
+und als Skill-ID die ID des Skills eintragen. Die Konsole setzt daraus das
+Ereignisquellen-Token (`amzn1.ask.skill.…`) und beschränkt den Aufruf auf genau
+diesen Skill (Service-Prinzipal `alexa-appkit.amazon.com`).
 
 ### 4.3 Endpoint im Manifest setzen
 
 Im Skill-Manifest den Endpoint auf den Funktions-ARN der Lambda umstellen
-(Developer Console → **Build** → **Endpoint** → **AWS Lambda ARN**). Den ARN
-zeigt AWS in der Funktion oben an. Amazon prüft dabei den ARN-Fingerprint.
+(Developer Console → **Build** → **Endpoint** → **AWS Lambda ARN**, Default
+Region `eu-west-1`). Der ARN hat die Form
+`arn:aws:lambda:eu-west-1:<konto>:function:meinhelfer-alexa` und steht in AWS
+oben in der Funktion. Amazon prüft dabei den ARN-Fingerprint.
 
 ## 5. Testen
 
