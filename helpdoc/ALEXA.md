@@ -1,80 +1,148 @@
 ﻿# Alexa anbinden
 
-Diese Anleitung richtet die Alexa-Anbindung von Hand ein: Alexa-Skill,
-AWS Lambda und Interaktionsmodell. Sie ist für Anwender gedacht, die den
-Skill selbst aufsetzen. Beginne erst, wenn dieselbe Frage im Gateway unter
-**Monitor / Test** funktioniert.
+## Ziel
 
-## Überblick
+Diese Anleitung ist die Fortsetzung der [Installation](INSTALLATION.md). Dort
+läuft das Gateway bereits und ist öffentlich per HTTPS erreichbar. Jetzt
+verbindest du es mit Alexa. Jeder Abschnitt endet mit einem prüfbaren
+Zwischenstand.
+
+## Voraussetzungen
+
+- Abgeschlossene [Installation](INSTALLATION.md): Das Gateway läuft, hat eine
+  öffentliche HTTPS-Adresse, und `POST /api/query` antwortet mit dem
+  Bearer-Token `AUTH_TOKEN`.
+- Ein Amazon-Developer-Konto (vorhanden).
+- Für Weg B zusätzlich ein AWS-Konto (vorhanden).
+
+Die Einrichtung dieser Konten ist nicht Teil dieser Anleitung.
+
+## Zwei Wege
+
+| | Weg A: Alexa-hosted | Weg B: eigene AWS-Lambda |
+|---|---|---|
+| Aufwand | gering | mittel |
+| AWS-Konto | nicht nötig | nötig |
+| Backend | von Amazon gehostet | eigene Lambda |
+| Grenzen | ca. 8 Sekunden Zeitlimit; Code und Token liegen im hosted Repo | Timeout frei wählbar, volle Kontrolle |
+| Empfehlung | zum Ausprobieren | für den Betrieb |
 
 ```mermaid
 flowchart LR
     E[Echo] --> P[Alexa-Plattform]
     P --> L[AWS Lambda]
-    L -->|HTTPS und Gateway-Token| G[Gateway]
-    G -->|AssistantResponse| L
-    L --> P
-    P --> E
+    L -->|HTTPS und Token| G[Gateway]
+    G -->|Antwort| L
 ```
 
-Die Lambda ist ein dünner Adapter. Routing, Funktionen, Werkzeuge und LLM
-bleiben im Gateway. Öffentlich erreichbar ist nur `POST /api/query`.
-
-## Was du brauchst
-
-- Ein laufendes Gateway mit öffentlichem HTTPS-Zugang; `POST /api/query`
-  antwortet mit dem Gateway-Token (`AUTH_TOKEN`) im Bearer-Header.
-- Ein Amazon-Developer-Konto und ein AWS-Konto.
-- Optional für den Modell-Sync: die ASK CLI (`ask configure`).
+In beiden Wegen bleibt das Gateway die Zentrale: Routing, Funktionen, Werkzeuge
+und LLM. Die Lambda ist ein dünner Adapter und ruft `POST /api/query` auf.
+Öffentlich erreichbar ist nur diese eine Route.
 
 ## 1. Skill anlegen
 
 In der Alexa Developer Console:
 
-1. **Create Skill** → Name `MeinHelfer`, Sprache **German (DE)**,
-   Modell **Custom**, Backend **Provision your own**.
-2. Als **Invocation Name** `mein helfer` eintragen (Groß-/Kleinschreibung
-   spielt keine Rolle).
-3. Intents anlegen:
-   - `GptQueryIntent` mit Slot `query` (Typ `AMAZON.Person`) und Sample
-     `{query}`
-   - `AMAZON.HelpIntent`, `AMAZON.CancelIntent`, `AMAZON.StopIntent`,
-     `AMAZON.FallbackIntent` (jeweils ohne Samples)
-4. Modell speichern und bauen lassen (**Build Model**).
+1. **Create Skill**.
+2. **Skill name**: z. B. `MeinHelfer` (frei wählbar).
+3. **Default language**: **German (DE)**.
+4. **Choose a type of experience**: **Other**.
+5. **Choose a model to add to your skill**: **Custom**.
+6. **Choose a method to host your skill's backend resources**:
+   - Weg A: **Alexa-Hosted (Python)**
+   - Weg B: **Provision your own**
+7. **Create Skill**. Auf der Seite **Choose a template to add to your skill**
+   **Start from Scratch** wählen (nicht „Import skill“) und mit
+   **Continue with template** bestätigen.
+8. Nach ein bis zwei Minuten öffnet sich der **Build**-Tab. Die **Skill-ID**
+   steht unter **Build → Endpoint → „Your Skill ID“** (Format
+   `amzn1.ask.skill.…`). Für Weg B wird sie gebraucht.
 
-Invocation Name, Skill-Name und Assistenten-Name stehen in
-`alexa/skill.config.json` (siehe Schritt 2) und werden daraus gerendert.
+## 2. Interaktionsmodell
 
-## 2. Grundwerte und Namen
-
-`alexa/skill.config.json` ist die einzige Quelle für die Alexa-Namen und pro
-Sprache aufgebaut:
+Im **Build**-Tab → **JSON Editor** folgendes Modell einsetzen (den
+`invocationName` an den gewünschten Aufrufnamen anpassen), **Save Model** und
+**Build Model** ausführen:
 
 ```json
 {
-  "locales": {
-    "de-DE": {
-      "skill_name": "MeinHelfer",
-      "invocation_name": "mein helfer",
-      "assistant_name": "Dein Helfer"
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "mein helfer",
+      "intents": [
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "GptQueryIntent",
+          "slots": [{ "name": "query", "type": "AMAZON.Person" }],
+          "samples": ["{query}"]
+        }
+      ],
+      "types": []
     }
   }
 }
 ```
 
-| Feld | Bedeutung |
-|---|---|
-| `skill_name` | Anzeigename des Skills und Titel auf dem Echo-Display |
-| `invocation_name` | Aufrufname („Alexa, öffne …“); mindestens zwei Wörter, keine Ziffern |
-| `assistant_name` | Name, den der Assistent im Gespräch nennt |
+Das Einfügen ersetzt auch die Intents der Vorlage (`HelloWorldIntent`,
+`AMAZON.NavigateHomeIntent`); für beide gibt es in der Lambda keinen Handler.
 
-Die Werte in Modell und Manifest rendert das Skript:
+Das Modell legt fest:
 
-```bash
-python3 alexa/scripts/skill_config.py --render-all
+- **Invocation Name** `mein helfer` – so wird der Skill geöffnet.
+- Intent `GptQueryIntent` mit Slot `query` und Sample `{query}` für freie Fragen.
+- `AMAZON.HelpIntent`, `AMAZON.CancelIntent`, `AMAZON.StopIntent`,
+  `AMAZON.FallbackIntent`.
+
+## 3. Weg A: Alexa-hosted
+
+Beim hosted Skill liegen Code und Interaktionsmodell bei Amazon. Der Skill ist
+in Schritt 1 mit **Alexa-Hosted (Python)** angelegt.
+
+### 3.1 Interaktionsmodell
+
+Wie in Schritt 2: **Build** → **JSON Editor**, Modell einsetzen, **Save Model**,
+**Build Model**.
+
+### 3.2 Lambda-Code und Abhängigkeiten
+
+Im **Code**-Tab über **Import Code** das fertige Hosted-Zip laden:
+
+`https://github.com/dezihh/meinhelfer/releases/download/latest/meinhelfer-alexa-hosted.zip`
+
+Das Zip enthält `lambda/lambda_function.py`, `lambda/requirements.txt` und
+`lambda/config.json.example` (datensichere Vorlage). Es enthält bewusst **kein
+`config.json`** – die Konfiguration legst du gleich selbst an (3.3). Alternativ
+die Dateien direkt im Code-Editor bearbeiten.
+
+### 3.3 config.json
+
+Im `lambda/`-Ordner eine `config.json` anlegen (Vorlage:
+`config.json.example`, die Werte daraus übernehmen und anpassen):
+
+```json
+{
+  "gateway_url": "https://<gateway-host>",
+  "gateway_token": "<AUTH_TOKEN>",
+  "skill_name": "MeinHelfer",
+  "assistant_name": "Dein Helfer"
+}
 ```
 
-## 3. AWS Lambda bereitstellen
+Hosted Skills haben keine Umgebungsvariablen wie Weg B; die Werte stehen daher
+in dieser Datei. Sie liegt damit im hosted CodeCommit-Repo (nur für dein Konto
+sichtbar).
+
+### 3.4 Deploy und Test
+
+**Deploy** klicken (lädt Abhängigkeiten, baut und deployt). Danach testen
+(Schritt 5).
+
+## 4. Weg B: eigene AWS-Lambda (empfohlen)
+
+### 4.1 Lambda-Funktion anlegen
 
 1. Fertiges Zip laden (jeweils der letzte Build):
    `https://github.com/dezihh/meinhelfer/releases/download/latest/meinhelfer-alexa-lambda.zip`
@@ -89,71 +157,54 @@ python3 alexa/scripts/skill_config.py --render-all
 |---|---|
 | `gateway_url` | öffentliche Basisadresse des Gateways |
 | `gateway_token` | muss dem `AUTH_TOKEN` des Gateways entsprechen |
-| `alexa_skill_id` | Skill-ID (`amzn1.ask.skill.…`); abweichende IDs werden abgelehnt |
+| `alexa_skill_id` | Skill-ID; abweichende IDs werden abgelehnt |
 | `watchdog_delay` | z. B. `5` (Warteton, wenn das Gateway länger braucht) |
 | `gateway_timeout` | z. B. `28` (Timeout der Anfrage ans Gateway) |
-| `skill_name` | aus `skill.config.json` |
-| `assistant_name` | aus `skill.config.json` |
+| `skill_name` | Anzeigename, z. B. `MeinHelfer` |
+| `assistant_name` | Name im Gespräch, z. B. `Dein Helfer` |
 | `apl_exit_delay_ms` | z. B. `90000` (Anzeige auf dem Echo Show) |
 
-4. Alexa-Skills-Kit-Trigger hinzufügen: Trigger-Typ **Alexa Skills Kit**,
-   Skill-ID-Beschränkung auf `alexa_skill_id`.
+### 4.2 Alexa-Trigger setzen
 
-## 4. Endpoint im Manifest setzen
+In der Lambda einen Trigger vom Typ **Alexa Skills Kit** hinzufügen und auf die
+Skill-ID beschränken.
+
+### 4.3 Endpoint im Manifest setzen
 
 Im Skill-Manifest den Endpoint auf den Funktions-ARN der Lambda umstellen
-(Alexa Developer Console → Endpoint → **AWS Lambda ARN**). Amazon prüft dabei
-den ARN-Fingerprint. Den ARN zeigt AWS in der Funktion oben an.
+(Developer Console → **Build** → **Endpoint** → **AWS Lambda ARN**). Den ARN
+zeigt AWS in der Funktion oben an. Amazon prüft dabei den ARN-Fingerprint.
 
-## 5. Interaktionsmodell synchronisieren (Alternative)
+## 5. Testen
 
-Statt das Modell in der Console zu klicken, kannst du es aus dem Repository
-synchronisieren:
-
-1. `alexa/skill.local.json` anlegen (Vorlage: `alexa/skill.local.json.example`):
-
-   ```json
-   { "skill_id": "amzn1.ask.skill.<deine-id>" }
-   ```
-
-2. ASK CLI einmal anmelden (`ask configure`).
-3. Ausführen:
-
-   ```bash
-   python3 alexa/scripts/sync_skill.py
-   ```
-
-   Das Skript rendert den Aufrufnamen aus `skill.config.json` und lädt alle
-   eingetragenen Sprachen. `--force` erzwingt das Hochladen ohne Änderungsprüfung.
-
-Die Skill-ID ist kein Geheimnis und ersetzt nicht den Gateway-Token.
-
-## 6. Testen
-
-1. Dieselbe Frage im Gateway-Monitor testen.
+1. Dieselbe Frage im Gateway unter **Monitor / Test** stellen.
 2. Im Alexa-Simulator der Console sprechen: „Alexa, öffne mein Helfer“.
 3. Auf einem echten Echo testen.
 4. Einen langsamen Aufruf testen; der Warteton darf die finale Antwort nicht
    ersetzen.
 5. Eine echte Mehrdeutigkeit testen; die Rückfrage muss die Session offen halten.
 
-## Namen ändern
+## Namen und Aufrufname
 
-1. `alexa/skill.config.json` anpassen und `skill_config.py --render-all` ausführen.
-2. Interaktionsmodell neu synchronisieren (Schritt 5) bzw. Manifest/Modell in der
-   Console aktualisieren.
-3. Die Lambda-Umgebungsvariablen `skill_name` und `assistant_name` auf die neuen
-   Werte setzen.
-4. Den Gateway-Namen getrennt davon in der Admin-Oberfläche unter
-   **Assistenten-Name** anpassen, damit der Agent denselben Namen nennt.
+Drei verschiedene Namen:
+
+| Name | Wo | Ändern |
+|---|---|---|
+| **Invocation Name** („Alexa, öffne …“) | Interaktionsmodell, Feld `invocationName` (Build → **Invocation** oder **JSON Editor**) | Wert ändern, **Save Model** und **Build Model** |
+| **Skill-Name** (Anzeige, Display-Titel) | Manifest; beim Anlegen gesetzt | Anzeigename in der Console ändern |
+| **Assistenten-Name** (was der Assistent nennt) | Lambda: hosted `config.json` bzw. Weg B `assistant_name` | Wert ändern und neu deployen |
+
+Regeln für den Invocation Name: mindestens zwei Wörter, keine Ziffern.
+
+Zusätzlich in der Gateway-Admin-Oberfläche den **Assistenten-Name** passend
+setzen, damit der Agent denselben Namen nennt. Hinweis: Der Gateway-Name ist
+**global** – mehrere Skills an einem Gateway sprechen denselben Namen.
 
 ## Sprachen
 
 Der Skill ist derzeit nur auf **Deutsch (de-DE)** eingerichtet. Eine weitere
-Sprache ist ein zusätzlicher Eintrag unter `locales` in `skill.config.json`
-plus eine Modell-Datei
-`alexa/skill-package/interactionModels/custom/<locale>.json`. Die festen
-Sprechtexte der Lambda sind aktuell nur für `de-DE` hinterlegt.
+Sprache braucht ein eigenes Interaktionsmodell für diese Locale und passende
+Sprechtexte in der Lambda (aktuell nur `de-DE` hinterlegt).
 
 ## Nutzung
 
