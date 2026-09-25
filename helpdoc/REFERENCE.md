@@ -157,11 +157,10 @@ Technische Hintergründe und Design-Entscheidungen stehen in:
 
 - `../doc/ARCHITECTURE.md`
 - `../doc/FUNKTIONEN.md`
-- `../doc/DESIGN_SKILL_RUNTIME.md`
-- `../doc/DESIGN_DISPLAY.md`
 - `../doc/DESIGN_WEBUI.md`
-- `../doc/EXAMPLES.md`
+- [Praxisrezepte](RECIPES.md) für aktuelle Anwendungsbeispiele
 
-Hinweis: Diese Originale enthalten teilweise veraltete Beispiele (alte
-`ha.*`-Bausteine, `search_summary`-Modus, `tool_budgets`-Setting). Bei
-Widersprüchen gilt diese Referenz und der Code.
+Hinweis: Die verbleibenden Originale sind technische Hintergrunddokumente und
+enthalten teilweise veraltete Beispiele (alte `ha.*`-Bausteine,
+`search_summary`-Modus, `tool_budgets`-Setting). Bei Widersprüchen gilt diese
+Referenz und der Code.

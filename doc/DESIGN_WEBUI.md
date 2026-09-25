@@ -84,11 +84,11 @@ Router abgebildet (→ Entscheidung in [Issue #1](https://github.com/dezihh/mein
 | Persistenz | **SQLite** (`mcp_servers`, `actions`, `prompts`, `settings`), Credentials pragmatisch via `.env` |
 | Session-Schnittstelle | `sessionId`/`conversationId` ab POC in der internen API, State-Ausbau später (siehe ARCHITECTURE.md) |
 | Nachfragen | **Hybrid-Clarification**: LLM entscheidet, pro Action konfigurierbar, Budget 1–2 Rückfragen |
-| Display/Media | Stufe 1+2 (Text + Bilder) ins MVP, Video/Audio später → [DESIGN_DISPLAY.md](DESIGN_DISPLAY.md) |
+| Display/Media | Antworttext wird optional auf unterstützten Geräten angezeigt; Details siehe [`helpdoc/CONCEPTS.md`](../helpdoc/CONCEPTS.md) |
 | Szenario 3 (Template-Action) | LLM-Zwischenschritt **pro Action konfigurierbar** (Standard: ohne LLM) |
 | Schlagwort-Matching | **RapidFuzz**, Schwellwert pro Action, global abschaltbar, kein LLM-Router |
 | Warteton | **Konfigurierbar** (Phrase / SSML-Ton / aus), Default: Phrase |
-| Runtime-Phasing | **Phase 1: Alexa-hosted**, Phase 2 (Kontingenz): eigene AWS-Lambda → [DESIGN_SKILL_RUNTIME.md](DESIGN_SKILL_RUNTIME.md) |
+| Runtime-Phasing | Eigene AWS-Lambda ist der aktuelle Weg; Laufzeitgrenzen siehe [`helpdoc/TROUBLESHOOTING.md`](../helpdoc/TROUBLESHOOTING.md) |
 | Szenario 4 (Proaktiv/Geplant) | Zurückgestellt (Ausblick) |
 | UI-Navigation | **Reiter je Vorgang** (Grundeinstellungen, Monitor/Test, Generisch, je Action, MCP-Registry, Logs); einheitliches Action-Modell mit `mode`-Feld (deterministic/llm/hybrid) |
 | UI-Style | **Dash-UI Theme** (Bootstrap 5, Dark-Mode `#212b36`) wie zentraler Webserver knx, self-hosted Assets, Vanilla JS |

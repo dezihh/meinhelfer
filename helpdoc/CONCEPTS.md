@@ -68,6 +68,32 @@ Eine Funktion kann von einem Vorgang ausgeführt werden. Außerdem sieht der
 Agent aktive Funktionen als Werkzeuge namens `fn_<name>`. Ein Parameter-Schema
 beschreibt dann deren Argumente.
 
+## Antwort und Display
+
+Der Gateway-Core liefert einen neutralen Antwortvertrag:
+
+```json
+{
+    "speech": "…",
+    "ssml": false,
+    "display": {
+        "title": "MeinHelfer",
+        "text": "…"
+    }
+}
+```
+
+`speech` ist immer vorhanden. `ssml` kennzeichnet bereits formatiertes SSML;
+ohne dieses Kennzeichen wird der Text für den Sprachkanal passend verpackt.
+`display` ist optional und enthält derzeit insbesondere den anzuzeigenden
+Text. Geräte ohne Display-Unterstützung funktionieren weiterhin über den
+Sprachkanal.
+
+Die Darstellung auf Echo-Geräten ist geräteabhängig. Der Antworttext wird auf
+unterstützten Geräten zusätzlich angezeigt, das Scroll-Verhalten ist jedoch
+nicht auf allen Geräten gleich zuverlässig geprüft. Die Tests prüfen derzeit
+den statischen Antworttext und keine vollständige Gerätekompatibilität.
+
 ## Vorgang
 
 Ein Vorgang ordnet typische Formulierungen einem Modus zu. Der Router

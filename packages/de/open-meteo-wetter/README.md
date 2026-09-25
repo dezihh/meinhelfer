@@ -26,4 +26,4 @@ Internetzugang zu `api.open-meteo.com`.
 
 1. Tab **Funktionen** → `wetter` → **Ausführen** (Test).
 2. Vorgänge anlegen? „Wetter heute" als Trigger → Modus `deterministic`,
-   Funktion `wetter` (siehe `doc/EXAMPLES.md`, Fall 3.x).
+    Funktion `wetter` (siehe [Praxisrezepte](../../../helpdoc/RECIPES.md)).

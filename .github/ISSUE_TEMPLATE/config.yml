@@ -2,4 +2,4 @@ blank_issues_enabled: false
 contact_links:
   - name: Design-Dokumente
     url: https://github.com/dezihh/meinhelfer/tree/main/doc
-    about: Design-Diskussionen werden in doc/DESIGN_WEBUI.md und doc/DESIGN_DISPLAY.md geführt und per Issue entschieden.
+    about: Design-Diskussionen werden in doc/DESIGN_WEBUI.md und per Issue entschieden.

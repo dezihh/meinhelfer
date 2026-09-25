@@ -139,6 +139,13 @@ nötig.
 5. Prüfe Modelllatenz und Tool-Deadline.
 6. Prüfe Lambda-Timeout und Warteton-Konfiguration.
 
+Bei einer Alexa-hosted-Variante kann das Antwortfenster von ungefähr acht
+Sekunden bei aufwendigeren Suchen oder Agent-Aufrufen erreicht werden. Alexa
+bricht die Anfrage dann möglicherweise ab, auch wenn das Gateway später noch
+eine Antwort erzeugt. Für produktive oder anspruchsvollere Abfragen ist eine
+eigene AWS-Lambda als Alexa-Plattform daher meist robuster; die übrigen
+Timeouts von Lambda, Reverse-Proxy und Gateway müssen trotzdem zusammenpassen.
+
 ## Diagnosebericht erstellen
 
 Für einen reproduzierbaren Fehler notiere:

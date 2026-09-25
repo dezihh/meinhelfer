@@ -31,7 +31,7 @@ interface VoiceQuery {
 interface AssistantResponse {
   speech: string;            // für Sprachausgabe immer gesetzt
   ssml?: boolean;            // true: speech enthält fertiges SSML (Passthrough)
-  display?: DisplayPayload;  // optional, siehe DESIGN_DISPLAY.md
+  display?: DisplayPayload;  // optional, siehe helpdoc/CONCEPTS.md
   followUp?: boolean;        // true: Session offen halten (Rückfrage)
 }
 ```
@@ -81,7 +81,8 @@ Router: Action-Route > Agent-Query (Default)
         AssistantResponse { speech, ssml?, display?, followUp?, keepOpen? }
 ```
 
-Routing-Details und Latenzbudgets: [DESIGN_WEBUI.md](DESIGN_WEBUI.md), [DESIGN_SKILL_RUNTIME.md](DESIGN_SKILL_RUNTIME.md).
+Routing-Details: [DESIGN_WEBUI.md](DESIGN_WEBUI.md). Laufzeit-Hinweise stehen in
+`../helpdoc/TROUBLESHOOTING.md`.
 
 ## Authentifizierung: zwei getrennte Ebenen
 
@@ -253,4 +254,4 @@ session
 
 Jeder Tool-Call wird geloggt (inkl. Szenario und Latenz) – Basis für spätere
 Permissions (#3/#4) und Betriebsauswertung (Phase-2-Trigger, siehe
-[DESIGN_SKILL_RUNTIME.md](DESIGN_SKILL_RUNTIME.md)).
+  `../helpdoc/TROUBLESHOOTING.md`).

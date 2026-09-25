@@ -24,4 +24,4 @@ reicht für den Anfang).
    (Suche + `/rss`-Feed-Lese in einem Call).
 
 Nützlich als **Kaskaden-Zweite Quelle**, wenn die Metasuche (SearXNG) leer
-bleibt — Details in `doc/EXAMPLES.md`, Kapitel 2.3.
+bleibt — Details in [Praxisrezepte](../../../helpdoc/RECIPES.md).

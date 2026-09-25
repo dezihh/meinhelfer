@@ -22,4 +22,4 @@ labels: ["idea"]
 
 ## Referenzen
 
-<!-- doc/DESIGN_WEBUI.md, doc/DESIGN_DISPLAY.md, Diskussionsstand -->
+<!-- doc/DESIGN_WEBUI.md, Diskussionsstand -->
