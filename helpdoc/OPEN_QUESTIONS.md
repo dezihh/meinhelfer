@@ -12,10 +12,9 @@ fehlende Information und eine reproduzierbare Methode, sie zu erheben.
 - **Reverse Proxy und TLS**: nginx-Referenzaufbau in
   [Installation](INSTALLATION.md#netzwerk-und-https).
 - **Lambda-Deployment (Workflow-Weg)**: Secrets-Tabelle und Ablauf in
-  [Alexa anbinden](ALEXA.md#lambda-bereitstellen).
+  [Deployment und CI/CD](DEPLOYMENT.md).
 - **Paket-Invalidierung**: Install/Uninstall/Restore verwerfen MCP-Katalog
   und Entity-Index ([Cache](CACHE.md)).
-- **Alexa-Signatur-Default**: Code und Doku stimmen überein (`enforce`).
 
 ## Priorität 1: Installation
 
@@ -31,13 +30,13 @@ Tool-Aufruf und finales JSON testen.
 
 ### Manuelles Lambda-Deployment
 
-**Fehlt:** vollständige manuelle Anleitung (Region, Runtime, IAM-Rolle,
-Trigger, Secrets) für Betreiber ohne GitHub-Actions-Weg. Die vom Workflow
-automatisierten Schritte sind in [Alexa anbinden](ALEXA.md) als Reihenfolge
-dokumentiert.
+**Teilweise erledigt:** Die manuelle Anleitung (Runtime, Timeout, IAM-Rolle,
+Trigger, Env-Variablen) steht in [Alexa anbinden](ALEXA.md); der
+Workflow-Weg in [Deployment und CI/CD](DEPLOYMENT.md).
 
-**Erheben:** Deployment mit einer neuen Lambda-Funktion durchspielen und jeden
-Schritt bis zum erfolgreichen Simulator-Test festhalten.
+**Erheben:** Deployment mit einer neuen Lambda-Funktion in einem frischen
+AWS-Konto durchspielen und jeden Schritt bis zum erfolgreichen
+Simulator-Test festhalten (inkl. Region).
 
 ### Physische Alexa-Einrichtung
 
@@ -75,12 +74,6 @@ Latenz und Ergebnisqualität vergleichen.
 vervollständigen.
 
 ## Widersprüche im aktuellen Bestand
-
-### Seed-Prompt
-
-Der Kommentar bezeichnet den Installationsprompt als neutral; sein Inhalt
-enthält eine personalisierte Identität. Vor Veröffentlichung neutralisieren
-oder die Absicht dokumentieren.
 
 ### Veraltete UI-Begriffe
 

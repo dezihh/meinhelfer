@@ -44,10 +44,10 @@ Alle Workflows werden manuell über `workflow_dispatch` gestartet.
 | Workflow | Zweck |
 |---|---|
 | `lambda-zip.yml` | Baut das Lambda-Zip bei Änderungen unter `alexa/lambda/**`; Artifact + rollendes `latest`-Release, bei Tag `v*` ein versioniertes Release |
-| `deploy-aws-lambda.yml` | Baut das Lambda-Zip, legt Funktion + Ausführungsrolle an/aktualisiert sie, setzt Env-Variablen und den Alexa-Invoke-Trigger |
+| `deploy-aws-lambda.yml` | Nutzt den zentralen Build (`lambda-zip.yml`) und deployt das Artifact: legt Funktion + Ausführungsrolle an/aktualisiert sie, setzt Env-Variablen und den Alexa-Invoke-Trigger |
 | `sync-manifest.yml` | Read-modify-write des Skill-Manifests: Endpoint auf Lambda-ARN (Top-Level und `regions.*`), ergänzt APL-Interface + Viewports; Inputs `endpoint_arn`, `add_apl`, `dry_run` |
-| `sync-model.yml` | Lädt das Interaction Model (de-DE) in den development-Stage und pollt den Build-Status |
-| `deploy-alexa.yml` | Optional/Legacy: Push des Skill-Packages in das Alexa-hosted CodeCommit-Repo (Branch `dev`/`master`) + SMAPI-Build |
+| `sync-model.yml` | Rendert die Aufrufnamen aus `skill.config.json` und lädt die Interaction Models aller eingetragenen Locales in den development-Stage; pollt den Build-Status |
+| `deploy-alexa.yml` | Optional/Legacy: rendert Namen und Aufrufnamen aus `skill.config.json` und pusht das Skill-Package in das Alexa-hosted CodeCommit-Repo (Branch `dev`/`master`) + SMAPI-Build |
 | `ext-check.yml` | Prüft TLS, `POST /api/query` mit `GATEWAY_TOKEN` und dass `/alexa`, `/privacy`, `/admin` öffentlich nicht erreichbar sind. Sendet keine direkten Alexa-Requests |
 | `debug-lambda-invoke.yml` | Ruft die Lambda direkt mit einem `GptQueryIntent`-Event auf |
 | `debug-lambda-live.yml` | Zeigt Lambda-Env-Namen (URLs/Token maskiert) und testet das Gateway direkt |
@@ -68,11 +68,15 @@ Abhängigkeiten aus `alexa/lambda/requirements.txt` plus `lambda_function.py`
 
 ### `deploy-aws-lambda.yml`
 
-1. Baut `alexa/lambda/` zu einem Zip (Funktion + ask-sdk + requests).
+Ruft zuerst `lambda-zip.yml` per `workflow_call` auf und lädt dessen Artifact;
+das Zip wird also nur an einer Stelle gebaut.
+
+1. Lädt das im Build-Job erzeugte Zip (Funktion + ask-sdk + requests).
 2. Legt bei Bedarf die IAM-Ausführungsrolle `meinhelfer-lambda-execution` an
    (inkl. CloudWatch-Logs-Policy) oder nutzt `AWS_LAMBDA_ROLE`.
 3. Erstellt/aktualisiert `meinhelfer-alexa` (Python, 512 MB, Timeout
-   konfigurierbar) und setzt die Env-Variablen.
+   konfigurierbar) und setzt die Env-Variablen. `skill_name` und
+   `assistant_name` kommen aus `alexa/skill.config.json` (primäre Locale).
 4. Setzt den Alexa-Skills-Kit-Trigger (`aws lambda add-permission`,
    `--event-source-token` = Skill-ID). Eine zuvor gesetzte Permission wird
    **vorher entfernt**, damit eine geänderte `ALEXA_SKILL_ID` die alte
@@ -93,7 +97,25 @@ Mit `dry_run=1` wird nur der aktuelle Zustand angezeigt (kein PUT).
 | `gateway_url` | Secret `GATEWAY_URL` |
 | `gateway_token` | Secret `GATEWAY_TOKEN` (gleich `AUTH_TOKEN` des Gateways) |
 | `alexa_skill_id` | Secret `ALEXA_SKILL_ID`; wird vor der Verarbeitung gegen die `applicationId` geprüft |
-| `watchdog_delay`, `gateway_timeout`, `skill_name`, `assistant_name`, `apl_exit_delay_ms` | feste Werte aus dem Workflow |
+| `watchdog_delay`, `gateway_timeout`, `apl_exit_delay_ms` | feste Werte aus dem Workflow |
+| `skill_name`, `assistant_name` | aus `alexa/skill.config.json` (primäre Locale) |
+
+## Skill-Namen und Sprachen
+
+`alexa/skill.config.json` ist die zentrale Quelle für Anzeigename, Aufrufname
+und Assistenten-Name, aufgebaut pro Locale:
+
+```json
+{ "locales": { "de-DE": { "skill_name": "MeinHelfer", "invocation_name": "mein helfer", "assistant_name": "Dein Helfer" } } }
+```
+
+`alexa/scripts/skill_config.py` rendert daraus den `invocationName` (Modell) und
+den Anzeigenamen (Manifest) und gibt die Namen für die Lambda-Umgebung aus
+(`--render-all`, `--check`, `--print-env <locale>`). `sync-model.yml`,
+`deploy-alexa.yml` und `deploy-aws-lambda.yml` nutzen dieses Skript. Eine weitere
+Sprache ist ein zusätzlicher `locales`-Eintrag plus eine Modell-Datei
+`interactionModels/custom/<locale>.json`; die festen Sprechtexte der Lambda sind
+derzeit nur für `de-DE` hinterlegt.
 
 ## Skill-ID-Handling
 
@@ -119,7 +141,7 @@ Diagnose-Workflows nach Bedarf.
 
 | Werkzeug | Zweck |
 |---|---|
-| `alexa/scripts/sync_skill.py` | Interaction Model lokal per SMAPI synchronisieren; benötigt `alexa/skill.local.json` (nur `skill_id`) und ASK-CLI-Anmeldung |
+| `alexa/scripts/sync_skill.py` | Interaction Models aller Locales lokal per SMAPI synchronisieren; rendert Aufrufnamen aus `skill.config.json`; benötigt `alexa/skill.local.json` (nur `skill_id`) und ASK-CLI-Anmeldung |
 | `gateway/scripts/smoke-test.mjs` | End-to-End-Smoke-Tests gegen ein laufendes Gateway |
 | `alexa/lambda/test_lambda_function.py` | Lambda-Tests (stubben das ask-sdk, laufen ohne AWS/Netz) |
 | `gateway` `npm test` / `npm run typecheck` / `npm run build` | Gateway-Tests und Typprüfung |

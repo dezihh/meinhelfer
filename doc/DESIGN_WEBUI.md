@@ -6,7 +6,8 @@
 >
 > **Hinweis zur Aktualität:** Design-Archiv. Einzelne Entscheidungen sind
 > überholt — das LLM läuft über einen eigenen OpenAI-kompatiblen Client
-> (kein litellm), die Alexa-Signaturprüfung steht per Default auf `enforce`,
+> (kein litellm), die Alexa-Signaturprüfung im Gateway ist entfallen (kein
+> direkter Alexa-Endpunkt mehr),
 > der Modus `search_summary` wurde entfernt, und die Admin-UI hat inzwischen
 > einen Session-Login. Bei Widersprüchen gilt der Code und `helpdoc/`.
 

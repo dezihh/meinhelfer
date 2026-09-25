@@ -1,13 +1,11 @@
 ﻿# Alexa anbinden
 
-## Ziel
+Diese Anleitung richtet die Alexa-Anbindung von Hand ein: Alexa-Skill,
+AWS Lambda und Interaktionsmodell. Sie ist für Anwender gedacht, die den
+Skill selbst aufsetzen. Beginne erst, wenn dieselbe Frage im Gateway unter
+**Monitor / Test** funktioniert.
 
-Alexa leitet eine freie Frage über Lambda an das bereits getestete Gateway
-weiter und spricht dessen Antwort aus.
-
-Beginne erst hier, wenn dieselbe Frage unter **Monitor / Test** funktioniert.
-
-## Beteiligte Teile
+## Überblick
 
 ```mermaid
 flowchart LR
@@ -20,114 +18,163 @@ flowchart LR
 ```
 
 Die Lambda ist ein dünner Adapter. Routing, Funktionen, Werkzeuge und LLM
-bleiben im Gateway.
+bleiben im Gateway. Öffentlich erreichbar ist nur `POST /api/query`.
 
-## Vorhandene Konfigurationsdateien
+## Was du brauchst
 
-### Skill-Grundwerte
+- Ein laufendes Gateway mit öffentlichem HTTPS-Zugang; `POST /api/query`
+  antwortet mit dem Gateway-Token (`AUTH_TOKEN`) im Bearer-Header.
+- Ein Amazon-Developer-Konto und ein AWS-Konto.
+- Optional für den Modell-Sync: die ASK CLI (`ask configure`).
 
-`alexa/skill.config.json` enthält:
+## 1. Skill anlegen
 
-```json
-{
-  "skill_name": "MeinHelfer",
-  "invocation_name": "mein helfer",
-  "assistant_name": "Dein Helfer"
-}
-```
+In der Alexa Developer Console:
 
-### Lokale Skill-Zuordnung
+1. **Create Skill** → Name `MeinHelfer`, Sprache **German (DE)**,
+   Modell **Custom**, Backend **Provision your own**.
+2. Als **Invocation Name** `mein helfer` eintragen (Groß-/Kleinschreibung
+   spielt keine Rolle).
+3. Intents anlegen:
+   - `GptQueryIntent` mit Slot `query` (Typ `AMAZON.Person`) und Sample
+     `{query}`
+   - `AMAZON.HelpIntent`, `AMAZON.CancelIntent`, `AMAZON.StopIntent`,
+     `AMAZON.FallbackIntent` (jeweils ohne Samples)
+4. Modell speichern und bauen lassen (**Build Model**).
 
-Lege die ignorierte lokale Datei `alexa/skill.local.json` mit folgendem Inhalt
-an:
+Invocation Name, Skill-Name und Assistenten-Name stehen in
+`alexa/skill.config.json` (siehe Schritt 2) und werden daraus gerendert.
 
-```json
-{
-  "skill_id": "amzn1.ask.skill.<deine-id>"
-}
-```
+## 2. Grundwerte und Namen
 
-Die Skill-ID wird für die Synchronisierung und zur Beschränkung des
-Alexa-Skills-Kit-Triggers der Lambda verwendet. Sie ist kein Geheimnis und
-ersetzt nicht den Gateway-Token.
-
-### Lambda-Konfiguration
-
-Die Vorlage `alexa/lambda/config.json.example` verlangt:
+`alexa/skill.config.json` ist die einzige Quelle für die Alexa-Namen und pro
+Sprache aufgebaut:
 
 ```json
 {
-  "gateway_url": "https://<gateway-host>",
-  "gateway_token": "<AUTH_TOKEN des Gateways>",
-  "watchdog_delay": "5",
-  "gateway_timeout": "28",
-  "skill_name": "MeinHelfer",
-  "assistant_name": "Dein Helfer",
-  "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
+  "locales": {
+    "de-DE": {
+      "skill_name": "MeinHelfer",
+      "invocation_name": "mein helfer",
+      "assistant_name": "Dein Helfer"
+    }
+  }
 }
 ```
 
-`gateway_url` ist die Basisadresse; die Lambda ergänzt den API-Pfad gemäß
-ihrer Implementierung. `gateway_token` muss mit `AUTH_TOKEN` übereinstimmen.
-`alexa_skill_id` ist die Skill-ID, gegen die die Lambda eingehende
-Alexa-Events prüft; abweichende `applicationId`s werden abgelehnt.
+| Feld | Bedeutung |
+|---|---|
+| `skill_name` | Anzeigename des Skills und Titel auf dem Echo-Display |
+| `invocation_name` | Aufrufname („Alexa, öffne …“); mindestens zwei Wörter, keine Ziffern |
+| `assistant_name` | Name, den der Assistent im Gespräch nennt |
 
-## Skill-Modell synchronisieren
+Die Werte in Modell und Manifest rendert das Skript:
 
-Das vorhandene Skript verwendet die ASK-CLI-Anmeldedaten und die lokale
-Skill-Zuordnung, um das Interaktionsmodell zu synchronisieren:
+```bash
+python3 alexa/scripts/skill_config.py --render-all
+```
 
-1. ASK CLI installieren und einmal mit `ask configure` anmelden.
-2. `alexa/skill.local.json` anlegen.
-3. Im Repository `python alexa/scripts/sync_skill.py` ausführen.
-4. Den gemeldeten Build-Status des Interaction Model prüfen.
+## 3. AWS Lambda bereitstellen
 
-Optionen:
+1. Fertiges Zip laden (jeweils der letzte Build):
+   `https://github.com/dezihh/meinhelfer/releases/download/latest/meinhelfer-alexa-lambda.zip`
+2. In AWS eine Lambda-Funktion `meinhelfer-alexa` anlegen:
+   - Runtime Python 3.x, Handler `lambda_function.lambda_handler`
+   - Timeout **größer als 8 Sekunden** (z. B. 30), 512 MB
+   - Ausführungsrolle mit Lambda-Basic-Execution-Trust und CloudWatch-Logs
+   - Das geladene Zip als Code hochladen
+3. Umgebungsvariablen setzen:
 
-- `--force`: auch ohne erkannte Änderung synchronisieren
+| Variable | Wert |
+|---|---|
+| `gateway_url` | öffentliche Basisadresse des Gateways |
+| `gateway_token` | muss dem `AUTH_TOKEN` des Gateways entsprechen |
+| `alexa_skill_id` | Skill-ID (`amzn1.ask.skill.…`); abweichende IDs werden abgelehnt |
+| `watchdog_delay` | z. B. `5` (Warteton, wenn das Gateway länger braucht) |
+| `gateway_timeout` | z. B. `28` (Timeout der Anfrage ans Gateway) |
+| `skill_name` | aus `skill.config.json` |
+| `assistant_name` | aus `skill.config.json` |
+| `apl_exit_delay_ms` | z. B. `90000` (Anzeige auf dem Echo Show) |
 
-Das Skill-Manifest wird hier nicht verwaltet; es wird ausschließlich über den
-Workflow `sync-manifest.yml` auf die Lambda-ARN gesetzt.
+4. Alexa-Skills-Kit-Trigger hinzufügen: Trigger-Typ **Alexa Skills Kit**,
+   Skill-ID-Beschränkung auf `alexa_skill_id`.
 
-## Gateway-Zugriff
+## 4. Endpoint im Manifest setzen
 
-Die Lambda ruft ausschließlich `POST /api/query` auf und sendet dabei
-`gateway_token` als Bearer-Token. Das Gateway prüft diesen Wert gegen
-`AUTH_TOKEN`. Die Skill-ID wird nicht an das Gateway übertragen; Amazon
-begrenzt bereits den Aufruf der Lambda auf den konfigurierten Skill.
+Im Skill-Manifest den Endpoint auf den Funktions-ARN der Lambda umstellen
+(Alexa Developer Console → Endpoint → **AWS Lambda ARN**). Amazon prüft dabei
+den ARN-Fingerprint. Den ARN zeigt AWS in der Funktion oben an.
 
-Öffentlich erreichbar ist nur `/api/query`. Admin-UI und Admin-API bleiben im
-internen Netz.
+## 5. Interaktionsmodell synchronisieren (Alternative)
 
-## Lambda bereitstellen
+Statt das Modell in der Console zu klicken, kannst du es aus dem Repository
+synchronisieren:
 
-### Manuell (Kurzfassung)
+1. `alexa/skill.local.json` anlegen (Vorlage: `alexa/skill.local.json.example`):
 
-1. In AWS eine Lambda-Funktion `meinhelfer-alexa` anlegen (Handler
-   `lambda_function.lambda_handler`, Timeout > 8 s, 512 MB) und eine
-   Ausführungsrolle mit Lambda-Basic-Execution-Trust und CloudWatch-Logs-Policy
-   verwenden.
-2. Zip aus `alexa/lambda/` bauen (`lambda_function.py` + Abhängigkeiten) und
-   hochladen.
-3. Env-Variablen setzen: `gateway_url`, `gateway_token`, `alexa_skill_id`,
-   `watchdog_delay=5`, `gateway_timeout=max(9, timeout-3)`, `skill_name`,
-   `assistant_name`, `apl_exit_delay_ms=90000`.
-4. Alexa-Skills-Kit-Trigger mit Skill-ID-Beschränkung hinzufügen.
-5. Skill-Manifest-Endpoint auf den Funktions-ARN umstellen.
-6. Rollback: vorheriges Zip erneut hochladen; Logs in CloudWatch auswerten.
+   ```json
+   { "skill_id": "amzn1.ask.skill.<deine-id>" }
+   ```
 
-## End-to-End-Prüfung
+2. ASK CLI einmal anmelden (`ask configure`).
+3. Ausführen:
 
-1. Frage im Gateway-Monitor testen.
-2. Im Alexa Developer Console Simulator dieselbe Frage senden.
+   ```bash
+   python3 alexa/scripts/sync_skill.py
+   ```
+
+   Das Skript rendert den Aufrufnamen aus `skill.config.json` und lädt alle
+   eingetragenen Sprachen. `--force` erzwingt das Hochladen ohne Änderungsprüfung.
+
+Die Skill-ID ist kein Geheimnis und ersetzt nicht den Gateway-Token.
+
+## 6. Testen
+
+1. Dieselbe Frage im Gateway-Monitor testen.
+2. Im Alexa-Simulator der Console sprechen: „Alexa, öffne mein Helfer“.
 3. Auf einem echten Echo testen.
-4. Gateway-Logs und Lambda-Logs vergleichen.
-5. Einen langsamen Tool-Aufruf testen; der Warteton darf die finale Antwort
-   nicht ersetzen.
-6. Eine echte Mehrdeutigkeit testen; Alexa muss die Session für die Rückfrage
-   offen halten.
+4. Einen langsamen Aufruf testen; der Warteton darf die finale Antwort nicht
+   ersetzen.
+5. Eine echte Mehrdeutigkeit testen; die Rückfrage muss die Session offen halten.
 
-## Häufige Abgrenzung
+## Namen ändern
+
+1. `alexa/skill.config.json` anpassen und `skill_config.py --render-all` ausführen.
+2. Interaktionsmodell neu synchronisieren (Schritt 5) bzw. Manifest/Modell in der
+   Console aktualisieren.
+3. Die Lambda-Umgebungsvariablen `skill_name` und `assistant_name` auf die neuen
+   Werte setzen.
+4. Den Gateway-Namen getrennt davon in der Admin-Oberfläche unter
+   **Assistenten-Name** anpassen, damit der Agent denselben Namen nennt.
+
+## Sprachen
+
+Der Skill ist derzeit nur auf **Deutsch (de-DE)** eingerichtet. Eine weitere
+Sprache ist ein zusätzlicher Eintrag unter `locales` in `skill.config.json`
+plus eine Modell-Datei
+`alexa/skill-package/interactionModels/custom/<locale>.json`. Die festen
+Sprechtexte der Lambda sind aktuell nur für `de-DE` hinterlegt.
+
+## Nutzung
+
+- Wecken und öffnen: „Alexa, öffne mein Helfer“.
+- Freie Frage: „Alexa, frag mein Helfer, wie ist der Hausstatus“.
+- Rückfragen: Bei zusammenfassenden Antworten bleibt die Session offen; „mehr
+  dazu“ bezieht sich auf das letzte Thema.
+- Chat-Modus: „starte chat modus“ beginnen, „chat beenden“ beenden.
+- Beenden: „Alexa, stopp“ oder „Alexa, beenden“.
+- Auf dem Echo Show wird die Antwort als Text angezeigt (scrollbar).
+
+## Wenn etwas nicht klappt
+
+- Keine Antwort: prüfen, ob `POST /api/query` mit dem Gateway-Token direkt
+  antwortet (Gateway-Monitor).
+- „Skill nicht gefunden“: Invocation Name im Modell prüfen.
+- Lambda-Fehler: CloudWatch-Logs der Funktion `meinhelfer-alexa` ansehen.
+- Antworten fehlen Fähigkeiten: Die eigentlichen Funktionen kommen über
+  Installationspakete im Gateway, nicht über den Skill.
+
+## Abgrenzung
 
 Music Assistant kann Audio über einen eigenen Alexa-Provider auf Echo-Geräten
 wiedergeben. Dieser Skill steuert den Vorgang sprachlich; er streamt selbst
