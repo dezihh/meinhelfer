@@ -14,6 +14,17 @@ Die Lambda ist ein dünner Adapter. Routing, LLM, MCP und Werkzeuge bleiben im
 Gateway. Das Gateway hat **keinen** direkten Alexa-Endpunkt; Alexa erreicht es
 ausschließlich über die Lambda und `POST /api/query` (Bearer-Token).
 
+## Voraussetzungen
+
+- Ein laufendes, öffentlich per HTTPS erreichbares Gateway (siehe
+  [Installation](INSTALLATION.md)); `POST /api/query` antwortet mit dem
+  Bearer-Token `AUTH_TOKEN`.
+- Ein vorhandener Alexa-Skill (Skill-ID). Die Anlage beschreibt
+  [Alexa anbinden](ALEXA.md); ohne Skill gibt es keine `ALEXA_SKILL_ID`.
+- Ein AWS-Konto und ein Deploy-Benutzer mit Rechten für Lambda und IAM
+  (Funktion, Rolle, `add-permission`).
+- Schreibzugriff auf die Actions dieses Repos, um Secrets und Variablen zu setzen.
+
 ## GitHub-Konfiguration
 
 Nur Namen und Zweck – die Werte liegen ausschließlich in den Repo-Secrets.
@@ -37,9 +48,29 @@ Nur Namen und Zweck – die Werte liegen ausschließlich in den Repo-Secrets.
 | `EXTERNAL_BASE_URL` | öffentliche Gateway-Basis; Gate für `ext-check` |
 | `ALEXA_SKILL_ID` | Skill-ID als Repo-Variable (u. a. Alt-Workflows/Ext-Check) |
 
+### Wo eintragen
+
+Repo → **Settings → Secrets and variables → Actions**. Secrets werden in Logs
+maskiert; Variables sind sichtbar.
+
+### ASK-CLI-Anmeldung erzeugen
+
+`ASK_AUTH_INFO` und `ASK_CLI_CONFIG` sind base64 der ASK-CLI-Dateien. Auf einem
+Rechner mit eingerichteter ASK CLI (`ask configure`):
+
+```bash
+base64 -w0 ~/.ask/auth_info   # -> Secret ASK_AUTH_INFO
+base64 -w0 ~/.ask/cli_config  # -> Secret ASK_CLI_CONFIG
+```
+
+Ohne diese beiden Secrets laufen `sync-manifest.yml`, `sync-model.yml` und
+`deploy-alexa.yml` nicht.
+
 ## Workflows
 
-Alle Workflows werden manuell über `workflow_dispatch` gestartet.
+Die Deploy- und Sync-Workflows startest du manuell über `workflow_dispatch`
+(Actions → Workflow → **Run workflow**); `lambda-zip.yml` läuft zusätzlich
+automatisch bei Änderungen unter `alexa/lambda/**`.
 
 | Workflow | Zweck |
 |---|---|
@@ -81,14 +112,19 @@ das Zip wird also nur an einer Stelle gebaut.
    `--event-source-token` = Skill-ID). Eine zuvor gesetzte Permission wird
    **vorher entfernt**, damit eine geänderte `ALEXA_SKILL_ID` die alte
    Permission tatsächlich ersetzt und nicht an einem Statement-ID-Konflikt
-   scheitert. Ohne Trigger lehnt Amazon den ARN-Endpoint ab.
+    scheitert. Ohne Trigger lehnt Amazon den ARN-Endpoint ab.
+5. Neuanlage nutzt die Runtime `python3.14`. Existiert sie in der Region nicht,
+   schlägt nur `create-function` fehl; eine bestehende Funktion wird per
+   `update-function-code` aktualisiert und ist davon nicht betroffen.
 
 ### `sync-manifest.yml`
 
 Das Manifest wird **ausschließlich hier** auf die Lambda-ARN gesetzt. Wichtig:
 Amazon liefert über `regions.*.endpoint` aus – nur das Top-Level-`endpoint`
 zu setzen reicht nicht, der Workflow schreibt `regions.EU`/`NA`/`FE` mit.
-Mit `dry_run=1` wird nur der aktuelle Zustand angezeigt (kein PUT).
+Der ARN kommt als Input `endpoint_arn` (Ausgabe von `deploy-aws-lambda.yml`);
+ohne diesen Input bleibt der Endpoint unverändert. Mit `dry_run=1` wird nur der
+aktuelle Zustand angezeigt (kein PUT).
 
 ## Lambda-Umgebungsvariablen
 
@@ -130,10 +166,17 @@ derzeit nur für `de-DE` hinterlegt.
 
 ## Deployment-Reihenfolge
 
-1. `deploy-aws-lambda.yml` – Funktion, Env, Trigger.
-2. `sync-manifest.yml` – Manifest-Endpoint auf die Lambda-ARN.
-3. `sync-model.yml` – Interaction Model in den development-Stage.
+1. `deploy-aws-lambda.yml` – Funktion, Env, Trigger. Am Ende gibt der Job
+   `LAMBDA_ARN=…` aus; diesen Wert kopieren.
+2. `sync-manifest.yml` – Input `endpoint_arn` = diese ARN. Setzt den Endpoint
+   (Top-Level und `regions.*`) und ergänzt APL/Viewports. Ohne `endpoint_arn`
+   bleibt der Endpoint unverändert (kein hartcodierter Fallback).
+3. `sync-model.yml` – Interaction Models aller Locales in den development-Stage.
 4. `ext-check.yml` – Verifikation (TLS, `/api/query`, öffentliche Sperren).
+5. Abnahme – Simulator- und Echo-Test (siehe [Alexa anbinden](ALEXA.md#6-testen)).
+
+Alle SMAPI-Schritte arbeiten im `development`-Stage. Ein Live-Release ist ein
+separater Schritt (Console oder `deploy-alexa.yml` auf `master`).
 
 Diagnose-Workflows nach Bedarf.
 
