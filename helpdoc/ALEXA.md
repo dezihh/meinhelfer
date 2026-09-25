@@ -127,18 +127,21 @@ Im `lambda/`-Ordner eine `config.json` anlegen (Vorlage:
   "gateway_url": "https://<gateway-host>",
   "gateway_token": "<AUTH_TOKEN>",
   "skill_name": "MeinHelfer",
-  "assistant_name": "Dein Helfer"
+  "assistant_name": "Dein Helfer",
+  "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
 }
 ```
 
 Hosted Skills haben keine Umgebungsvariablen wie Weg B; die Werte stehen daher
 in dieser Datei. Sie liegt damit im hosted CodeCommit-Repo (nur für dein Konto
-sichtbar).
+sichtbar). `alexa_skill_id` ist optional, aber empfohlen: Die Lambda lehnt dann
+Events mit fremder `applicationId` ab.
 
 ### 3.4 Deploy und Test
 
 **Deploy** klicken (lädt Abhängigkeiten, baut und deployt). Danach testen
-(Schritt 5).
+(Schritt 5). Ein LaunchRequest („Alexa, öffne …") funktioniert auch ohne
+erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 
 ## 4. Weg B: eigene AWS-Lambda (empfohlen)
 
@@ -184,21 +187,21 @@ zeigt AWS in der Funktion oben an. Amazon prüft dabei den ARN-Fingerprint.
    ersetzen.
 5. Eine echte Mehrdeutigkeit testen; die Rückfrage muss die Session offen halten.
 
-## Namen und Aufrufname
+## Umbenennen
 
-Drei verschiedene Namen:
+Beim Umbenennen sind drei Stellen betroffen:
 
-| Name | Wo | Ändern |
+| Was | Wo | Aktion |
 |---|---|---|
-| **Invocation Name** („Alexa, öffne …“) | Interaktionsmodell, Feld `invocationName` (Build → **Invocation** oder **JSON Editor**) | Wert ändern, **Save Model** und **Build Model** |
-| **Skill-Name** (Anzeige, Display-Titel) | Manifest; beim Anlegen gesetzt | Anzeigename in der Console ändern |
-| **Assistenten-Name** (was der Assistent nennt) | Lambda: hosted `config.json` bzw. Weg B `assistant_name` | Wert ändern und neu deployen |
+| **Aufrufname** („Alexa, öffne …“) | Interaktionsmodell, Feld `invocationName` (Build → **Invocation** oder **JSON Editor**) | Wert ändern, **Save Model**, **Build Model** |
+| **Anzeigename** (Display-Titel) | in der Console beim Skill | Anzeigename ändern |
+| **Assistenten-Name** (was die Lambda sagt) | Weg A: `lambda/config.json`; Weg B: Env `assistant_name` | Wert ändern, **Deploy** bzw. Env speichern |
 
-Regeln für den Invocation Name: mindestens zwei Wörter, keine Ziffern.
+Damit auch das LLM denselben Namen nennt, zusätzlich in der Gateway-Admin-
+Oberfläche den **Assistenten-Name** setzen. Achtung: Dieser ist **global** –
+mehrere Skills an einem Gateway sprechen denselben Namen.
 
-Zusätzlich in der Gateway-Admin-Oberfläche den **Assistenten-Name** passend
-setzen, damit der Agent denselben Namen nennt. Hinweis: Der Gateway-Name ist
-**global** – mehrere Skills an einem Gateway sprechen denselben Namen.
+Regeln für den Aufrufnamen: mindestens zwei Wörter, keine Ziffern.
 
 ## Sprachen
 
