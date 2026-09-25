@@ -56,7 +56,8 @@ In der Alexa Developer Console:
    **Continue with template** bestätigen.
 8. Nach ein bis zwei Minuten öffnet sich der **Build**-Tab. Die **Skill-ID**
    steht unter **Build → Endpoint → „Your Skill ID“** (Format
-   `amzn1.ask.skill.…`). Für Weg B wird sie gebraucht.
+   `amzn1.ask.skill.…`). Sie wird für den Trigger in Weg B gebraucht und ist in
+   Weg A als optionaler `alexa_skill_id`-Wert nützlich.
 
 ## 2. Interaktionsmodell
 
@@ -165,7 +166,7 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 | `gateway_token` | muss dem `AUTH_TOKEN` des Gateways entsprechen |
 | `alexa_skill_id` | Skill-ID; abweichende IDs werden abgelehnt |
 | `watchdog_delay` | z. B. `5` (Warteton, wenn das Gateway länger braucht) |
-| `gateway_timeout` | z. B. `28` (Timeout der Anfrage ans Gateway) |
+| `gateway_timeout` | z. B. `27` (Timeout der Anfrage ans Gateway, Funktion-Timeout minus 3) |
 | `skill_name` | Anzeigename, z. B. `MeinHelfer` |
 | `assistant_name` | Name im Gespräch, z. B. `Dein Helfer` |
 | `apl_exit_delay_ms` | z. B. `90000` (Anzeige auf dem Echo Show) |
@@ -231,7 +232,8 @@ Sprechtexte in der Lambda (aktuell nur `de-DE` hinterlegt).
 - Keine Antwort: prüfen, ob `POST /api/query` mit dem Gateway-Token direkt
   antwortet (Gateway-Monitor).
 - „Skill nicht gefunden“: Invocation Name im Modell prüfen.
-- Lambda-Fehler: CloudWatch-Logs der Funktion `meinhelfer-alexa` ansehen.
+- Lambda-Fehler: CloudWatch-Logs der Lambda ansehen (Weg B: Funktion
+  `meinhelfer-alexa`).
 - Antworten fehlen Fähigkeiten: Die eigentlichen Funktionen kommen über
   Installationspakete im Gateway, nicht über den Skill.
 
