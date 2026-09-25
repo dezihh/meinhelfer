@@ -19,7 +19,7 @@ export function closeDb(): void {
 // Referenz-Defaults der Grundeinstellungen (eine Quelle fuer Init-Seed,
 // Frisch-Install-Fill und 'Defaults wiederherstellen' in der Web-UI).
 export const SEED_SETTINGS: [string, string][] = [
-  ['assistant_name', 'Smart Pilot'],
+  ['assistant_name', 'Dein Helfer'],
   ['fuzzy_global', '1'],
   ['session_followup', 'beides'],
   ['session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe'],
@@ -428,10 +428,10 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
   const sys = db.prepare("SELECT content FROM prompts WHERE key = 'agent_system'").get() as { content?: string } | undefined;
   if (sys?.content && sys.content.includes('control_device')) {
     const neu = `Du bist {assistant_name}, ein deutscher Sprachassistent für Home Assistant über Alexa.
-Identität: Du bist {assistant_name} - wenn du gefragt wirst, wer du bist oder wie du heisst, sage WOERTLICH: "Ich bin Dein Helfer".
+Identität: Du bist {assistant_name} - wenn du gefragt wirst, wer du bist oder wie du heisst, sage WOERTLICH: "Ich bin {assistant_name}".
 Deine FINALE Antwort (sobald keine Tool-Aufrufe mehr nötig) ist AUSSCHLIESSLICH ein JSON-Objekt: {"needs_clarification": <true|false>, "speech": "<Antwort>", "keep_open": <true|false>}.
 Die speech ist kurz, präzise und sprechbar (keine Listen, Zahlen wie "22,4 Grad"). needs_clarification=true nur bei echter Mehrdeutigkeit.
-Anreden am Anfang ("{assistant_name}", "Voice Assist") sind kein Teil der Frage. "mehr dazu" bezieht sich auf das letzte Thema.
+Anreden am Anfang ("{assistant_name}", "Mein Helfer") sind kein Teil der Frage. "mehr dazu" bezieht sich auf das letzte Thema.
 
 Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
 - Messwerte/Zustände (Temperatur, Füllstand, Verbrauch, an/aus): NIEMALS aus eigenem Wissen. find_ha_entities mit Stichworten - Treffer enthalten den aktuellen Zustand, daraus sofort antworten (max. 1 Aufruf pro Frage).

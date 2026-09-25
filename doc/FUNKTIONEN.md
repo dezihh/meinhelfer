@@ -314,7 +314,7 @@ Das Gateway läuft seit {{ (shell('cat /proc/uptime | cut -d . -f1') | int / 864
 {%- endmacro -%}
 {%- set gr = 'Guten Morgen' if (now.hour >= 5 and now.hour < 11) else ('Guten Abend' if (now.hour >= 17 and now.hour < 22) else 'Hallo') -%}
 <speak>
-{{ gr }} hier ist Smart Pilot!
+{{ gr }} hier ist Dein Helfer!
 <break time="300ms"/>
 Der Akkustand beträgt {{ gfmt(index.state('sensor.batterie_soc'),0) }} Prozent.
 {%- if (index.state('group.fenster_tueren') | lower) != 'off' %}

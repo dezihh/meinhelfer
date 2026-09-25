@@ -59,7 +59,7 @@ const SETTINGS_FIELDS = [
     key: 'assistant_name',
     label: 'Assistenten-Name',
     type: 'text',
-    help: 'So stellt sich der Agent im Gespräch vor (Standard: Smart Pilot). Gilt für Sprache und Text; die Überschrift auf dem Echo-Display wird separat unter „Display-Titel" gesetzt.',
+    help: 'So stellt sich der Agent im Gespräch vor (Standard: Dein Helfer). Gilt für Sprache und Text; die Überschrift auf dem Echo-Display wird separat unter „Display-Titel" gesetzt.',
   },
   {
     key: 'display_title',
