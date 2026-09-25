@@ -44,7 +44,8 @@ und LLM. Die Lambda ist ein dünner Adapter und ruft `POST /api/query` auf.
 In der Alexa Developer Console:
 
 1. **Create Skill**.
-2. **Skill name**: z. B. `MeinHelfer` (frei wählbar).
+2. **Skill name**: z. B. `MeinHelfer` (Anzeigename in der Skill-Liste; siehe
+   „Umbenennen“).
 3. **Default language**: **German (DE)**.
 4. **Choose a type of experience**: **Other**.
 5. **Choose a model to add to your skill**: **Custom**.
@@ -197,19 +198,27 @@ oben in der Funktion. Amazon prüft dabei den ARN-Fingerprint.
 
 ## Umbenennen
 
-Beim Umbenennen sind drei Stellen betroffen:
+Ein anderer Name betrifft **mehrere Stellen**. Sie müssen zusammenpassen, sonst
+stellt sich der Assistent je nach Kontext anders vor. Zwei der Namen liegen im
+Gateway und sind **global**.
 
-| Was | Wo | Aktion |
-|---|---|---|
-| **Aufrufname** („Alexa, öffne …“) | Interaktionsmodell, Feld `invocationName` (Build → **Invocation** oder **JSON Editor**) | Wert ändern, **Save Model**, **Build Model** |
-| **Anzeigename** (Display-Titel) | in der Console beim Skill | Anzeigename ändern |
-| **Assistenten-Name** (was die Lambda sagt) | Weg A: `lambda/config.json`; Weg B: Env `assistant_name` | Wert ändern, **Deploy** bzw. Env speichern |
+| Name | Wo | Wirkung | Aktion |
+|---|---|---|---|
+| **Aufrufname** | Alexa-Interaktionsmodell, Feld `invocationName` (Build → **Invocation** oder **JSON Editor**) | „Alexa, öffne …“ | Wert ändern, **Save Model**, **Build Model** |
+| **Skill-Anzeigename** | Alexa Developer Console, beim Skill | Name in der Skill-Liste | Anzeigename ändern |
+| **Sprechname der Lambda** | Weg A: `lambda/config.json` → `assistant_name`; Weg B: Env `assistant_name` | Begrüßung und Karte der Lambda | Wert ändern, **Deploy** bzw. Env speichern |
+| **Assistenten-Name** | Gateway-Admin → **Grundeinstellungen** → **Assistenten-Name** | Wie das LLM sich nennt („Ich bin …“) | Wert ändern, **Einstellungen speichern** |
+| **Display-Titel (APL)** | Gateway-Admin → **Grundeinstellungen** → **Display-Titel (APL)** | Überschrift auf dem Echo Show | Wert ändern, **Einstellungen speichern** |
 
-Damit auch das LLM denselben Namen nennt, zusätzlich in der Gateway-Admin-
-Oberfläche den **Assistenten-Name** setzen. Achtung: Dieser ist **global** –
-mehrere Skills an einem Gateway sprechen denselben Namen.
+Beachten:
 
-Regeln für den Aufrufnamen: mindestens zwei Wörter, keine Ziffern.
+- **Global:** `assistant_name` und `display_title` gelten im Gateway für **alle**
+  Skills. Unterschiedliche Namen pro Skill sind damit nicht möglich.
+- **Wirkung:** Gateway-Werte greifen sofort (kein Neustart); Lambda-Werte erst
+  nach **Deploy** (Weg A) bzw. Speichern der Env-Variablen (Weg B).
+- **Unvollständig:** Änderst du nur den Aufrufnamen, bleibt die Begrüßung beim
+  alten Namen.
+- **Aufrufname:** mindestens zwei Wörter, keine Ziffern.
 
 ## Sprachen
 
