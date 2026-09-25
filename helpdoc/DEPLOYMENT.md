@@ -1,4 +1,4 @@
-# Deployment und CI/CD (Betreiber/Entwickler)
+# Deployment und CI/CD (Entwicklerdoku)
 
 > Zielgruppe: Betreiber und Entwickler. Diese Datei beschreibt die
 > automatisierten Deploy-Wege über GitHub Actions sowie die AWS-/Alexa-Interna.
