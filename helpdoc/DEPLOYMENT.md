@@ -74,7 +74,7 @@ automatisch bei Änderungen unter `alexa/lambda/**`.
 
 | Workflow | Zweck |
 |---|---|
-| `lambda-zip.yml` | Baut das Lambda-Zip bei Änderungen unter `alexa/lambda/**`; Artifact + rollendes `latest`-Release, bei Tag `v*` ein versioniertes Release |
+| `lambda-zip.yml` | Baut bei Änderungen unter `alexa/lambda/**` zwei Zips: `meinhelfer-alexa-lambda.zip` (eigene AWS-Lambda) und `meinhelfer-alexa-hosted.zip` (`lambda/`-Struktur für den Alexa-hosted-Import); Artifacts + rollendes `latest`-Release, bei Tag `v*` ein versioniertes Release |
 | `deploy-aws-lambda.yml` | Nutzt den zentralen Build (`lambda-zip.yml`) und deployt das Artifact: legt Funktion + Ausführungsrolle an/aktualisiert sie, setzt Env-Variablen und den Alexa-Invoke-Trigger |
 | `sync-manifest.yml` | Read-modify-write des Skill-Manifests: Endpoint auf Lambda-ARN (Top-Level und `regions.*`), ergänzt APL-Interface + Viewports; Inputs `endpoint_arn`, `add_apl`, `dry_run` |
 | `sync-model.yml` | Rendert die Aufrufnamen aus `skill.config.json` und lädt die Interaction Models aller eingetragenen Locales in den development-Stage; pollt den Build-Status |
@@ -88,14 +88,17 @@ automatisch bei Änderungen unter `alexa/lambda/**`.
 
 ### `lambda-zip.yml`
 
-Baut das Deployment-Zip der Lambda bei jeder Änderung unter `alexa/lambda/**`:
-Abhängigkeiten aus `alexa/lambda/requirements.txt` plus `lambda_function.py`
-(ohne Tests/Config). Ergebnis:
+Baut bei jeder Änderung unter `alexa/lambda/**` zwei Zips:
 
-- Actions-Artifact für den CI-/Deploy-Weg
-- rollendes Release `latest`, stabiler Anwender-Link:
-  `releases/download/latest/meinhelfer-alexa-lambda.zip`
-- bei Tag `v*` zusätzlich ein versioniertes Release mit dem Zip als Asset
+- `meinhelfer-alexa-lambda.zip` – Funktion + Abhängigkeiten (aus
+  `alexa/lambda/requirements.txt`), für die eigene AWS-Lambda.
+- `meinhelfer-alexa-hosted.zip` – `lambda/`-Struktur (`lambda_function.py`,
+  `requirements.txt`) für den Import in einen Alexa-hosted Skill. Enthält
+  bewusst **kein `config.json`** (öffentliches Asset).
+
+Ergebnis: Actions-Artifacts für den CI-Weg, ein rollendes Release `latest`
+(stabile Links `releases/download/latest/…`) und bei Tag `v*` ein versioniertes
+Release.
 
 ### `deploy-aws-lambda.yml`
 
