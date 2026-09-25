@@ -46,30 +46,26 @@ jobs:
         env:
           SKILL_ID: ${{ inputs.skill_id || secrets.ALEXA_SKILL_ID }}
         run: |
+          python3 alexa/scripts/skill_config.py --render-all
           python3 - <<'PYEOF'
-          import json
-          sc = json.load(open("alexa/skill.config.json"))
-          # invocationName in de-DE.json setzen
-          im = json.load(open("alexa/skill-package/interactionModels/custom/de-DE.json"))
-          lang = im["interactionModel"]["languageModel"]
-          lang["invocationName"] = sc["invocation_name"]
-          json.dump(im, open("alexa/skill-package/interactionModels/custom/de-DE.json", "w"), ensure_ascii=False, indent=2)
-          # skill.json: displayName + per-Locale-Namen aus skill.config.json
-          sj = json.load(open("alexa/skill-package/skill.json"))
-          sj["manifest"]["publishingInformation"]["locales"]["de-DE"]["name"] = sc["skill_name"]
-          json.dump(sj, open("alexa/skill-package/skill.json", "w"), ensure_ascii=False, indent=2)
+          import json, sys
+          sys.path.insert(0, "alexa/scripts")
+          import skill_config
+          cfg = skill_config.load()
+          primary = skill_config.primary_locale(cfg)
+          names = cfg["locales"][primary]
           # hosted config.json: Secret-Token einsetzen, niemals in Repo
-          cfg = {
+          hosted = {
               "gateway_url": "${{ secrets.GATEWAY_URL }}",
               "gateway_token": "${{ secrets.GATEWAY_TOKEN }}",
               "watchdog_delay": "5",
               "gateway_timeout": "28",
-              "skill_name": sc["skill_name"],
-              "assistant_name": sc["assistant_name"],
+              "skill_name": names["skill_name"],
+              "assistant_name": names["assistant_name"],
           }
-          json.dump(cfg, open("alexa/lambda/config.json", "w"), ensure_ascii=False, indent=2)
+          json.dump(hosted, open("alexa/lambda/config.json", "w"), ensure_ascii=False, indent=2)
+          print("primaere Locale: {} | invocation: {!r}".format(primary, names["invocation_name"]))
           PYEOF
-          echo "gerendert: invocation=$(python3 -c 'import json;print(json.load(open("alexa/skill-package/interactionModels/custom/de-DE.json"))["interactionModel"]["languageModel"]["invocationName"])')"
           echo "config.json wird NIE committed, nur in den Alexa-Branch gepusht (gitignored)"
 
       - name: Nach Alexa pushen (CodeCommit, Branch ${{ inputs.branch || 'auto' }})

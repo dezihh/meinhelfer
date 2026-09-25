@@ -7,10 +7,12 @@ Nutzung (lokal, keine GitHub-Secrets noetig):
   2. alexa/skill.local.json anlegen (Vorlage: alexa/skill.local.json.example)
   3. Ausfuehren:  python3 alexa/scripts/sync_skill.py [--force]
 
-Die Datei alexa/skill-package/interactionModels/custom/de-DE.json im Repo ist
-die Quelle der Wahrheit; das Skript laedt sie per SMAPI in den
-development-Stage des Skills. Das Skill-Manifest wird hier NICHT verwaltet;
-es wird ausschliesslich ueber sync-manifest.yml auf die Lambda-ARN gesetzt.
+Der Aufrufname kommt aus alexa/skill.config.json (pro Locale); die
+Modell-Dateien unter skill-package/interactionModels/custom/ sind die Vorlage.
+Das Skript rendert alle in skill.config.json eingetragenen Locales und laedt
+sie per SMAPI in den development-Stage des Skills. Das Skill-Manifest wird
+hier NICHT verwaltet; es wird ausschliesslich ueber sync-manifest.yml auf die
+Lambda-ARN gesetzt.
 """
 
 import argparse
@@ -25,10 +27,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 
+import skill_config
+
 REPO = Path(__file__).resolve().parents[2]
 ASK_DIR = Path.home() / ".ask"
 LOCAL_CFG = REPO / "alexa" / "skill.local.json"
-MODEL_JSON = REPO / "alexa" / "skill-package" / "interactionModels" / "custom" / "de-DE.json"
 
 MODEL_MARKER = "zum thema {query}"  # NEED_SYNC-Marker wie im CI-Workflow
 
@@ -94,8 +97,8 @@ def poll_status(auth, access, skill_id, resource, minutes=3):
     return "TIMEOUT"
 
 
-def sync_model(auth, access, skill_id, force):
-    path = "stages/development/interactionModel/locales/de-DE"
+def sync_model(auth, access, skill_id, locale, force):
+    path = "stages/development/interactionModel/locales/{}".format(locale)
     code, etag, body = smapi(auth, access, skill_id, path)
     if code == 200:
         try:
@@ -103,14 +106,15 @@ def sync_model(auth, access, skill_id, force):
                            body["interactionModel"]["languageModel"]["intents"]
                            if i["name"] == "GptQueryIntent")
             if not force and any(MODEL_MARKER in s for s in samples):
-                print("Modell: Stage bereits aktuell (Marker gefunden), kein PUT.")
+                print("Modell {}: Stage bereits aktuell (Marker gefunden), kein PUT.".format(locale))
                 return True
         except Exception:
             pass
-    local = json.loads(MODEL_JSON.read_text())
+    model_path = skill_config.MODEL_DIR / "{}.json".format(locale)
+    local = json.loads(model_path.read_text())
     code, _, body = smapi(auth, access, skill_id, path, "PUT",
                           json.dumps(local, ensure_ascii=False).encode(), etag)
-    print("Modell-PUT -> HTTP {}".format(code))
+    print("Modell-PUT {} -> HTTP {}".format(locale, code))
     if code not in (200, 202):
         print(json.dumps(body, ensure_ascii=False)[:1000] if body else body)
         return False
@@ -131,7 +135,10 @@ def main():
     access = lwa_token(auth, refresh)
     print("SMAPI-Token geholt ({}).".format(auth["ask_smapi_api"]))
 
-    ok = sync_model(auth, access, skill_id, args.force)
+    ok = True
+    for locale in skill_config.locales():
+        skill_config.render_locale(locale)  # Aufrufname aus skill.config.json
+        ok = sync_model(auth, access, skill_id, locale, args.force) and ok
     sys.exit(0 if ok else 1)
 
 

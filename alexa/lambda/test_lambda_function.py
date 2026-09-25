@@ -147,8 +147,9 @@ class FakeDirectiveService:
 
 
 class FakeRequest:
-    def __init__(self, request_id="req-1"):
+    def __init__(self, request_id="req-1", locale=None):
         self.request_id = request_id
+        self.locale = locale
 
 
 class FakeIntent:
@@ -210,6 +211,24 @@ class StripSsmlTest(unittest.TestCase):
 
     def test_klartext_bleibt_unveraendert(self):
         self.assertEqual(lambda_function.strip_ssml("nur text"), "nur text")
+
+
+class LocaleStringsTest(unittest.TestCase):
+    def test_welcome_enthaelt_assistentennamen(self):
+        hi = FakeHandlerInput(request=FakeRequest())
+        self.assertIn(lambda_function.assistant_name, lambda_function.t(hi, "welcome"))
+
+    def test_unbekannte_locale_faellt_auf_de_de(self):
+        hi = FakeHandlerInput(request=FakeRequest(locale="en-US"))
+        self.assertEqual(lambda_function.t(hi, "error"), lambda_function.SPEAK_ERROR)
+
+    def test_fehlende_locale_faellt_auf_de_de(self):
+        hi = FakeHandlerInput(request=FakeRequest(locale=None))
+        self.assertEqual(lambda_function.t(hi, "help"), lambda_function.STRINGS["de-DE"]["help"])
+
+    def test_stop_kommt_aus_der_de_liste(self):
+        hi = FakeHandlerInput(request=FakeRequest(locale="de-DE"))
+        self.assertIn(lambda_function.t(hi, "stop"), lambda_function.STRINGS["de-DE"]["stop"])
 
 
 class CallGatewayTest(unittest.TestCase):

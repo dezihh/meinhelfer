@@ -45,17 +45,49 @@ gateway_token = os.environ.get("gateway_token", "")
 acknowledgment_enabled = os.environ.get("acknowledgment_enabled", "false").lower() == "true"
 ask_for_further_commands = os.environ.get("ask_for_further_commands", "false").lower() == "true"
 warteton_enabled = os.environ.get("warteton_enabled", "true").lower() == "true"
-warteton_phrase = os.environ.get("warteton_phrase", "Einen Moment, ich schaue das kurz nach.")
+warteton_phrase = os.environ.get("warteton_phrase", "")
 watchdog_delay = float(os.environ.get("watchdog_delay", "6.5"))
 gateway_timeout = float(os.environ.get("gateway_timeout", "28"))
 alexa_skill_id = os.environ.get("alexa_skill_id", "")
+assistant_name = os.environ.get("assistant_name", "Ihr Voice-Assistent")
 ALEXA_WINDOW = 8.0
 
-SPEAK_WELCOME = "Hallo, ich bin " + os.environ.get("assistant_name", "Ihr Voice-Assistent") + ". Was kann ich für Sie tun?"
-SPEAK_HELP = "Sie können mir zum Beispiel nach dem Hausstatus oder aktuellen Informationen fragen."
-SPEAK_STOP = random.choice(["Bis zum nächsten Mal.", "Alles klar, bis später.", "Okay, tschüss."])
-SPEAK_ERROR = "Entschuldigung, da ist etwas schiefgelaufen."
-SPEAK_PROCESSING = "Einen Moment bitte."
+# Sprachtexte pro Locale. Aktuell nur de-DE; eine weitere Sprache ist ein
+# zusaetzlicher Eintrag hier plus eine Modell-Datei unter
+# skill-package/interactionModels/custom/. Der Assistenten-Name kommt aus der
+# Umgebung (primaere Locale) und wird als {name} eingesetzt.
+DEFAULT_LOCALE = "de-DE"
+STRINGS = {
+    "de-DE": {
+        "welcome": "Hallo, ich bin {name}. Was kann ich für Sie tun?",
+        "help": "Sie können mir zum Beispiel nach dem Hausstatus oder aktuellen Informationen fragen.",
+        "stop": ["Bis zum nächsten Mal.", "Alles klar, bis später.", "Okay, tschüss."],
+        "error": "Entschuldigung, da ist etwas schiefgelaufen.",
+        "processing": "Einen Moment bitte.",
+        "warteton": "Einen Moment, ich schaue das kurz nach.",
+    },
+}
+
+
+def _locale_of(handler_input):
+    """Locale aus dem Request; unbekannte oder fehlende Locale -> de-DE."""
+    try:
+        loc = handler_input.request_envelope.request.locale
+    except AttributeError:
+        loc = None
+    return loc if loc in STRINGS else DEFAULT_LOCALE
+
+
+def t(handler_input, key):
+    """Lokalisierter Text; {name} wird durch assistant_name ersetzt."""
+    value = STRINGS[_locale_of(handler_input)][key]
+    if isinstance(value, list):
+        value = random.choice(value)
+    return value.replace("{name}", assistant_name)
+
+
+# de-DE-Default fuer Rueckwaerts-Kompatibilitaet (call_gateway/Tests)
+SPEAK_ERROR = STRINGS[DEFAULT_LOCALE]["error"]
 
 
 def strip_ssml(text):
@@ -258,11 +290,12 @@ class LaunchRequestHandler(AbstractRequestHandler):
         return ask_utils.is_request_type("LaunchRequest")(handler_input)
 
     def handle(self, handler_input):
+        welcome = t(handler_input, "welcome")
         return (
             handler_input.response_builder
-            .speak(SPEAK_WELCOME)
-            .set_card(SimpleCard(title=CARD_TITLE, content=SPEAK_WELCOME))
-            .ask(SPEAK_WELCOME)
+            .speak(welcome)
+            .set_card(SimpleCard(title=CARD_TITLE, content=welcome))
+            .ask(welcome)
             .response
         )
 
@@ -287,7 +320,7 @@ class GptQueryIntentHandler(AbstractRequestHandler):
         lambda_trace(session_id, "invoke", 0)
 
         if acknowledgment_enabled:
-            send_progressive(handler_input, request, SPEAK_PROCESSING)
+            send_progressive(handler_input, request, t(handler_input, "processing"))
 
         result = {}
 
@@ -303,16 +336,16 @@ class GptQueryIntentHandler(AbstractRequestHandler):
         if worker.is_alive():
             if warteton_enabled:
                 logger.info("Watchdog nach %.1fs ohne Gateway-Antwort, sende Warteton", watchdog_delay)
-                send_progressive(handler_input, request, warteton_phrase)
+                send_progressive(handler_input, request, warteton_phrase or t(handler_input, "warteton"))
                 worker.join(max(0.0, gateway_timeout - watchdog_delay))
             else:
                 worker.join(max(0.0, ALEXA_WINDOW - watchdog_delay))
         if worker.is_alive():
             logger.error("Gateway-Antwort %.1fs ueberschritten", gateway_timeout)
-            return response_builder.speak(SPEAK_ERROR).set_should_end_session(True).response
+            return response_builder.speak(t(handler_input, "error")).set_should_end_session(True).response
         if "error" in result:
             logger.error("Gateway-Fehler: %s", result["error"], exc_info=True)
-            return response_builder.speak(SPEAK_ERROR).set_should_end_session(True).response
+            return response_builder.speak(t(handler_input, "error")).set_should_end_session(True).response
 
         speech, follow_up, is_ssml, display_text, followup_prompt = result["value"]
 
@@ -339,7 +372,7 @@ class GptQueryIntentHandler(AbstractRequestHandler):
                             .get("device", {}).get("supportedInterfaces")))
         if keep_open:
             # Dynamische Rueckfrage vom Gateway (situativ), sonst statischer Hinweis
-            return response_builder.ask(followup_prompt or SPEAK_HELP).response
+            return response_builder.ask(followup_prompt or t(handler_input, "help")).response
         return response_builder.set_should_end_session(True).response
 
 
@@ -348,11 +381,12 @@ class HelpIntentHandler(AbstractRequestHandler):
         return ask_utils.is_intent_name("AMAZON.HelpIntent")(handler_input)
 
     def handle(self, handler_input):
+        help_text = t(handler_input, "help")
         return (
             handler_input.response_builder
-            .speak(SPEAK_HELP)
-            .set_card(SimpleCard(title=CARD_TITLE, content=SPEAK_HELP))
-            .ask(SPEAK_HELP)
+            .speak(help_text)
+            .set_card(SimpleCard(title=CARD_TITLE, content=help_text))
+            .ask(help_text)
             .response
         )
 
@@ -364,7 +398,7 @@ class CancelOrStopIntentHandler(AbstractRequestHandler):
         )(handler_input)
 
     def handle(self, handler_input):
-        return handler_input.response_builder.speak(SPEAK_STOP).set_should_end_session(True).response
+        return handler_input.response_builder.speak(t(handler_input, "stop")).set_should_end_session(True).response
 
 
 class FallbackIntentHandler(AbstractRequestHandler):
@@ -372,7 +406,7 @@ class FallbackIntentHandler(AbstractRequestHandler):
         return ask_utils.is_intent_name("AMAZON.FallbackIntent")(handler_input)
 
     def handle(self, handler_input):
-        return handler_input.response_builder.speak(SPEAK_HELP).ask(SPEAK_HELP).response
+        return handler_input.response_builder.speak(t(handler_input, "help")).ask(t(handler_input, "help")).response
 
 
 class SessionEndedRequestHandler(AbstractRequestHandler):
@@ -413,7 +447,7 @@ class CatchAllExceptionHandler(AbstractExceptionHandler):
 
     def handle(self, handler_input, exception):
         logger.error(exception, exc_info=True)
-        return handler_input.response_builder.speak(SPEAK_ERROR).ask(SPEAK_ERROR).response
+        return handler_input.response_builder.speak(t(handler_input, "error")).ask(t(handler_input, "error")).response
 
 
 sb = CustomSkillBuilder(api_client=DefaultApiClient())
