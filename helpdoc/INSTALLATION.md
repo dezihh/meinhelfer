@@ -3,7 +3,7 @@
 ## Ziel
 
 In dieser Anleitung entsteht Schritt für Schritt ein vollständiges
-MeinHelfer-Setup. Jeder Abschnitt endet mit einem funktionierenden,
+SmartPilot-Setup. Jeder Abschnitt endet mit einem funktionierenden,
 überprüfbaren Zwischenstand. So lassen sich Fehler früh erkennen und der
 Aufbau bleibt nachvollziehbar.
 
@@ -119,8 +119,8 @@ gewählte Modell zunächst im Testmonitor, bevor du Pakete oder Alexa ergänzt.
 
 1. Repository klonen:
 
-       git clone https://github.com/dezihh/meinhelfer.git
-       cd meinhelfer
+       git clone https://github.com/dezihh/SmartPilot.git
+       cd SmartPilot
 
 2. Konfiguration anlegen:
 
@@ -286,7 +286,7 @@ beschrieben.
 
 ## Abnahme
 
-Sprich: „Alexa, frage Mein Helfer, wie du heißt.“ Alexa gibt die Antwort des
+Sprich: „Alexa, frage Smart Pilot, wie du heißt.“ Alexa gibt die Antwort des
 Gateways aus. Damit ist der vollständige Weg von Alexa über AWS Lambda und den
 öffentlichen HTTPS-Endpunkt bis zum Gateway geprüft. Im Gateway-Log erscheint
 die Anfrage mit Route und Dauer.
@@ -294,7 +294,7 @@ die Anfrage mit Route und Dauer.
 ## Nächster Schritt: Pakete installieren
 
 Das Grundsystem ist damit vollständig installiert. Seine eigentlichen
-Fähigkeiten erhält MeinHelfer über Installationspakete. Öffne in der
+Fähigkeiten erhält SmartPilot über Installationspakete. Öffne in der
 Admin-Oberfläche den Tab **Wartung und Pakete**, wähle ein Paket für das
 gewünschte Zielsystem und folge dessen Einrichtungshinweisen.
 

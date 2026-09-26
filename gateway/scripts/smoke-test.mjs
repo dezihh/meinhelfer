@@ -1,4 +1,4 @@
-// MeinHelfer Gateway Smoke-Tests (End-to-End gegen laufendes Gateway)
+// SmartPilot Gateway Smoke-Tests (End-to-End gegen laufendes Gateway)
 // Ableitung aus README-Zielen: Schnelligkeit, Determinismus, MCP-Anbindung,
 // Zwei-Modi-Flow, Token-Logging, Sicherheit.
 //
@@ -58,7 +58,7 @@ async function query(text, sessionId) {
 }
 
 async function main() {
-  console.log(`MeinHelfer Smoke-Tests gegen ${BASE}`);
+  console.log(`SmartPilot Smoke-Tests gegen ${BASE}`);
   console.log('');
 
   if (!TOKEN) {
@@ -123,7 +123,7 @@ async function main() {
     const oneshot = await query('wie ist das wetter heute', sid());
     check('OneShot → followUp falsch', !oneshot.json.response?.followUp, JSON.stringify(oneshot.json.response?.followUp));
     const sChat = sid();
-    const chatQ = await query('Mein Helfer, Chat-Modus', sChat);
+    const chatQ = await query('Smart Pilot, Chat-Modus', sChat);
     check('Chat-Modus Request → Route action/agent', !!chatQ.json.response, 'keine Antwort');
     const chat = await query('erzähl mir was über berlin', sChat);
     check('Chat-Modus → followUp (Session offen)', chat.json.response?.followUp === true, `followUp=${chat.json.response?.followUp}`);

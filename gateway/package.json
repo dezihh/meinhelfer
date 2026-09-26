@@ -1,8 +1,8 @@
 {
-  "name": "meinhelfer-gateway",
+  "name": "smartpilot-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "MeinHelfer Gateway: Alexa-Adapter, Action-Routing, LLM- und MCP-Orchestrierung, Admin-UI",
+  "description": "SmartPilot Gateway: Alexa-Adapter, Action-Routing, LLM- und MCP-Orchestrierung, Admin-UI",
   "type": "module",
   "engines": {
     "node": ">=22"

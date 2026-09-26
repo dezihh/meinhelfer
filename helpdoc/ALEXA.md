@@ -44,7 +44,7 @@ und LLM. Die Lambda ist ein dünner Adapter und ruft `POST /api/query` auf.
 In der Alexa Developer Console:
 
 1. **Create Skill**.
-2. **Skill name**: z. B. `MeinHelfer` (Anzeigename in der Skill-Liste; siehe
+2. **Skill name**: z. B. `SmartPilot` (Anzeigename in der Skill-Liste; siehe
    „Umbenennen“).
 3. **Default language**: **German (DE)**.
 4. **Choose a type of experience**: **Other**.
@@ -70,7 +70,7 @@ Im **Build**-Tab → **JSON Editor** folgendes Modell einsetzen (den
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "mein helfer",
+      "invocationName": "smart pilot",
       "intents": [
         { "name": "AMAZON.CancelIntent", "samples": [] },
         { "name": "AMAZON.HelpIntent", "samples": [] },
@@ -93,7 +93,7 @@ Das Einfügen ersetzt auch die Intents der Vorlage (`HelloWorldIntent`,
 
 Das Modell legt fest:
 
-- **Invocation Name** `mein helfer` – so wird der Skill geöffnet.
+- **Invocation Name** `smart pilot` – so wird der Skill geöffnet.
 - Intent `GptQueryIntent` mit Slot `query` und Sample `{query}` für freie Fragen.
 - `AMAZON.HelpIntent`, `AMAZON.CancelIntent`, `AMAZON.StopIntent`,
   `AMAZON.FallbackIntent`.
@@ -112,7 +112,7 @@ Wie in Schritt 2: **Build** → **JSON Editor**, Modell einsetzen, **Save Model*
 
 Im **Code**-Tab über **Import Code** das fertige Hosted-Zip laden:
 
-`https://github.com/dezihh/meinhelfer/releases/download/latest/meinhelfer-alexa-hosted.zip`
+`https://github.com/dezihh/SmartPilot/releases/download/latest/smartpilot-alexa-hosted.zip`
 
 Das Zip enthält `lambda/lambda_function.py`, `lambda/requirements.txt` und
 `lambda/config.json.example` (datensichere Vorlage). Es enthält bewusst **kein
@@ -128,7 +128,7 @@ Im `lambda/`-Ordner eine `config.json` anlegen (Vorlage:
 {
   "gateway_url": "https://<gateway-host>",
   "gateway_token": "<AUTH_TOKEN>",
-  "skill_name": "MeinHelfer",
+  "skill_name": "SmartPilot",
   "assistant_name": "Dein Helfer",
   "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
 }
@@ -150,14 +150,14 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 ### 4.1 Lambda-Funktion anlegen
 
 1. Fertiges Zip laden (jeweils der letzte Build):
-   `https://github.com/dezihh/meinhelfer/releases/download/latest/meinhelfer-alexa-lambda.zip`
-2. In AWS eine Lambda-Funktion `meinhelfer-alexa` anlegen:
+   `https://github.com/dezihh/SmartPilot/releases/download/latest/smartpilot-alexa-lambda.zip`
+2. In AWS eine Lambda-Funktion `smartpilot-alexa` anlegen:
    - Region **Europa (Irland) `eu-west-1`** (die Alexa-Konsole trägt den ARN
      als Default-Region ein)
    - Runtime **Python 3.14**, Handler `lambda_function.lambda_handler`
    - Timeout **30 s** (muss größer als 8 s sein), Memory **512 MB**
    - Ausführungsrolle mit Lambda-Basic-Execution-Trust und CloudWatch-Logs
-     (z. B. `meinhelfer-lambda-execution`)
+     (z. B. `smartpilot-lambda-execution`)
    - Das geladene Zip als Code hochladen
 3. Umgebungsvariablen setzen:
 
@@ -168,7 +168,7 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 | `alexa_skill_id` | Skill-ID; abweichende IDs werden abgelehnt |
 | `watchdog_delay` | z. B. `5` (Warteton, wenn das Gateway länger braucht) |
 | `gateway_timeout` | z. B. `27` (Timeout der Anfrage ans Gateway, Funktion-Timeout minus 3) |
-| `skill_name` | Anzeigename, z. B. `MeinHelfer` |
+| `skill_name` | Anzeigename, z. B. `SmartPilot` |
 | `assistant_name` | Name im Gespräch, z. B. `Dein Helfer` |
 | `apl_exit_delay_ms` | z. B. `90000` (Anzeige auf dem Echo Show) |
 
@@ -184,13 +184,13 @@ diesen Skill (Service-Prinzipal `alexa-appkit.amazon.com`).
 Im Skill-Manifest den Endpoint auf den Funktions-ARN der Lambda umstellen
 (Developer Console → **Build** → **Endpoint** → **AWS Lambda ARN**, Default
 Region `eu-west-1`). Der ARN hat die Form
-`arn:aws:lambda:eu-west-1:<konto>:function:meinhelfer-alexa` und steht in AWS
+`arn:aws:lambda:eu-west-1:<konto>:function:smartpilot-alexa` und steht in AWS
 oben in der Funktion. Amazon prüft dabei den ARN-Fingerprint.
 
 ## 5. Testen
 
 1. Dieselbe Frage im Gateway unter **Monitor / Test** stellen.
-2. Im Alexa-Simulator der Console sprechen: „Alexa, öffne mein Helfer“.
+2. Im Alexa-Simulator der Console sprechen: „Alexa, öffne Smart Pilot“.
 3. Auf einem echten Echo testen.
 4. Einen langsamen Aufruf testen; der Warteton darf die finale Antwort nicht
    ersetzen.
@@ -228,8 +228,8 @@ Sprechtexte in der Lambda (aktuell nur `de-DE` hinterlegt).
 
 ## Nutzung
 
-- Wecken und öffnen: „Alexa, öffne mein Helfer“.
-- Freie Frage: „Alexa, frag mein Helfer, wie ist der Hausstatus“.
+- Wecken und öffnen: „Alexa, öffne Smart Pilot“.
+- Freie Frage: „Alexa, frag Smart Pilot, wie ist der Hausstatus“.
 - Rückfragen: Bei zusammenfassenden Antworten bleibt die Session offen; „mehr
   dazu“ bezieht sich auf das letzte Thema.
 - Chat-Modus: „starte chat modus“ beginnen, „chat beenden“ beenden.
@@ -242,7 +242,7 @@ Sprechtexte in der Lambda (aktuell nur `de-DE` hinterlegt).
   antwortet (Gateway-Monitor).
 - „Skill nicht gefunden“: Invocation Name im Modell prüfen.
 - Lambda-Fehler: CloudWatch-Logs der Lambda ansehen (Weg B: Funktion
-  `meinhelfer-alexa`).
+  `smartpilot-alexa`).
 - Antworten fehlen Fähigkeiten: Die eigentlichen Funktionen kommen über
   Installationspakete im Gateway, nicht über den Skill.
 

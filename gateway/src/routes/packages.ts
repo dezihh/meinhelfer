@@ -33,7 +33,7 @@ export const packagesRoutes = Router();
 // Paketquelle ist Teil der Installation, nicht eine Nutzer-Einstellung).
 // Pakete liegen sprachspezifisch unter packages/<lang>/<id>/; die Sprache kommt
 // aus dem Setting registry_language (Default "de").
-const REGISTRY_URL = 'https://raw.githubusercontent.com/dezihh/meinhelfer/main/packages';
+const REGISTRY_URL = 'https://raw.githubusercontent.com/dezihh/SmartPilot/main/packages';
 const REGISTRY_CACHE_MS = 60_000;
 
 interface RegistryEntry {
@@ -212,9 +212,9 @@ packagesRoutes.get('/admin/api/packages/:id/conflicts', requireAuth, (req, res) 
 packagesRoutes.get('/admin/api/backup', requireAuth, (req, res) => {
   const includeTokens = String(req.query.tokens ?? '1') !== '0';
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="meinhelfer-config-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="smartpilot-config-${new Date().toISOString().slice(0, 10)}.json"`);
   res.json({
-    kind: 'meinhelfer-config-backup',
+    kind: 'smartpilot-config-backup',
     created: new Date().toISOString(),
     includeTokens,
     settings: getSettings(),
@@ -231,7 +231,7 @@ packagesRoutes.post('/admin/api/backup/restore', requireAuth, (req, res) => {
   const body = req.body as { backup?: Record<string, unknown>; confirm?: boolean };
   if (!body.confirm) return res.status(400).json({ error: 'Bestaetigung erforderlich (confirm: true)' });
   const backup = body.backup;
-  if (!backup || backup.kind !== 'meinhelfer-config-backup') {
+  if (!backup || backup.kind !== 'smartpilot-config-backup') {
     return res.status(400).json({ error: 'Keine gueltige Sicherung (kind fehlt)' });
   }
   const db = getDb();

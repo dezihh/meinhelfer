@@ -75,7 +75,7 @@ export class McpClient implements McpTransport {
     await this.rpc('initialize', {
       protocolVersion: '2025-03-26',
       capabilities: {},
-      clientInfo: { name: 'meinhelfer', version: '0.1.0' },
+      clientInfo: { name: 'smartpilot', version: '0.1.0' },
     });
     await this.rpc('notifications/initialized', {}, true);
   }

@@ -28,14 +28,14 @@
       "category": "ORGANIZERS_AND_ASSISTANTS",
       "locales": {
         "de-DE": {
-          "description": "MeinHelfer verbindet Alexa mit lokalen Diensten und dem Smart Home.",
+          "description": "SmartPilot verbindet Alexa mit lokalen Diensten und dem Smart Home.",
           "examplePhrases": [
-            "Alexa öffne mein Helfer",
-            "Alexa frag mein Helfer wie der Hausstatus ist",
-            "Alexa frag mein Helfer nach aktuellen Nachrichten"
+            "Alexa öffne Smart Pilot",
+            "Alexa frag Smart Pilot wie der Hausstatus ist",
+            "Alexa frag Smart Pilot nach aktuellen Nachrichten"
           ],
           "keywords": [],
-          "name": "MeinHelfer",
+          "name": "SmartPilot",
           "summary": "Persönlicher Assistent mit lokaler Intelligenz"
         }
       },

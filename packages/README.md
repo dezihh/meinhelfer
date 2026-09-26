@@ -1,6 +1,6 @@
 # Paket-Registry
 
-Fertige Installationspakete für den MeinHelfer-Gateway. Die Registry wird vom
+Fertige Installationspakete für den SmartPilot-Gateway. Die Registry wird vom
 Projekt gepflegt (Autor `dezihh`); das Gateway lädt sie direkt aus diesem
 Repository (kein Nutzerfeld).
 

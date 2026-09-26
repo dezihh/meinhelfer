@@ -71,7 +71,7 @@ const SETTINGS_FIELDS = [
     key: 'registry_language',
     label: 'Paket-Registry-Sprache',
     type: 'text',
-    help: 'Sprachordner in der Paket-Registry (Standard: de). Die Installation sucht Pakete unter packages/<Sprache>/ im MeinHelfer-Repo.',
+    help: 'Sprachordner in der Paket-Registry (Standard: de). Die Installation sucht Pakete unter packages/<Sprache>/ im SmartPilot-Repo.',
   },
   {
     key: 'llm_model',
@@ -999,7 +999,7 @@ function renderPackages() {
   const installedIds = new Set(pkgState.installed.map((p) => p.id));
   const avail = pkgState.registry.map((p) => {
     const inst = installedIds.has(p.id) ? '<span class="chip ok">installiert</span>' : '';
-    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)} <a href="https://github.com/dezihh/meinhelfer/blob/main/packages/${escHtml(pkgState.language ?? 'de')}/${escHtml(p.id)}/README.md" target="_blank" rel="noopener">Installations-Doku</a></div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
+    return `<div class="pkg-item"><div><strong>${escHtml(p.name)}</strong> <span class="pkg-version">v${escHtml(p.version)}</span> <span class="pkg-id">${escHtml(p.id)}</span><div class="field-help">${escHtml(p.summary)} <a href="https://github.com/dezihh/SmartPilot/blob/main/packages/${escHtml(pkgState.language ?? 'de')}/${escHtml(p.id)}/README.md" target="_blank" rel="noopener">Installations-Doku</a></div></div><button class="btn" data-install="${escHtml(p.id)}">${installedIds.has(p.id) ? 'Neu installieren' : 'Installieren'}</button></div>`;
   });
   $('pkg-available').innerHTML = avail.length ? avail.join('') : '<div class="field-help">Registry leer oder nicht erreichbar — „Aktualisieren“ versucht es erneut.</div>';
   const inst = pkgState.installed.map((p) => {
@@ -1117,7 +1117,7 @@ $('backup-download').onclick = async () => {
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `meinhelfer-config-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+  a.href = url; a.download = `smartpilot-config-${new Date().toISOString().slice(0, 10)}.json`; a.click();
   URL.revokeObjectURL(url);
 };
 $('backup-restore').onclick = async () => {

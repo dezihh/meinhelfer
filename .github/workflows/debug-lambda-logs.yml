@@ -37,10 +37,10 @@ jobs:
       - name: CloudWatch-Logs unserer Lambda (Streams auflisten + lesen)
         run: |
           set +e
-          GROUP="/aws/lambda/meinhelfer-alexa"
+          GROUP="/aws/lambda/smartpilot-alexa"
           echo "Log-Gruppe: ${GROUP}"
           echo "=== describe-log-groups ==="
-          aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/meinhelfer" --query 'logGroups[].logGroupName' --output json 2>&1 | head -c 800
+          aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/smartpilot" --query 'logGroups[].logGroupName' --output json 2>&1 | head -c 800
           echo ""
           echo "=== Letzte Events (filter, 40 Zeilen) ==="
           aws logs filter-log-events --log-group-name "${GROUP}" --query 'events[].message' --output text 2>&1 | tail -40

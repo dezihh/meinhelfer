@@ -1,4 +1,4 @@
-﻿# MeinHelfer einrichten und verstehen
+﻿# SmartPilot einrichten und verstehen
 
 Diese Dokumentation ist die maßgebliche Nutzer-Dokumentation des Projekts.
 Die Design-Dokumente in `doc/` bleiben als technischer Hintergrund für
@@ -9,7 +9,7 @@ reichen vier Begriffe und ein vollständiger Einrichtungsweg.
 
 ## In fünf Minuten orientieren
 
-MeinHelfer nimmt eine Frage entgegen und wählt dann einen von zwei Wegen:
+SmartPilot nimmt eine Frage entgegen und wählt dann einen von zwei Wegen:
 
 - Ein **Vorgang** erkennt eine bekannte Frage und führt eine fest zugewiesene
   Funktion aus.

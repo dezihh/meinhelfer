@@ -98,7 +98,7 @@ def strip_ssml(text):
     return text.strip()
 
 
-CARD_TITLE = os.environ.get("skill_name", "MeinHelfer")
+CARD_TITLE = os.environ.get("skill_name", "SmartPilot")
 
 # Nach diesem Delay (ms) ab Dokument-Render beendet sich das APL-Dokument
 # selbst (Finish) und Alexa zeigt wieder ihren Standardbildschirm. Umgeht

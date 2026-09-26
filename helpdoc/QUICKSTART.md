@@ -2,7 +2,7 @@
 
 ## Ziel
 
-Nach diesem Weg beantwortet MeinHelfer im Tab **Monitor / Test** die Frage
+Nach diesem Weg beantwortet SmartPilot im Tab **Monitor / Test** die Frage
 „Ist jemand zuhause?“. Alexa wird bewusst erst später angebunden.
 
 Vorausgesetzt werden ein laufendes Gateway, eine erreichbare

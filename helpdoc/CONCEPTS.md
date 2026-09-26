@@ -77,7 +77,7 @@ Der Gateway-Core liefert einen neutralen Antwortvertrag:
     "speech": "…",
     "ssml": false,
     "display": {
-        "title": "MeinHelfer",
+        "title": "SmartPilot",
         "text": "…"
     }
 }

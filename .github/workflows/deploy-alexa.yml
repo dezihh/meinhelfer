@@ -107,7 +107,7 @@ jobs:
           cp -r /tmp/adeploy/skill-package /tmp/adeploy/repo/skill-package
           git add -A lambda skill-package
           git status --short | head -5
-          git -c user.email="ci@meinhelfer" -c user.name="MeinHelfer CI" commit -m "deploy: ${{ inputs.note || 'Lauffaehige Files' }}" || echo "keine Dateiaenderung"
+          git -c user.email="ci@smartpilot" -c user.name="SmartPilot CI" commit -m "deploy: ${{ inputs.note || 'Lauffaehige Files' }}" || echo "keine Dateiaenderung"
           git push alexa "HEAD:${BRANCH}" 2>&1 | tail -4
 
       - name: SMAPI Build-Status pollen

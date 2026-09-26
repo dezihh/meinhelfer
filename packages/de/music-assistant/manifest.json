@@ -7,7 +7,7 @@
   "author": "dezihh",
   "license": "MIT",
   "language": "de",
-  "homepage": "https://github.com/dezihh/meinhelfer",
+  "homepage": "https://github.com/dezihh/SmartPilot",
   "requires": "Music Assistant laeuft und das Plugin ma-provider-mcp ist aktiviert (MA-Einstellungen -> Plugins -> MCP Server); Token aus dem Connect-Wizard bzw. Profil -> Long-lived access tokens (Profil mit control-Rechten waehlen).",
   "minGatewayVersion": "0.1.0",
   "params": [

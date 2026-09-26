@@ -410,7 +410,7 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
   const row = db.prepare("SELECT system_prompt FROM actions WHERE name = 'hilfe'").get() as { system_prompt?: string } | undefined;
   const sp = row?.system_prompt;
   if (sp && sp.includes('Hilfe-Anfrage') && !sp.includes('starte chat modus')) {
-    const hint = 'Erwaehne zusaetzlich die freie Unterhaltung: einzelne freie Fragen ohne Kommando ("frage mein helfer warum ist der himmel blau") sowie den Chat-Modus fuer ein laufendes Gespraech - Start mit "starte chat modus", Ende mit "chat beenden". ';
+    const hint = 'Erwaehne zusaetzlich die freie Unterhaltung: einzelne freie Fragen ohne Kommando ("frage smart pilot warum ist der himmel blau") sowie den Chat-Modus fuer ein laufendes Gespraech - Start mit "starte chat modus", Ende mit "chat beenden". ';
     const base = sp.replace(/Erwaehne zusaetzlich die freie Unterhaltung:.*?chat beenden"\)\.\s*/s, '');
     const neu = base.includes('Am Ende von speech')
       ? base.replace('Am Ende von speech', hint + 'Am Ende von speech')
@@ -431,7 +431,7 @@ db.prepare("DELETE FROM actions WHERE name = 'news_summary'").run();
 Identität: Du bist {assistant_name} - wenn du gefragt wirst, wer du bist oder wie du heisst, sage WOERTLICH: "Ich bin {assistant_name}".
 Deine FINALE Antwort (sobald keine Tool-Aufrufe mehr nötig) ist AUSSCHLIESSLICH ein JSON-Objekt: {"needs_clarification": <true|false>, "speech": "<Antwort>", "keep_open": <true|false>}.
 Die speech ist kurz, präzise und sprechbar (keine Listen, Zahlen wie "22,4 Grad"). needs_clarification=true nur bei echter Mehrdeutigkeit.
-Anreden am Anfang ("{assistant_name}", "Mein Helfer") sind kein Teil der Frage. "mehr dazu" bezieht sich auf das letzte Thema.
+Anreden am Anfang ("{assistant_name}", "Smart Pilot") sind kein Teil der Frage. "mehr dazu" bezieht sich auf das letzte Thema.
 
 Tool-Regeln (sparsam: genug gewusst -> sofort antworten):
 - Messwerte/Zustände (Temperatur, Füllstand, Verbrauch, an/aus): NIEMALS aus eigenem Wissen. find_ha_entities mit Stichworten - Treffer enthalten den aktuellen Zustand, daraus sofort antworten (max. 1 Aufruf pro Frage).

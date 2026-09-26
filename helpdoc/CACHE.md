@@ -1,6 +1,6 @@
 ﻿# Cache und Aktualität
 
-MeinHelfer verwendet mehrere voneinander unabhängige Caches. Sie sparen
+SmartPilot verwendet mehrere voneinander unabhängige Caches. Sie sparen
 Netzwerkverkehr und Antwortzeit. Wichtig: Eine TTL ist nur eine
 **Gültigkeitsdauer**. Sie startet keinen periodischen Abruf.
 

@@ -1,6 +1,6 @@
 # Architektur
 
-> Zentrale Architekturregeln von meinhelfer. Festgehalten nach Review 2026-09-06
+> Zentrale Architekturregeln von smartpilot. Festgehalten nach Review 2026-09-06
 > (Improvement-Issues #3–#6, POC-Entscheidungen in [DESIGN_WEBUI.md](DESIGN_WEBUI.md)).
 >
 > **Hinweis zur Aktualität:** Dieses Dokument ist ein Design-Archiv. Einzelne
@@ -18,7 +18,7 @@ Der Core kennt **kein Alexa**. Alexa-spezifisches (Requests, JSON-Strukturen,
 Response Cards, APL) liegt ausschließlich im Adapter:
 
 ```text
-Alexa Adapter ──▶ VoiceQuery ──▶ MeinHelfer Core ──▶ AssistantResponse ──▶ Alexa Adapter
+Alexa Adapter ──▶ VoiceQuery ──▶ SmartPilot Core ──▶ AssistantResponse ──▶ Alexa Adapter
 ```
 
 ```typescript
@@ -104,11 +104,11 @@ Routing-Details: [DESIGN_WEBUI.md](DESIGN_WEBUI.md). Laufzeit-Hinweise stehen in
 Home Assistant
 └── Welche Entities darf MCP sehen?          (HA-eigene Steuerung)
 
-MeinHelfer
+SmartPilot
 └── Welche MCP-Tools darf das LLM verwenden? (später pro Action, Issues #3/#4)
 ```
 
-MeinHelfer baut **keine zweite Entity-Berechtigungsschicht** nach.
+SmartPilot baut **keine zweite Entity-Berechtigungsschicht** nach.
 
 ## Template-Action: kontrollierter Kontext
 

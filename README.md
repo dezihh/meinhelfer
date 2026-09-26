@@ -1,4 +1,4 @@
-# MeinHelfer
+# SmartPilot
 
 **Deine Alexa mit Superkräften.** Ein privat betriebener, deutscher
 Sprachassistent: Amazon Echo fragt, dein eigener Server antwortet — schnell,
@@ -11,7 +11,7 @@ wo es zählt, und klug, wo es drauf ankommt.
 - **Klug, wo es drauf ankommt.** Alles Offene übernimmt ein LLM mit
   Werkzeugaufrufen — mit Kurzzeitgedächtnis für Folgefragen und Rückfragen bei
   Mehrdeutigkeit.
-- **Eingebunden, nicht eingebildet.** Über MCP greift MeinHelfer auf deine
+- **Eingebunden, nicht eingebildet.** Über MCP greift SmartPilot auf deine
   echte Welt zu: Smart Home, Websuche, Musik, Verkehr.
 - **Privat & lokal.** Die Intelligenz läuft auf deiner eigenen Hardware. Deine
   Fragen bleiben bei dir.
@@ -21,7 +21,7 @@ wo es zählt, und klug, wo es drauf ankommt.
 ```mermaid
 flowchart LR
     E[Echo] --> P[Alexa-Plattform] --> L[AWS Lambda<br/>dünner Adapter]
-    L -->|HTTPS, Bearer-Token| G[MeinHelfer Gateway<br/>lokal, Docker]
+    L -->|HTTPS, Bearer-Token| G[SmartPilot Gateway<br/>lokal, Docker]
     G --> R{Router}
     R -->|bekannte Frage| V[Vorgang: Funktion rendern]
     R -->|offene Frage| A[LLM-Agent mit Tools]
@@ -46,8 +46,8 @@ Voraussetzungen: Docker mit Compose-Plugin und eine OpenAI-kompatible
 LLM-Schnittstelle (mit Tool-Calling).
 
 ```bash
-git clone https://github.com/dezihh/meinhelfer.git
-cd meinhelfer
+git clone https://github.com/dezihh/SmartPilot.git
+cd SmartPilot
 cp gateway/.env.example gateway/.env
 # gateway/.env ausfüllen: AUTH_TOKEN, LLM_BASE_URL, LLM_API_KEY (Pflicht)
 GATEWAY_PORT=8332 docker compose up -d --build

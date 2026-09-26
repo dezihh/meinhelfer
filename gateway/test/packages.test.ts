@@ -147,7 +147,7 @@ test('Backup-Roundtrip (Export -> Restore) ueber Route-Logik simuliert', () => {
   const db = getDb();
   db.prepare('DELETE FROM settings').run();
   db.prepare("INSERT INTO settings (key, value) VALUES ('x1', 'a')").run();
-  const backup = { kind: 'meinhelfer-config-backup', settings: [{ key: 'x1', value: 'b' }], prompts: [], servers: [], functions: [], actions: [] };
+  const backup = { kind: 'smartpilot-config-backup', settings: [{ key: 'x1', value: 'b' }], prompts: [], servers: [], functions: [], actions: [] };
   db.transaction(() => {
     if (Array.isArray(backup.settings)) {
       db.prepare('DELETE FROM settings').run();

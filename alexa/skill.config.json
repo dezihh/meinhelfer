@@ -1,8 +1,8 @@
 {
   "locales": {
     "de-DE": {
-      "skill_name": "MeinHelfer",
-      "invocation_name": "mein helfer",
+      "skill_name": "SmartPilot",
+      "invocation_name": "smart pilot",
       "assistant_name": "Dein Helfer"
     }
   }

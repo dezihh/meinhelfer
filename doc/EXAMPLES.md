@@ -130,7 +130,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
   (mcp.env: das Home-Assistant-**Long-Lived-Access-Token** — der ha-mcp
   nutzt es selbst, um HA zu bedienen. Es gehört NUR hierher, nicht in das
   Gateway-Feld.)
-- **Einrichtung in MeinHelfer (Gateway-Seite)**: Tab **Tool-Registry** →
+- **Einrichtung in SmartPilot (Gateway-Seite)**: Tab **Tool-Registry** →
   Server hinzufügen:
   - Name: `Home Assistant MCP`
   - Transport: `http`
@@ -317,7 +317,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 3.1 Sonnenstand (`sun.sun`)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, ist die Sonne schon untergegangen?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, ist die Sonne schon untergegangen?"
 - **Werkzeuge**: MCP Home-Assistant + Entity-Index (2.1).
 - **Modus**: `deterministic` — der Zustand ist ein fester Text, kein LLM nötig.
 - **Anlegen**:
@@ -340,7 +340,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 3.2 Ist jemand zuhause? (`zone.home`)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, ist jemand zuhause?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, ist jemand zuhause?"
 - **Werkzeuge**: MCP Home-Assistant + Entity-Index (2.1).
 - **Modus**: `deterministic`.
 - **Anlegen**: wie 3.1 (Funktion `zuhause`, Vorgang Trigger
@@ -358,7 +358,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 3.3 Wetter-Übersicht (HTTP-Direkt)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie wird das Wetter?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, wie wird das Wetter?"
 - **Werkzeuge**: HTTP-Baustein (`http()`) — keine Anlage nötig (2.4).
 - **Modus**: `deterministic` — die API liefert fertig strukturierte Daten,
   das Template formatiert.
@@ -386,7 +386,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 3.4 Systemdaten über Shell
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie lange läuft der Server schon?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, wie lange läuft der Server schon?"
 - **Werkzeuge**: Shell-Baustein (`shell()`) — keine Anlage nötig (2.4).
 - **Modus**: `deterministic`.
 - **Anlegen**: Funktion `gateway_uptime` (Template unten), Vorgang Trigger
@@ -414,7 +414,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 3.6 Komplexfall: Hausstatus-Bericht (Makros + Fallbacks)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie ist der Hausstatus?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, wie ist der Hausstatus?"
 - **Werkzeuge**: MCP Home-Assistant + Entity-Index (2.1) mit PV-/Verbrauchs-
   Sensoren.
 - **Modus**: `deterministic` — die Struktur ist fest, nur Zahlen variieren.
@@ -448,7 +448,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 4.1 Einzelwert mit Attribut (Template-Tool des HA-Connectors)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie warm ist es draußen?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, wie warm ist es draußen?"
 - **Werkzeuge**: MCP Home-Assistant — das Template-Tool (`ha_eval_template`),
   nicht der Index (2.1).
 - **Modus**: `hybrid` — die Zahl kommt aus einer Funktion, das LLM formuliert
@@ -475,7 +475,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 4.2 Verkehrsmeldungen (Liste variabler Länge)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie ist der Stau?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, wie ist der Stau?"
 - **Werkzeuge**: HTTP-Baustein.
 - **Modus**: `hybrid` — die API liefert eine variable Liste, das LLM wählt
   und formuliert.
@@ -496,7 +496,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 5.1 Licht schalten (HA-Kaskade)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, schalte das Küchenlicht ein."
+- **Alexa-Frage**: „Alexa, frag SmartPilot, schalte das Küchenlicht ein."
 - **Werkzeuge**: MCP Home-Assistant (`fn_find_entities` + Service-Call).
 - **Modus**: `llm` — der Agent ermittelt entity_id und Service-Call.
 - **Anlegen**:
@@ -523,7 +523,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 5.2 Musik abspielen (Music-Assistant-Kaskade)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, spiele Musik von <Künstler>."
+- **Alexa-Frage**: „Alexa, frag SmartPilot, spiele Musik von <Künstler>."
 - **Werkzeuge**: MCP Music Assistant (2.2) + `fn ma_players`.
 - **Modus**: `llm`.
 - **Anlegen**:
@@ -553,7 +553,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 5.3 Nachrichten zu einer Quelle (Such-Kaskade)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, Neuigkeiten bei <Quelle>."
+- **Alexa-Frage**: „Alexa, frag SmartPilot, Neuigkeiten bei <Quelle>."
 - **Werkzeuge**: Websuche-MCP (2.3) + `web_url_read`.
 - **Modus**: `llm`.
 - **Anlegen**:
@@ -583,7 +583,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 5.4 Kaskadierte Suche mit URL-Lesen (Brave-Muster)
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, was gibt es Neues zu <Thema>?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, was gibt es Neues zu <Thema>?"
 - **Werkzeuge**: Websuche-MCP (Beispiel Brave-MCP) + `web_url_read`.
 - **Modus**: `llm`.
 - **Anlegen**: wie 5.3 — der Unterschied ist der Fallback-Weg (Treffer-URL
@@ -600,7 +600,7 @@ wie** man sie anlegt; die Cases nennen sie dann nur noch beim Namen.
 
 ### 5.5 Messwerte fragen („wie hell ist es im Wohnzimmer")
 
-- **Alexa-Frage**: „Alexa, frag MeinHelfer, wie hell ist es im Wohnzimmer?"
+- **Alexa-Frage**: „Alexa, frag SmartPilot, wie hell ist es im Wohnzimmer?"
 - **Werkzeuge**: MCP Home-Assistant + Entity-Index via `fn_find_entities`.
 - **Modus**: `llm` — kein Trigger deckt die Phrasenvielfalt ab.
 - **Anlegen**: nur Werkzeuge (2.1) + Allowlist; die Lesetools

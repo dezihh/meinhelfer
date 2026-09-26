@@ -7,7 +7,7 @@
   "author": "dezihh",
   "license": "MIT",
   "language": "de",
-  "homepage": "https://github.com/dezihh/meinhelfer",
+  "homepage": "https://github.com/dezihh/SmartPilot",
   "requires": "Eine SearXNG-Instanz mit freigeschalteter JSON-API (settings.yml: search.formats muss json enthalten, sonst liefert die Bruecke nur Fehler).",
   "minGatewayVersion": "0.1.0",
   "params": [

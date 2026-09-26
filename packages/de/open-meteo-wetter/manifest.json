@@ -7,7 +7,7 @@
   "author": "dezihh",
   "license": "MIT",
   "language": "de",
-  "homepage": "https://github.com/dezihh/meinhelfer",
+  "homepage": "https://github.com/dezihh/SmartPilot",
   "requires": "Internetzugang des Gateway-Containers zu api.open-meteo.com.",
   "minGatewayVersion": "0.1.0",
   "params": [

@@ -7,7 +7,7 @@
 ## Architektur
 
 ```text
-Alexa Skill  ->  AWS Lambda (meinhelfer-alexa)  ->  POST /api/query  ->  Gateway
+Alexa Skill  ->  AWS Lambda (smartpilot-alexa)  ->  POST /api/query  ->  Gateway
 ```
 
 Die Lambda ist ein dünner Adapter. Routing, LLM, MCP und Werkzeuge bleiben im
@@ -74,7 +74,7 @@ automatisch bei Änderungen unter `alexa/lambda/**`.
 
 | Workflow | Zweck |
 |---|---|
-| `lambda-zip.yml` | Baut bei Änderungen unter `alexa/lambda/**` zwei Zips: `meinhelfer-alexa-lambda.zip` (eigene AWS-Lambda) und `meinhelfer-alexa-hosted.zip` (`lambda/`-Struktur für den Alexa-hosted-Import); Artifacts + rollendes `latest`-Release, bei Tag `v*` ein versioniertes Release |
+| `lambda-zip.yml` | Baut bei Änderungen unter `alexa/lambda/**` zwei Zips: `smartpilot-alexa-lambda.zip` (eigene AWS-Lambda) und `smartpilot-alexa-hosted.zip` (`lambda/`-Struktur für den Alexa-hosted-Import); Artifacts + rollendes `latest`-Release, bei Tag `v*` ein versioniertes Release |
 | `deploy-aws-lambda.yml` | Nutzt den zentralen Build (`lambda-zip.yml`) und deployt das Artifact: legt Funktion + Ausführungsrolle an/aktualisiert sie, setzt Env-Variablen und den Alexa-Invoke-Trigger |
 | `sync-manifest.yml` | Read-modify-write des Skill-Manifests: Endpoint auf Lambda-ARN (Top-Level und `regions.*`), ergänzt APL-Interface + Viewports; Inputs `endpoint_arn`, `add_apl`, `dry_run` |
 | `sync-model.yml` | Rendert die Aufrufnamen aus `skill.config.json` und lädt die Interaction Models aller eingetragenen Locales in den development-Stage; pollt den Build-Status |
@@ -82,7 +82,7 @@ automatisch bei Änderungen unter `alexa/lambda/**`.
 | `ext-check.yml` | Prüft TLS, `POST /api/query` mit `GATEWAY_TOKEN` und dass `/alexa`, `/privacy`, `/admin` öffentlich nicht erreichbar sind. Sendet keine direkten Alexa-Requests |
 | `debug-lambda-invoke.yml` | Ruft die Lambda direkt mit einem `GptQueryIntent`-Event auf |
 | `debug-lambda-live.yml` | Zeigt Lambda-Env-Namen (URLs/Token maskiert) und testet das Gateway direkt |
-| `debug-lambda-logs.yml` / `lambda-logs.yml` | CloudWatch-Logs der Lambda (`/aws/lambda/meinhelfer-alexa`) |
+| `debug-lambda-logs.yml` / `lambda-logs.yml` | CloudWatch-Logs der Lambda (`/aws/lambda/smartpilot-alexa`) |
 | `debug-skill.yml` | SMAPI-Diagnose: Invocation/Samples, Manifest-Endpoint je Stage, Build-Status |
 | `list-skills.yml` | Listet die Skills des Vendors |
 
@@ -90,9 +90,9 @@ automatisch bei Änderungen unter `alexa/lambda/**`.
 
 Baut bei jeder Änderung unter `alexa/lambda/**` zwei Zips:
 
-- `meinhelfer-alexa-lambda.zip` – Funktion + Abhängigkeiten (aus
+- `smartpilot-alexa-lambda.zip` – Funktion + Abhängigkeiten (aus
   `alexa/lambda/requirements.txt`), für die eigene AWS-Lambda.
-- `meinhelfer-alexa-hosted.zip` – `lambda/`-Struktur (`lambda_function.py`,
+- `smartpilot-alexa-hosted.zip` – `lambda/`-Struktur (`lambda_function.py`,
   `requirements.txt`) für den Import in einen Alexa-hosted Skill. Enthält
   bewusst **kein `config.json`** (öffentliches Asset).
 
@@ -106,9 +106,9 @@ Ruft zuerst `lambda-zip.yml` per `workflow_call` auf und lädt dessen Artifact;
 das Zip wird also nur an einer Stelle gebaut.
 
 1. Lädt das im Build-Job erzeugte Zip (Funktion + ask-sdk + requests).
-2. Legt bei Bedarf die IAM-Ausführungsrolle `meinhelfer-lambda-execution` an
+2. Legt bei Bedarf die IAM-Ausführungsrolle `smartpilot-lambda-execution` an
    (inkl. CloudWatch-Logs-Policy) oder nutzt `AWS_LAMBDA_ROLE`.
-3. Erstellt/aktualisiert `meinhelfer-alexa` (Python, 512 MB, Timeout
+3. Erstellt/aktualisiert `smartpilot-alexa` (Python, 512 MB, Timeout
    konfigurierbar) und setzt die Env-Variablen. `skill_name` und
    `assistant_name` kommen aus `alexa/skill.config.json` (primäre Locale).
 4. Setzt den Alexa-Skills-Kit-Trigger (`aws lambda add-permission`,
@@ -145,7 +145,7 @@ aktuelle Zustand angezeigt (kein PUT).
 und Assistenten-Name, aufgebaut pro Locale:
 
 ```json
-{ "locales": { "de-DE": { "skill_name": "MeinHelfer", "invocation_name": "mein helfer", "assistant_name": "Dein Helfer" } } }
+{ "locales": { "de-DE": { "skill_name": "SmartPilot", "invocation_name": "smart pilot", "assistant_name": "Dein Helfer" } } }
 ```
 
 `alexa/scripts/skill_config.py` rendert daraus den `invocationName` (Modell) und

@@ -56,7 +56,7 @@ app.use('/admin', (req, res, next) => {
 app.use('/admin', express.static(join(process.cwd(), 'web')));
 
 app.listen(config.port, () => {
-  console.log(`MeinHelfer Gateway auf Port ${config.port}`);
+  console.log(`SmartPilot Gateway auf Port ${config.port}`);
 });
 
 if (process.env.LLM_KEEPALIVE_MS !== '0') {

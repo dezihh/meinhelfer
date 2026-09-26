@@ -19,7 +19,7 @@ jobs:
 
       - name: Lambda-Env pruefen (nur Schluesselnamen, Werte maskiert)
         run: |
-          aws lambda get-function-configuration --function-name meinhelfer-alexa --query 'Configuration.Environment.Variables' --output json | python3 -c '
+          aws lambda get-function-configuration --function-name smartpilot-alexa --query 'Configuration.Environment.Variables' --output json | python3 -c '
           import json,sys
           v = json.load(sys.stdin) or {}
           for k in sorted(v):

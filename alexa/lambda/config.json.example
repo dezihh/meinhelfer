@@ -3,7 +3,7 @@
   "gateway_token": "<AUTH_TOKEN aus gateway/.env>",
   "watchdog_delay": "5",
   "gateway_timeout": "28",
-  "skill_name": "MeinHelfer",
+  "skill_name": "SmartPilot",
   "assistant_name": "Dein Helfer",
   "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
 }

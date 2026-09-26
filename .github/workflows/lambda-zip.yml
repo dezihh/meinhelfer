@@ -3,8 +3,8 @@ name: Build Lambda Zip
 # Baut die Deployment-Zips der Alexa-Lambda.
 # - Push auf main, wenn sich alexa/lambda/** aendert -> Zips als Actions-Artifacts
 #   und Rollen-Release "latest" (stabile Anwender-Links:
-#   releases/download/latest/meinhelfer-alexa-lambda.zip   (eigene AWS-Lambda)
-#   releases/download/latest/meinhelfer-alexa-hosted.zip   (Alexa-hosted Import))
+#   releases/download/latest/smartpilot-alexa-lambda.zip   (eigene AWS-Lambda)
+#   releases/download/latest/smartpilot-alexa-hosted.zip   (Alexa-hosted Import))
 # - Push eines Tags v* -> zusaetzlich GitHub-Release mit den Zips als Assets
 # - workflow_call: Wiederverwendung durch deploy-aws-lambda.yml
 # WICHTIG: Das Hosted-Zip enthaelt bewusst KEIN config.json (kein Token in
@@ -43,11 +43,11 @@ jobs:
       - name: Zip bauen (nur Funktion + Abhaengigkeiten)
         run: |
           cp alexa/lambda/lambda_function.py build/
-          ( cd build && zip -r -q ../meinhelfer-alexa-lambda.zip . -x '*/__pycache__/*' '*.pyc' )
+          ( cd build && zip -r -q ../smartpilot-alexa-lambda.zip . -x '*/__pycache__/*' '*.pyc' )
           echo "=== Inhalt (Auszug) ==="
-          unzip -l meinhelfer-alexa-lambda.zip | head -20
+          unzip -l smartpilot-alexa-lambda.zip | head -20
           echo "=== Groesse ==="
-          du -h meinhelfer-alexa-lambda.zip
+          du -h smartpilot-alexa-lambda.zip
 
       - name: Hosted-Zip bauen (lambda/ fuer Alexa-hosted Import)
         run: |
@@ -57,24 +57,24 @@ jobs:
           cp alexa/lambda/requirements.txt hosted/lambda/
           cp alexa/lambda/config.json.example hosted/lambda/
           # Kein config.json: Das Asset ist oeffentlich, der Token gehoert nicht hinein.
-          ( cd hosted && zip -r -q ../meinhelfer-alexa-hosted.zip lambda -x '*/__pycache__/*' '*.pyc' )
+          ( cd hosted && zip -r -q ../smartpilot-alexa-hosted.zip lambda -x '*/__pycache__/*' '*.pyc' )
           echo "=== Inhalt ==="
-          unzip -l meinhelfer-alexa-hosted.zip
+          unzip -l smartpilot-alexa-hosted.zip
           echo "=== Groesse ==="
-          du -h meinhelfer-alexa-hosted.zip
+          du -h smartpilot-alexa-hosted.zip
 
       - name: Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: meinhelfer-alexa-lambda
-          path: meinhelfer-alexa-lambda.zip
+          name: smartpilot-alexa-lambda
+          path: smartpilot-alexa-lambda.zip
           retention-days: 30
 
       - name: Hosted-Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: meinhelfer-alexa-hosted
-          path: meinhelfer-alexa-hosted.zip
+          name: smartpilot-alexa-hosted
+          path: smartpilot-alexa-hosted.zip
           retention-days: 30
 
       - name: Rolling release "latest" aktualisieren
@@ -88,13 +88,13 @@ jobs:
           prerelease: false
           make_latest: true
           files: |
-            meinhelfer-alexa-lambda.zip
-            meinhelfer-alexa-hosted.zip
+            smartpilot-alexa-lambda.zip
+            smartpilot-alexa-hosted.zip
 
       - name: Release-Asset anhaengen (Tag v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            meinhelfer-alexa-lambda.zip
-            meinhelfer-alexa-hosted.zip
+            smartpilot-alexa-lambda.zip
+            smartpilot-alexa-hosted.zip

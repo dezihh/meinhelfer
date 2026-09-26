@@ -7,7 +7,7 @@
   "author": "dezihh",
   "license": "MIT",
   "language": "de",
-  "homepage": "https://github.com/dezihh/meinhelfer",
+  "homepage": "https://github.com/dezihh/SmartPilot",
   "requires": "Ein Brave-Search-API-Key (brave.com/search/api, Free-Tier reicht fuer den Anfang).",
   "minGatewayVersion": "0.1.0",
   "params": [

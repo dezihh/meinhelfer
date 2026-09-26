@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "mein helfer",
+      "invocationName": "smart pilot",
       "intents": [
         {
           "name": "AMAZON.CancelIntent",

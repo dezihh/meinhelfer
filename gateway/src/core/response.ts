@@ -41,7 +41,7 @@ export function withSsmlBreaks(resp: AssistantResponse): AssistantResponse {
 
 export function withDisplay(resp: AssistantResponse): AssistantResponse {
   const text = resp.display?.text ?? (resp.ssml ? stripSsmlTags(resp.speech) : resp.speech);
-  const title = getSetting('display_title') ?? 'MeinHelfer';
+  const title = getSetting('display_title') ?? 'SmartPilot';
   return { ...resp, display: { ...resp.display, title, text } };
 }
 

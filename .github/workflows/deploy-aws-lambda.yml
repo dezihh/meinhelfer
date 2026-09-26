@@ -27,7 +27,7 @@ jobs:
       - name: Lambda-Zip aus dem Build-Job laden
         uses: actions/download-artifact@v4
         with:
-          name: meinhelfer-alexa-lambda
+          name: smartpilot-alexa-lambda
           path: .
 
       - name: Skill-Grundwerte lesen (skill.config.json)
@@ -52,7 +52,7 @@ jobs:
           SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
         run: |
           set -e
-          ZIP="meinhelfer-alexa-lambda.zip"
+          ZIP="smartpilot-alexa-lambda.zip"
           [ -f "${ZIP}" ] || { echo "FEHLER: ${ZIP} fehlt (Build-Job?)"; exit 1; }
           ls -la "${ZIP}"
 
@@ -61,7 +61,7 @@ jobs:
           echo "AWS Account: ${ACCOUNT_ID}"
           ROLE_ARN="${LAMBDA_ROLE}"
           if [ -z "${ROLE_ARN}" ]; then
-            ROLE_NAME="${AWS_LAMBDA_ROLE_NAME:-meinhelfer-lambda-execution}"
+            ROLE_NAME="${AWS_LAMBDA_ROLE_NAME:-smartpilot-lambda-execution}"
             ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
             if ! aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
               echo "Rolle ${ROLE_NAME} existiert nicht -> anlegen (Lambda-Basic-Execution-Trust)"
@@ -76,21 +76,21 @@ jobs:
           # 0b) CloudWatch-Logs-Policy fuer die Rolle sicherstellen (sonst keine Log-Streams)
           ROLE_NAME_FROM_ARN="${ROLE_ARN##*/}"
           LOG_POLICY='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:DescribeLogStreams"],"Resource":"*"}]}'
-          if aws iam put-role-policy --role-name "${ROLE_NAME_FROM_ARN}" --policy-name meinhelfer-lambda-logs --policy-document "${LOG_POLICY}"; then
+          if aws iam put-role-policy --role-name "${ROLE_NAME_FROM_ARN}" --policy-name smartpilot-lambda-logs --policy-document "${LOG_POLICY}"; then
             echo "Logs-Policy gesetzt auf ${ROLE_NAME_FROM_ARN}"
           else
             echo "!! put-role-policy fehlgeschlagen (Rechte des Deploy-Users?) - Logs bleiben aus"
           fi
 
           # 1) Funktion anlegen oder aktualisieren (Zip kommt aus dem Build-Job)
-          if aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null 2>&1; then
+          if aws lambda get-function --function-name smartpilot-alexa --query 'Configuration.FunctionName' --output text >/dev/null 2>&1; then
             echo "bestehende Funktion aktualisieren..."
-            aws lambda update-function-code --function-name meinhelfer-alexa --zip-file "fileb://${ZIP}"
+            aws lambda update-function-code --function-name smartpilot-alexa --zip-file "fileb://${ZIP}"
           else
             echo "Funktion neu anlegen..."
             # IAM-Propagation: Rolle ist gerade erst angelegt -> 6 Versuche mit 10s Pause
             for attempt in $(seq 1 6); do
-              if aws lambda create-function --function-name meinhelfer-alexa \
+              if aws lambda create-function --function-name smartpilot-alexa \
                 --runtime python3.14 --handler lambda_function.lambda_handler \
                 --zip-file "fileb://${ZIP}" \
                 --timeout "${TIMEOUT}" --memory-size 512 \
@@ -103,11 +103,11 @@ jobs:
                 sleep 10
               fi
             done
-            aws lambda get-function --function-name meinhelfer-alexa --query 'Configuration.FunctionName' --output text >/dev/null
+            aws lambda get-function --function-name smartpilot-alexa --query 'Configuration.FunctionName' --output text >/dev/null
           fi
 
           # 2) Timeout + Env setzen (als volles Operations-JSON, sicher für Sonderzeichen im Token)
-          python3 -c 'import json,sys; t,u,g,s,n,a=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"meinhelfer-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"alexa_skill_id":s,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":n,"assistant_name":a,"apl_exit_delay_ms":"90000"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}" "${SKILL_ID}" "${SKILL_NAME}" "${ASSISTANT_NAME}"
+          python3 -c 'import json,sys; t,u,g,s,n,a=sys.argv[1:]; timeout=int(t); open("/tmp/cfg.json","w").write(json.dumps({"FunctionName":"smartpilot-alexa","Timeout":timeout,"MemorySize":512,"Environment":{"Variables":{"gateway_url":u,"gateway_token":g,"alexa_skill_id":s,"watchdog_delay":"5","gateway_timeout":str(max(9, timeout-3)),"skill_name":n,"assistant_name":a,"apl_exit_delay_ms":"90000"}}}))' "${TIMEOUT}" "${GATEWAY_URL}" "${GATEWAY_TOKEN}" "${SKILL_ID}" "${SKILL_NAME}" "${ASSISTANT_NAME}"
           for attempt in $(seq 1 6); do
             if aws lambda update-function-configuration --cli-input-json file:///tmp/cfg.json
             then
@@ -132,10 +132,10 @@ jobs:
           fi
           echo "Setze Alexa-Skill-Trigger (InvokePermission fuer ${SKILL_ID}) ..."
           aws lambda remove-permission \
-            --function-name meinhelfer-alexa \
+            --function-name smartpilot-alexa \
             --statement-id alexa-skill >/dev/null 2>&1 || true
           aws lambda add-permission \
-            --function-name meinhelfer-alexa \
+            --function-name smartpilot-alexa \
             --statement-id alexa-skill \
             --action lambda:InvokeFunction \
             --principal alexa-appkit.amazon.com \
@@ -144,7 +144,7 @@ jobs:
 
           # 4) ARN ausgeben (Lambda-Funktions-ARN ist deterministisch aufgebaut)
           REGION="${AWS_DEFAULT_REGION:-eu-west-1}"
-          ARN="arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:meinhelfer-alexa"
+          ARN="arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:smartpilot-alexa"
           echo "LAMBDA_ARN=${ARN}" >> "$GITHUB_ENV"
           echo "Lambda-ARN: ${ARN}"
           echo

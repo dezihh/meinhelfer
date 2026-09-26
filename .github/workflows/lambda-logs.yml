@@ -27,6 +27,6 @@ jobs:
           SINCE=$(date -u -d "${{ github.event.inputs.minutes }} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
           echo "Alle Log-Gruppen:"
           aws logs describe-log-groups --query 'logGroups[].logGroupName' --output text 2>&1 || true
-          GROUP="/aws/lambda/meinhelfer-alexa"
+          GROUP="/aws/lambda/smartpilot-alexa"
           echo "----- $GROUP seit $SINCE -----"
           aws logs filter-log-events --log-group-name "$GROUP" --start-time $(date -u -d "${{ github.event.inputs.minutes }} minutes ago" +%s000) --query 'events[].message' --output text 2>&1 | grep -E "\[(INFO|WARNING|ERROR)\]|Traceback|Exception" | tail -60

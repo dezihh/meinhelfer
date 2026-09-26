@@ -1,4 +1,4 @@
-name: meinhelfer-gateway
+name: smartpilot-gateway
 
 services:
   gateway:
