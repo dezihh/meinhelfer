@@ -88,8 +88,9 @@ Im **Build**-Tab → **JSON Editor** folgendes Modell einsetzen (den
 }
 ```
 
-Das Einfügen ersetzt auch die Intents der Vorlage (`HelloWorldIntent`,
-`AMAZON.NavigateHomeIntent`); für beide gibt es in der Lambda keinen Handler.
+Das Einfügen ersetzt die Intents der Vorlage (`HelloWorldIntent`). Die Console
+kann `AMAZON.NavigateHomeIntent` automatisch wieder aufnehmen und eine Warnung
+anzeigen; der Intent ist unkritisch und wird im Normalbetrieb nicht ausgelöst.
 
 Das Modell legt fest:
 
@@ -156,9 +157,13 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
      als Default-Region ein)
    - Runtime **Python 3.14**, Handler `lambda_function.lambda_handler`
    - Timeout **30 s** (muss größer als 8 s sein), Memory **512 MB**
-   - Ausführungsrolle mit Lambda-Basic-Execution-Trust und CloudWatch-Logs
-     (z. B. `smartpilot-lambda-execution`)
-   - Das geladene Zip als Code hochladen
+   - Ausführungsrolle mit der Richtlinie **`AWSLambdaBasicExecutionRole`**
+     (CloudWatch-Logs). Weitere Richtlinien sind **nicht** nötig. Die Console
+     kann selbst gewählte Rollennamen ablehnen – dann den vorgeschlagenen
+     Namen übernehmen.
+   - Das geladene Zip als Code hochladen: Bereich **Code** → Schaltfläche
+     **Aktualisieren** (kleines Dreieck) aufklappen → **Aus einer .zip-Datei
+     aktualisieren** → Datei wählen → **Speichern**.
 3. Umgebungsvariablen setzen:
 
 | Variable | Wert |
