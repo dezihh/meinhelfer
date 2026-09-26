@@ -19,7 +19,7 @@ export function closeDb(): void {
 // Referenz-Defaults der Grundeinstellungen (eine Quelle fuer Init-Seed,
 // Frisch-Install-Fill und 'Defaults wiederherstellen' in der Web-UI).
 export const SEED_SETTINGS: [string, string][] = [
-  ['assistant_name', 'Dein Helfer'],
+  ['assistant_name', 'Dein SmartPilot'],
   ['fuzzy_global', '1'],
   ['session_followup', 'beides'],
   ['session_keywords', 'zusammenfassung,neuigkeiten,liste,bericht,news,tipps,hintergründe'],

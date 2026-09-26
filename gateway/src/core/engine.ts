@@ -76,7 +76,7 @@ function rememberTurn(sessionId: string, query: string, speech: string): void {
 const toolDeadline = (): number => getSettingNum('tool_deadline_ms', config.toolDeadlineMs);
 
 function assistantName(): string {
-  return getSetting('assistant_name') ?? 'Dein Helfer';
+  return getSetting('assistant_name') ?? 'Dein SmartPilot';
 }
 
 function promptWithName(key: string): string | undefined {

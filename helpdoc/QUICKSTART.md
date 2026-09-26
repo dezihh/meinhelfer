@@ -11,15 +11,12 @@ hiervon etwas, beginne mit [Installation](INSTALLATION.md).
 
 ## 1. Admin-Oberfläche öffnen
 
-1. Öffne die Adresse des Gateways im Browser.
-2. Trage rechts oben den Wert von `AUTH_TOKEN` als **Admin-Token** ein.
-3. Wähle **Speichern**.
+1. Öffne `http://<host>:<port>/admin` im Browser.
+2. Melde dich mit `AUTH_TOKEN` an (Login-Seite: `/admin/login.html`).
 
 **Prüfung:** Die Tabs laden ohne Autorisierungsfehler.
 
-Die Standardadresse der Admin-Oberfläche ist `http://<host>:<port>/admin`
-(Login-Seite: `/admin/login.html`). Lokal verwendet das Gateway standardmäßig
-Port `3000`; der Host-Port wird beim Start über `GATEWAY_PORT` gewählt.
+`<port>` ist der bei `GATEWAY_PORT` gewählte Host-Port (Standard `3000`).
 
 ## 2. Home Assistant verbinden
 

@@ -13,7 +13,7 @@ export const config = {
   llm: {
     baseUrl: req('LLM_BASE_URL').replace(/\/+$/, ''),
     apiKey: req('LLM_API_KEY'),
-    model: process.env.LLM_MODEL ?? 'chat-fast',
+    model: req('LLM_MODEL'),
     maxTokens: Number(process.env.LLM_MAX_TOKENS ?? 2000),
     reasoningEffort: process.env.LLM_REASONING_EFFORT,
   },

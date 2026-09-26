@@ -145,7 +145,7 @@ aktuelle Zustand angezeigt (kein PUT).
 und Assistenten-Name, aufgebaut pro Locale:
 
 ```json
-{ "locales": { "de-DE": { "skill_name": "SmartPilot", "invocation_name": "smart pilot", "assistant_name": "Dein Helfer" } } }
+{ "locales": { "de-DE": { "skill_name": "SmartPilot", "invocation_name": "smart pilot", "assistant_name": "Dein SmartPilot" } } }
 ```
 
 `alexa/scripts/skill_config.py` rendert daraus den `invocationName` (Modell) und

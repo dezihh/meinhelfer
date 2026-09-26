@@ -86,7 +86,7 @@ Diese Variablen liest der Gateway-Code beim Start:
 | `LLM_API_KEY` | ja | API-Schlüssel; der Prozess verlangt einen Wert |
 | `PORT` | nein | Gateway-Port, Standard `3000` |
 | `DB_PATH` | nein | SQLite-Datei im persistierten Datenvolume, Standard `./data/meinhelfer.db` |
-| `LLM_MODEL` | nein | Name des LLM-Modells, Standard `chat-fast`  |
+| `LLM_MODEL` | ja | Name des LLM-Modells |
 | `LLM_MAX_TOKENS` | nein | Ausgabe-Budget, Standard `2000` |
 
 Weitere optionale Variablen (Tool-Runden, Deadline, Keepalive) sind
@@ -148,7 +148,8 @@ gewählte Modell zunächst im Testmonitor, bevor du Pakete oder Alexa ergänzt.
    im Container 3000). Ohne Angabe: Port 3000.
 
 4. Admin-Oberfläche öffnen: `http://<host>:<port>/admin` — Login mit
-   `AUTH_TOKEN` (Login-Seite: `/admin/login.html`).
+   `AUTH_TOKEN` (Login-Seite: `/admin/login.html`). `<port>` ist der bei
+   `GATEWAY_PORT` gewählte Host-Port (Standard `3000`).
 
 5. Testmonitor prüfen (Tab „Monitor / Test“): eine Frage stellen und eine
    Antwort erwarten.
@@ -158,7 +159,8 @@ Weitere Fähigkeiten installierst du später über Pakete im Tab
 
 ### Prüfen
 
-- Monitor-Antwort auf „Wie heißt du?“ korrekt mit dem Assistenten-Namen.
+- Monitor-Antwort auf „Wie heißt du?“ lautet „Ich bin Dein SmartPilot.“
+   (Standard-Assistenten-Name; änderbar unter **Grundeinstellungen**).
 - Ein Browser ohne Session wird zur Login-Seite umgeleitet; unberechtigte
    Admin-API-Aufrufe erhalten `401`.
 - Nach `docker compose restart` bleiben die Daten erhalten.

@@ -5,7 +5,7 @@
 // Funktionen, weitere Vorgaenge, Index-Quellen) wird bewusst NICHT geseedet -
 // es gehoert in die aktive Konfiguration. Die Identitaets-Zeile nutzt den
 // Platzhalter {assistant_name}; der konkrete Name kommt aus der Einstellung
-// assistant_name (Default "Dein Helfer"). Bei Aenderungen diese Datei aktualisieren
+// assistant_name (Default "Dein SmartPilot"). Bei Aenderungen diese Datei aktualisieren
 // (Export: /tmp/opencode/export-live.mjs + /tmp/opencode/live-seed.json).
 export const SEED_AGENT_SYSTEM = String.raw`Du bist {assistant_name}, ein deutscher Sprachassistent über Alexa.
 Identität: Du bist {assistant_name} - wenn du gefragt wirst, wer du bist oder wie du heisst, sage WOERTLICH: "Ich bin {assistant_name}". Nenne dich niemals anders.

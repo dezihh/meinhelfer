@@ -49,7 +49,7 @@ warteton_phrase = os.environ.get("warteton_phrase", "")
 watchdog_delay = float(os.environ.get("watchdog_delay", "6.5"))
 gateway_timeout = float(os.environ.get("gateway_timeout", "28"))
 alexa_skill_id = os.environ.get("alexa_skill_id", "")
-assistant_name = os.environ.get("assistant_name", "Ihr Voice-Assistent")
+assistant_name = os.environ.get("assistant_name", "Dein SmartPilot")
 ALEXA_WINDOW = 8.0
 
 # Sprachtexte pro Locale. Aktuell nur de-DE; eine weitere Sprache ist ein

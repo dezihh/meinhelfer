@@ -12,8 +12,8 @@ Zwischenstand.
 - Abgeschlossene [Installation](INSTALLATION.md): Das Gateway läuft, hat eine
   öffentliche HTTPS-Adresse, und `POST /api/query` antwortet mit dem
   Bearer-Token `AUTH_TOKEN`.
-- Ein Amazon-Developer-Konto (vorhanden).
-- Für Weg B zusätzlich ein AWS-Konto (vorhanden).
+- Ein Amazon-Developer-Konto.
+- Für Weg B zusätzlich ein AWS-Konto.
 
 Die Einrichtung dieser Konten ist nicht Teil dieser Anleitung.
 
@@ -129,6 +129,8 @@ Im `lambda/`-Ordner eine `config.json` anlegen (Vorlage:
 {
   "gateway_url": "https://<gateway-host>",
   "gateway_token": "<AUTH_TOKEN>",
+  "watchdog_delay": "5",
+  "gateway_timeout": "28",
   "skill_name": "SmartPilot",
   "assistant_name": "Dein SmartPilot",
   "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
@@ -173,10 +175,21 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 | `gateway_token` | muss dem `AUTH_TOKEN` des Gateways entsprechen |
 | `alexa_skill_id` | Skill-ID deines Skills (Schritt 1, Punkt 8: **Build → Endpoint → „Your Skill ID“**); abweichende IDs werden abgelehnt |
 | `watchdog_delay` | z. B. `5` (Warteton, wenn das Gateway länger braucht) |
-| `gateway_timeout` | z. B. `27` (Timeout der Anfrage ans Gateway, Funktion-Timeout minus 3) |
+| `gateway_timeout` | z. B. `28` (Timeout der Anfrage ans Gateway; muss unter dem Funktions-Timeout liegen) |
 | `skill_name` | Anzeigename, z. B. `SmartPilot` |
 | `assistant_name` | Name im Gespräch, z. B. `Dein SmartPilot` |
 | `apl_exit_delay_ms` | z. B. `90000` (Anzeige auf dem Echo Show) |
+
+Weitere optionale Variablen (in Weg A dieselben Namen als
+`config.json`-Schlüssel; Standard in Klammern):
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `debug` | aus | ausführliche Logs in CloudWatch |
+| `acknowledgment_enabled` | `false` | sofortige Bestätigung vor der Antwort |
+| `ask_for_further_commands` | `false` | hält die Session nach jeder Antwort offen |
+| `warteton_enabled` | `true` | Warteton bei langer Gateway-Antwort |
+| `warteton_phrase` | leer | eigener Text für den Warteton |
 
 ### 4.2 Alexa-Trigger setzen
 

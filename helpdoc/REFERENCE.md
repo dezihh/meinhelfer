@@ -106,7 +106,7 @@ nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 |---|---:|---|
 | `PORT` | `3000` | HTTP-Port |
 | `DB_PATH` | `./data/meinhelfer.db` | SQLite-Datei |
-| `LLM_MODEL` | `chat-fast` | Startmodell |
+| `LLM_MODEL` | – | Startmodell (Pflicht) |
 | `LLM_MAX_TOKENS` | `2000` | Ausgabe-Budget |
 | `LLM_REASONING_EFFORT` | leer | Reasoning-Stufe, falls das Modell sie unterstützt |
 | `LLM_KEEPALIVE_MS` | `120000` | Modell warm halten; `0` = aus |
@@ -115,7 +115,7 @@ nächsten Indexzugriff nach Ablauf der TTL neu geladen.
 | `LLM_TOOL_DEADLINE_MS` | `9000` | Deadline des Agent-Loops |
 | `GATEWAY_PORT` | `3000` | nur Compose-Host-Mapping (der Code liest `PORT`) |
 
-Pflichtvariablen: `AUTH_TOKEN`, `LLM_BASE_URL`, `LLM_API_KEY`.
+Pflichtvariablen: `AUTH_TOKEN`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 
 ## Budgets und Tool-Auswahl
 

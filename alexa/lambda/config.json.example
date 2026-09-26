@@ -4,6 +4,6 @@
   "watchdog_delay": "5",
   "gateway_timeout": "28",
   "skill_name": "SmartPilot",
-  "assistant_name": "Dein Helfer",
+  "assistant_name": "Dein SmartPilot",
   "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
 }
