@@ -111,9 +111,9 @@ Wie in Schritt 2: **Build** → **JSON Editor**, Modell einsetzen, **Save Model*
 
 ### 3.2 Lambda-Code und Abhängigkeiten
 
-Im **Code**-Tab über **Import Code** das fertige Hosted-Zip laden:
-
-`https://github.com/dezihh/SmartPilot/releases/download/latest/smartpilot-alexa-hosted.zip`
+Im **Code**-Tab über **Import Code** das fertige Hosted-Zip laden. Es liegt im
+GitHub-Repo unter **Releases** (GitHub → Repository `dezihh/SmartPilot` →
+**Releases** → neuestes Release → Asset `smartpilot-alexa-hosted.zip`).
 
 Das Zip enthält `lambda/lambda_function.py`, `lambda/requirements.txt` und
 `lambda/config.json.example` (datensichere Vorlage). Es enthält bewusst **kein
@@ -130,7 +130,7 @@ Im `lambda/`-Ordner eine `config.json` anlegen (Vorlage:
   "gateway_url": "https://<gateway-host>",
   "gateway_token": "<AUTH_TOKEN>",
   "skill_name": "SmartPilot",
-  "assistant_name": "Dein Helfer",
+  "assistant_name": "Dein SmartPilot",
   "alexa_skill_id": "amzn1.ask.skill.<deine-id>"
 }
 ```
@@ -150,13 +150,14 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 
 ### 4.1 Lambda-Funktion anlegen
 
-1. Fertiges Zip laden (jeweils der letzte Build):
-   `https://github.com/dezihh/SmartPilot/releases/download/latest/smartpilot-alexa-lambda.zip`
+1. Fertiges Zip laden (GitHub → Repository `dezihh/SmartPilot` → **Releases** →
+   neuestes Release → Asset `smartpilot-alexa-lambda.zip`).
 2. In AWS eine Lambda-Funktion `smartpilot-alexa` anlegen:
    - Region **Europa (Irland) `eu-west-1`** (die Alexa-Konsole trägt den ARN
      als Default-Region ein)
    - Runtime **Python 3.14**, Handler `lambda_function.lambda_handler`
-   - Timeout **30 s** (muss größer als 8 s sein), Memory **512 MB**
+   - Timeout **30 s** (sollte größer als 8 s sein – 8 s laufen auch, bringen
+     aber keinen Vorteil gegenüber der hosted-Variante), Memory **512 MB**
    - Ausführungsrolle mit der Richtlinie **`AWSLambdaBasicExecutionRole`**
      (CloudWatch-Logs). Weitere Richtlinien sind **nicht** nötig. Die Console
      kann selbst gewählte Rollennamen ablehnen – dann den vorgeschlagenen
@@ -170,11 +171,11 @@ erreichbares Gateway; freie Fragen brauchen `gateway_url` und `gateway_token`.
 |---|---|
 | `gateway_url` | öffentliche Basisadresse des Gateways |
 | `gateway_token` | muss dem `AUTH_TOKEN` des Gateways entsprechen |
-| `alexa_skill_id` | Skill-ID; abweichende IDs werden abgelehnt |
+| `alexa_skill_id` | Skill-ID deines Skills (Schritt 1, Punkt 8: **Build → Endpoint → „Your Skill ID“**); abweichende IDs werden abgelehnt |
 | `watchdog_delay` | z. B. `5` (Warteton, wenn das Gateway länger braucht) |
 | `gateway_timeout` | z. B. `27` (Timeout der Anfrage ans Gateway, Funktion-Timeout minus 3) |
 | `skill_name` | Anzeigename, z. B. `SmartPilot` |
-| `assistant_name` | Name im Gespräch, z. B. `Dein Helfer` |
+| `assistant_name` | Name im Gespräch, z. B. `Dein SmartPilot` |
 | `apl_exit_delay_ms` | z. B. `90000` (Anzeige auf dem Echo Show) |
 
 ### 4.2 Alexa-Trigger setzen
@@ -186,11 +187,17 @@ diesen Skill (Service-Prinzipal `alexa-appkit.amazon.com`).
 
 ### 4.3 Endpoint im Manifest setzen
 
-Im Skill-Manifest den Endpoint auf den Funktions-ARN der Lambda umstellen
-(Developer Console → **Build** → **Endpoint** → **AWS Lambda ARN**, Default
-Region `eu-west-1`). Der ARN hat die Form
-`arn:aws:lambda:eu-west-1:<konto>:function:smartpilot-alexa` und steht in AWS
-oben in der Funktion. Amazon prüft dabei den ARN-Fingerprint.
+In der **Alexa Developer Console** (Plattform) beim Skill:
+
+1. **Build** → **Endpoint**.
+2. Endpoint-Typ **AWS Lambda ARN** wählen.
+3. Im Feld **Default Region** die Funktions-ARN eintragen:
+   `arn:aws:lambda:eu-west-1:<konto>:function:smartpilot-alexa`
+   (die ARN steht in AWS oben in der Funktion `smartpilot-alexa`).
+4. **Save Endpoints**.
+
+Amazon prüft dabei den ARN-Fingerprint; die Region `eu-west-1` muss zur
+Funktion passen.
 
 ## 5. Testen
 
@@ -202,6 +209,10 @@ oben in der Funktion. Amazon prüft dabei den ARN-Fingerprint.
 5. Eine echte Mehrdeutigkeit testen; die Rückfrage muss die Session offen halten.
 
 ## Umbenennen
+
+Wenn du einen anderen Namen für den Skill wünschst, ist das problemlos möglich.
+**Empfehlung:** zuerst mit dem Standardnamen testen und später neue Rufnamen
+nach dieser Anleitung setzen.
 
 Ein anderer Name betrifft **mehrere Stellen**. Sie müssen zusammenpassen, sonst
 stellt sich der Assistent je nach Kontext anders vor. Zwei der Namen liegen im
